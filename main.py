@@ -47,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.2 beta"
+    version = "0.5.3 beta"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -140,6 +140,11 @@ def init():
     if not allies:
         logging.warning("allies is empty.")
 
+    try:
+        os.remove("tmp_img")
+    except IOError:
+        pass
+
     threading.Thread(target=auto_clear).start()
 
     if main_chat_id == "init":
@@ -158,17 +163,17 @@ init()
 
 
 def vote_make(text, message, adduser=False, silent=False):
-    buttons = types.InlineKeyboardMarkup()
-    button_yes = types.InlineKeyboardButton(text="Да - " + "0", callback_data="yes")
-    button_no = types.InlineKeyboardButton(text="Нет - " + "0", callback_data="no")
-    button_my_vote = types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
-    buttons.add(button_yes)
-    buttons.add(button_no)
-    buttons.add(button_my_vote)
+    buttons = [
+        types.InlineKeyboardButton(text="Да - " + "0", callback_data="yes"),
+        types.InlineKeyboardButton(text="Нет - " + "0", callback_data="no"),
+        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
+    ]
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(*buttons)
     if adduser:
-        vote_message = utils.bot.send_message(main_chat_id, text, reply_markup=buttons, parse_mode='markdown')
+        vote_message = utils.bot.send_message(main_chat_id, text, reply_markup=keyboard, parse_mode='markdown')
     else:
-        vote_message = utils.bot.reply_to(message, text, reply_markup=buttons, parse_mode='html')
+        vote_message = utils.bot.reply_to(message, text, reply_markup=keyboard, parse_mode='html')
     if not silent:
         utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
     return vote_message
@@ -211,10 +216,17 @@ def vote_result(unique_id, message_vote):
         "timer_ban": postvote.vote_result_timer,
         "delmsg": postvote.vote_result_delmsg,
         "op": postvote.vote_result_op,
-        "deop": postvote.vote_result_deop
+        "deop": postvote.vote_result_deop,
+        "title": postvote.vote_result_title,
+        "chatpic": postvote.vote_result_chat_pic
     }
 
-    functions[records[0][2]](records, message_vote, votes_counter, accept)
+    try:
+        functions[records[0][2]](records, message_vote, votes_counter, accept)
+    except KeyError:
+        logging.error(traceback.format_exc())
+        utils.bot.edit_message_text("Ошибка применения результатов голосования. Итоговая функция не найдена!",
+                                    message_vote.chat.id, message_vote.id)
 
     try:
         utils.bot.unpin_chat_message(main_chat_id, message_vote.message_id)
@@ -230,14 +242,14 @@ def vote_result(unique_id, message_vote):
 
 
 def vote_update(counter_yes, counter_no, call):
-    button_yes = types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes")
-    button_no = types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no")
-    button_my_vote = types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
-    buttons = types.InlineKeyboardMarkup()
-    buttons.add(button_yes)
-    buttons.add(button_no)
-    buttons.add(button_my_vote)
-    utils.bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id, reply_markup=buttons)
+    buttons = [
+        types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes"),
+        types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no"),
+        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
+    ]
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(*buttons)
+    utils.bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id, reply_markup=keyboard)
 
 
 def botname_checker(message, getchat=False):  # Crutch to prevent the bot from responding to other bots commands
@@ -695,7 +707,7 @@ def op(message):
 
 
 @utils.bot.message_handler(commands=['deop'])
-def op(message):
+def deop(message):
     if not botname_checker(message):
         return
 
@@ -760,6 +772,79 @@ def op(message):
 
     pool_constructor(unique_id, vote_text, message, "deop", utils.global_timer, utils.votes_need,
                      [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message)])
+
+
+@utils.bot.message_handler(commands=['title'])
+def deop(message):
+    if not botname_checker(message):
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+        return
+
+    if utils.extract_arg(message.text, 1) is None:
+        utils.bot.reply_to(message, "Название чата не может быть пустым.")
+        return
+
+    unique_id = "title"
+    records = sql_worker.msg_chk(unique_id=unique_id)
+    if utils.is_voting_exists(records, message, unique_id):
+        return
+
+    vote_text = ("От пользователя " + utils.username_parser(message)
+                 + " поступило предложение сменить название чата на \""
+                 + message.text.split(maxsplit=1)[1] + "\".")
+
+    pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
+                     [message.text.split(maxsplit=1)[1], utils.username_parser(message)])
+
+
+@utils.bot.message_handler(commands=['chatpic'])
+def chat_pic(message):
+    if not botname_checker(message):
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+        return
+
+    if message.reply_to_message is None:
+        utils.bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на фотографию, файл jpg или png.")
+        return
+
+    if message.reply_to_message.photo is not None:
+        file_buffer = (utils.bot.download_file
+                       (utils.bot.get_file(message.reply_to_message.photo[-1].file_id).file_path))
+    elif message.reply_to_message.document is not None:
+        if not message.reply_to_message.document.mime_type == "image/png" and \
+                not message.reply_to_message.document.mime_type == "image/jpeg":
+            utils.bot.reply_to(message, "Документ не является фотографией")
+            return
+        file_buffer = (utils.bot.download_file(utils.bot.get_file(message.reply_to_message.document.file_id).file_path))
+    else:
+        utils.bot.reply_to(message, "В сообщении не обнаружена фотография")
+        return
+
+    try:
+        tmp_img = open('tmp_img', 'wb')
+        tmp_img.write(file_buffer)
+    except Exception as e:
+        logging.error((str(e)))
+        logging.error(traceback.format_exc())
+        utils.bot.reply_to(message, "Ошибка записи изображения в файл!")
+        return
+
+    unique_id = "chatpic"
+    records = sql_worker.msg_chk(unique_id=unique_id)
+    if utils.is_voting_exists(records, message, unique_id):
+        return
+
+    vote_text = ("От пользователя " + utils.username_parser(message)
+                 + " поступило предложение сменить аватарку чата.")
+
+    pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer,
+                     utils.votes_need, [utils.username_parser(message)])
 
 
 @utils.bot.message_handler(commands=['random', 'redrum'])
@@ -855,7 +940,9 @@ def help_msg(message):
                                 "/reinvite (только в режиме отладки) – сбросить абуз-лимит инвайта\n"
                                 "/allies - посмотреть союзные чаты\n"
                                 "/answer - ответить пользователю, отправившему заявку на инвайт\n"
-                                "/random - скинуть рандомное сообщение из истории чата",
+                                "/random - скинуть рандомное сообщение из истории чата\n"
+                                "/title - смена названия чата\n"
+                                "/chatpic - смена аватарки чата",
                        parse_mode="html")
 
 

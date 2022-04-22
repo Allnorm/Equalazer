@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import traceback
 
@@ -244,4 +245,49 @@ def vote_result_deop(records, message_vote, votes_counter, accept):
                                     message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос снятия " + datalist[1] + " из администраторов отклонён.\n"
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_title(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        try:
+            utils.bot.set_chat_title(message_vote.chat.id, datalist[0])
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            utils.bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?",
+                                        message_vote.chat.id, message_vote.message_id)
+            return
+        utils.bot.edit_message_text("Название чата успешно сменено на \"" + datalist[0]
+                                    + "\" пользователем " + datalist[1] + ".\n" + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id)
+    else:
+        utils.bot.edit_message_text("Вопрос смены названия чата отклонён.\n"
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_chat_pic(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        try:
+            utils.bot.set_chat_photo(message_vote.chat.id, open('tmp_img', 'rb'))
+            os.remove("tmp_img")
+        except Exception as e:
+            logging.error((str(e)))
+            logging.error(traceback.format_exc())
+            try:
+                os.remove("tmp_img")
+            except IOError:
+                pass
+            utils.bot.edit_message_text("Ошибка установки новой фотографии чата.",
+                                        message_vote.chat.id, message_vote.message_id)
+            return
+        utils.bot.edit_message_text("Фотография чата успешно изменена пользователем " + datalist[0]
+                                    + ".\n" + votes_counter, message_vote.chat.id, message_vote.message_id)
+    else:
+        try:
+            os.remove("tmp_img")
+        except IOError:
+            pass
+        utils.bot.edit_message_text("Вопрос смены названия чата отклонён.\n"
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)

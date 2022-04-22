@@ -41,6 +41,8 @@ def deletion_of_overdue():
         if record[5] + 600 < int(time.time()):
             rem_rec(record[1], record[0])
             logging.info('Removed deprecated poll "' + record[0] + '"')
+    cursor.close()
+    sqlite_connection.close()
 
 
 def abuse_update(user_id):
