@@ -209,9 +209,8 @@ def vote_result_op(records, message_vote, votes_counter, accept):
                                         + "его администратором.", message_vote.chat.id, message_vote.message_id)
             return
         try:
-            utils.bot.promote_chat_member(message_vote.chat.id, datalist[0], can_manage_chat=True, can_change_info=True,
-                                          can_pin_messages=True,
-                                          can_manage_voice_chats=True, can_invite_users=True)
+            utils.bot.promote_chat_member(message_vote.chat.id, datalist[0], can_manage_chat=True,
+                                          can_pin_messages=True, can_manage_voice_chats=True, can_invite_users=True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.edit_message_text("Ошибка назначения администратора " + datalist[1],
