@@ -47,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.3 beta"
+    version = "0.5.4 beta"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -218,7 +218,8 @@ def vote_result(unique_id, message_vote):
         "op": postvote.vote_result_op,
         "deop": postvote.vote_result_deop,
         "title": postvote.vote_result_title,
-        "chatpic": postvote.vote_result_chat_pic
+        "chatpic": postvote.vote_result_chat_pic,
+        "desc": postvote.vote_result_description
     }
 
     try:
@@ -787,6 +788,14 @@ def deop(message):
         utils.bot.reply_to(message, "Название чата не может быть пустым.")
         return
 
+    if len(message.text.split(maxsplit=1)[1]) > 255:
+        utils.bot.reply_to(message, "Название не должно быть длиннее 255 символов!")
+        return
+
+    if utils.bot.get_chat(main_chat_id).title == message.text.split(maxsplit=1)[1]:
+        utils.bot.reply_to(message, "Название чата не может совпадать с существующим названием!")
+        return
+
     unique_id = "title"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
@@ -798,6 +807,52 @@ def deop(message):
 
     pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
                      [message.text.split(maxsplit=1)[1], utils.username_parser(message)])
+
+
+@utils.bot.message_handler(commands=['description'])
+def description(message):
+    if not botname_checker(message):
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+        return
+
+    if message.reply_to_message is not None:
+        if message.reply_to_message.text is not None:
+            inputtext = message.reply_to_message.text
+            if len(inputtext) > 255:
+                utils.bot.reply_to(message, "Описание не должно быть длиннее 255 символов!")
+                return
+
+        else:
+            utils.bot.reply_to(message, "В отвеченном сообщении не обнаружен текст!")
+            return
+    else:
+        inputtext = None
+
+    if utils.bot.get_chat(main_chat_id).description == inputtext:
+        utils.bot.reply_to(message, "Описание чата не может совпадать с существующим описанием!")
+        return
+
+    if inputtext is None:
+        vote_text = ("От пользователя " + utils.username_parser(message)
+                     + " поступило предложение сменить описание чата на пустое.")
+    else:
+        vote_text = ("От пользователя " + utils.username_parser(message)
+                     + " поступило предложение сменить описание чата на \""
+                     + inputtext + "\".")
+
+    unique_id = "desc"
+    records = sql_worker.msg_chk(unique_id=unique_id)
+    if utils.is_voting_exists(records, message, unique_id):
+        return
+
+    if inputtext is None:
+        inputtext = ""
+
+    pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
+                     [inputtext, utils.username_parser(message)])
 
 
 @utils.bot.message_handler(commands=['chatpic'])
@@ -1025,6 +1080,12 @@ def mute_user(message):
 
 @utils.bot.message_handler(content_types=['new_chat_members'])
 def whitelist_checker(message):
+
+    if utils.bot.get_chat_member(main_chat_id,
+                                 message.json.get("new_chat_participant").get("id")).status == "creator":
+        utils.bot.reply_to(message, "Приветствую вас, Владыка.")
+        return
+
     if not (sql_worker.whitelist(message.json.get("new_chat_participant").get("id"))
             or message.json.get("new_chat_participant").get("is_bot")):
         # Fuck you Durov

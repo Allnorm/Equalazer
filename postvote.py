@@ -265,6 +265,29 @@ def vote_result_title(records, message_vote, votes_counter, accept):
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
+def vote_result_description(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        description = datalist[0] if datalist[0] != "" else None
+        try:
+            utils.bot.set_chat_description(message_vote.chat.id, datalist[0])
+        except telebot.apihelper.ApiTelegramException:
+            utils.bot.edit_message_text("Ошибка установки описания чата. Недостаточно прав?",
+                                        message_vote.chat.id, message_vote.message_id)
+            return
+        if description is None:
+            utils.bot.edit_message_text("Описание чата успешно сменено на пустое пользователем "
+                                        + datalist[1] + ".\n" + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
+        else:
+            utils.bot.edit_message_text("Описание чата успешно сменено на \"" + datalist[0]
+                                        + "\" пользователем " + datalist[1] + ".\n" + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
+    else:
+        utils.bot.edit_message_text("Вопрос смены описания чата отклонён.\n"
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
 def vote_result_chat_pic(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
