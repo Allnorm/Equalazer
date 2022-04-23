@@ -311,5 +311,5 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
             os.remove("tmp_img")
         except IOError:
             pass
-        utils.bot.edit_message_text("Вопрос смены названия чата отклонён.\n"
+        utils.bot.edit_message_text("Вопрос смены фотографии чата отклонён.\n"
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
