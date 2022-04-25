@@ -134,7 +134,7 @@ def is_voting_exists(records, message, unique_id):
 
 
 def time_parser(str_time: str):
-    get_seconds = {"d": 86400, "h": 3600, "m": 60}
+    get_seconds = {"d": 86400, "h": 3600, "m": 60, "s": 1}
     try:
         if str_time[-1].lower() in get_seconds:
             return int(float(str_time[:-1]) * get_seconds.get(str_time[-1]))

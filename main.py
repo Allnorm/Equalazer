@@ -406,9 +406,15 @@ def ban_usr(message):
             if restrict_timer is None:
                 utils.bot.reply_to(message, "Некорректный аргумент времени.")
                 return
-            if not 30 < restrict_timer < 31536000:
-                utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше/равно 365 суток.")
+            if not 30 <= restrict_timer <= 31536000:
+                utils.bot.reply_to(message, "Время не должно быть меньше 30 секунд и больше 365 суток.")
                 return
+
+    if restrict_timer == 30:
+        restrict_timer = 31
+
+    if restrict_timer == 31536000:
+        restrict_timer = 31535990
 
     if utils.extract_arg(message.text, 0) == "/kickuser" and restrict_timer == 0:
         restrict_timer = 3600
@@ -1036,9 +1042,12 @@ def mute_user(message):
             utils.bot.reply_to(message, "Неправильный аргумент, укажите время мута от 30 секунд до 12 часов.")
             return
 
-    if not 30 < timer_mute < 43200:
-        utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше 12 часов.")
+    if not 30 <= timer_mute <= 43200:
+        utils.bot.reply_to(message, "Время не должно быть меньше 30 секунд и больше 12 часов.")
         return
+
+    if timer_mute == 30:
+        timer_mute = 31
 
     try:
         abuse_vote_timer = int(vote_abuse.get("abuse" + str(message.from_user.id)))
