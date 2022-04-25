@@ -47,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.4 beta"
+    version = "0.5.5 beta"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -185,11 +185,6 @@ def vote_timer(unique_id, message_vote, time_to_sleep):
     vote_result(unique_id, message_vote)
 
 
-def formatted_timer(timer_in_second):
-    return time.strftime("через %Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
-    # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
-
-
 def vote_result(unique_id, message_vote):
     utils.auto_thresholds_init(main_chat_id)
     records = sql_worker.msg_chk(unique_id=unique_id)
@@ -271,7 +266,7 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str,
                      current_timer: int, current_votes: int, vote_args: list, adduser=False, silent=False):
-    vote_text = vote_text + "\nГолосование будет закрыто " + formatted_timer(current_timer) \
+    vote_text = vote_text + "\nГолосование будет закрыто через " + utils.formatted_timer(current_timer) \
                 + ", для досрочного завершения требуется голосов за один из пунктов: " + str(current_votes) + "\n" \
                 + "Минимальный порог голосов для принятия решения: " + str(minimum_vote + 1)
 
@@ -322,9 +317,8 @@ def add_usr(message):
         warn = "\nВнимание! Вы были заблокированы в чате ранее, поэтому вероятность инвайта минимальная!"
     if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "restricted":
         warn = "\nВнимание! Сейчас на вас распространяются ограничения прав в чате, выданные командой /mute!"
-    utils.bot.reply_to(message, "Голосование о вступлении отправлено в чат. Голосование завершится "
-                       + formatted_timer(utils.global_timer)
-                       + " или ранее." + warn)
+    utils.bot.reply_to(message, "Голосование о вступлении отправлено в чат. Голосование завершится через "
+                       + utils.formatted_timer(utils.global_timer) + " или ранее." + warn)
 
 
 @utils.bot.message_handler(commands=['answer'])
@@ -393,6 +387,10 @@ def ban_usr(message):
                 return
         mute = True
 
+    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "creator":
+        utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
+        return
+
     if utils.bot.get_me().id == message.reply_to_message.from_user.id:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
@@ -401,10 +399,28 @@ def ban_usr(message):
         utils.bot.reply_to(message, "Запрещено перманентно банить ботов.")
         return
 
+    restrict_timer = 0
+    if utils.extract_arg(message.text, 0) == "/kickuser" or utils.extract_arg(message.text, 0) == "/mute":
+        if utils.extract_arg(message.text, 1) is not None:
+            restrict_timer = utils.time_parser(utils.extract_arg(message.text, 1))
+            if restrict_timer is None:
+                utils.bot.reply_to(message, "Некорректный аргумент времени.")
+                return
+            if not 30 < restrict_timer < 31536000:
+                utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше/равно 365 суток.")
+                return
+
+    if utils.extract_arg(message.text, 0) == "/kickuser" and restrict_timer == 0:
+        restrict_timer = 3600
+
     unique_id = str(message.reply_to_message.from_user.id) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
+
+    ban_timer_text = "."
+    if restrict_timer != 0:
+        ban_timer_text = " на срок {}".format(utils.formatted_timer(restrict_timer))
 
     if message.from_user.id == message.reply_to_message.from_user.id:
         ban_text = "самовыпилиться"
@@ -412,7 +428,8 @@ def ban_usr(message):
             ban_text = "самовыпилиться из чата <b>навсегда</b>"
         if mute:
             ban_text = "сыграть в молчанку с самим собой"
-        vote_text = ("От пользователя " + utils.username_parser(message) + " поступило предложение " + ban_text + ".")
+        vote_text = ("От пользователя " + utils.username_parser(message) + " поступило предложение "
+                     + ban_text + ban_timer_text)
     else:
         ban_text = "кикнуть"
         if perm_ban:
@@ -421,7 +438,7 @@ def ban_usr(message):
             ban_text = "отправить в мут"
 
         vote_text = ("От пользователя " + utils.username_parser(message) + " поступило предложение " + ban_text
-                     + " пользователя " + utils.username_parser(message.reply_to_message) + ".")
+                     + " пользователя " + utils.username_parser(message.reply_to_message) + ban_timer_text)
     vote_type = 1
     if mute:
         vote_type = 0
@@ -430,7 +447,7 @@ def ban_usr(message):
 
     pool_constructor(unique_id, vote_text, message, "banuser", utils.global_timer_ban, utils.votes_need_ban,
                      [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
-                      message.from_user.id, utils.username_parser(message), vote_type])
+                      message.from_user.id, utils.username_parser(message), vote_type, restrict_timer])
 
 
 @utils.bot.message_handler(commands=['unmute', 'unban'])
@@ -551,18 +568,17 @@ def timer(message):
         unique_id = "timer_ban"
         bantext = " для бана"
 
-    try:
-        mode = int(mode)
-    except (TypeError, ValueError):
-        utils.bot.reply_to(message, "Неверный аргумент (должно быть целое число a, 5 <= a <= 86400).")
+    mode = utils.time_parser(mode)
+    if mode is None:
+        utils.bot.reply_to(message, "Неверный аргумент (должно быть число a от 5 секунд до 1 суток).")
+        return
+
+    if mode < 5 or mode > 86400:
+        utils.bot.reply_to(message, "Количество времени не может быть меньше 5 секунд и больше 1 суток.")
         return
 
     records = sql_worker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
-        return
-
-    if mode < 5 or mode > 86400:
-        utils.bot.reply_to(message, "Количество секунд не может быть меньше пяти и больше 86400.")
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message)
@@ -996,9 +1012,9 @@ def help_msg(message):
                                 "/allies - посмотреть союзные чаты\n"
                                 "/answer - ответить пользователю, отправившему заявку на инвайт\n"
                                 "/random - скинуть рандомное сообщение из истории чата\n"
-                                "/title - смена названия чата\n"
-                                "/chatpic - смена аватарки чата\n"
-                                "/description - смена описания чата",
+                                "/title [название] - смена названия чата\n"
+                                "/chatpic - смена аватарки чата (ответом по сообщению)\n"
+                                "/description - смена описания чата (ответом по сообщению)",
                        parse_mode="html")
 
 
@@ -1032,15 +1048,15 @@ def mute_user(message):
         utils.bot.reply_to(message, "Данный пользователь не состоит в чате.")
         return
 
-    timer_mute = 1
+    timer_mute = 3600
     if utils.extract_arg(message.text, 1) is not None:
-        try:
-            timer_mute = int(utils.extract_arg(message.text, 1))
-        except ValueError:
-            utils.bot.reply_to(message, "Неправильный аргумент, укажите количество часов мута от 1 до 12.")
+        timer_mute = utils.time_parser(utils.extract_arg(message.text, 1))
+        if timer_mute is None:
+            utils.bot.reply_to(message, "Неправильный аргумент, укажите время мута от 30 секунд до 12 часов.")
             return
-    if timer_mute < 1 or timer_mute > 12:
-        utils.bot.reply_to(message, "Неправильный аргумент, укажите количество часов мута от 1 до 12.")
+
+    if not 30 < timer_mute < 43200:
+        utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше 12 часов.")
         return
 
     try:
@@ -1055,7 +1071,7 @@ def mute_user(message):
 
     try:
         utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
-                                       until_date=int(time.time()) + 3600 * timer_mute, can_send_messages=False,
+                                       until_date=int(time.time()) + timer_mute, can_send_messages=False,
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
@@ -1063,20 +1079,20 @@ def mute_user(message):
         return
     try:
         utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
-                                       until_date=int(time.time()) + 3600 * timer_mute, can_send_messages=False,
+                                       until_date=int(time.time()) + timer_mute, can_send_messages=False,
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
-        utils.bot.reply_to(message, "Я смог снять права данного пользователя на " + str(timer_mute) + " часов,"
-                           + "но не смог снять права автора заявки.")
+        utils.bot.reply_to(message, "Я смог снять права данного пользователя на время "
+                           + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
     if message.from_user.id == message.reply_to_message.from_user.id:
-        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message) + " решил отдохнуть от чата на "
-                           + str(timer_mute) + " часов.")
+        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
+                           + " решил отдохнуть от чата на время " + utils.formatted_timer(timer_mute))
         return
     utils.bot.reply_to(message, "Обоюдоострый Меч сработал. Теперь " + utils.username_parser(message) + " и "
-                       + utils.username_parser(message.reply_to_message) + " будут дружно молчать "
-                       + str(timer_mute) + " часов.")
+                       + utils.username_parser(message.reply_to_message) + " будут дружно молчать в течении "
+                       + utils.formatted_timer(timer_mute))
 
 
 @utils.bot.message_handler(content_types=['new_chat_members'])

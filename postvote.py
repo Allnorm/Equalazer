@@ -59,6 +59,11 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
 def vote_result_userkick(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
+        until_date = int(time.time()) + datalist[5] if datalist[5] != 0 else None
+        if datalist[5] != 0:
+            until_text = " на время " + utils.formatted_timer(datalist[5])
+        else:
+            until_text = "."
         try:
             if utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
                 utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0], None, can_send_messages=True)
@@ -70,17 +75,18 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                                             + " и не сможет войти в чат до разблокировки.\n" + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
             elif datalist[4] == 1:
-                utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], int(time.time()) + 3600)
+                utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
                 utils.bot.edit_message_text("Пользователь " + datalist[1] + " кикнут из чата "
                                             + "по милости пользователя " + datalist[3]
-                                            + " и не сможет войти в чат ближайший час.\n" + votes_counter,
+                                            + until_text + "\n" + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
             elif datalist[4] == 0:
                 utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0],
                                                can_send_messages=False, can_change_info=False,
-                                               can_invite_users=False, can_pin_messages=False)
-                utils.bot.edit_message_text("Пользователь " + datalist[1] + " лишён права переписки в чате "
-                                            + "по милости пользователя " + datalist[3] + ".\n" + votes_counter,
+                                               can_invite_users=False, can_pin_messages=False, until_date=until_date)
+                utils.bot.edit_message_text("Пользователь " + datalist[1]
+                                            + " лишён права переписки в чате по милости пользователя " + datalist[3]
+                                            + until_text + "\n" + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
@@ -182,13 +188,17 @@ def vote_result_delmsg(records, message_vote, votes_counter, accept):
             if datalist[2]:
                 utils.bot.delete_message(message_vote.chat.id, message_vote.message_id)
                 return
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
             logging.error(traceback.format_exc())
             if datalist[2]:
                 utils.bot.delete_message(message_vote.chat.id, message_vote.message_id)
                 return
-            utils.bot.edit_message_text("Ошибка удаления сообщения по голосованию.",
-                                        message_vote.chat.id, message_vote.message_id)
+            if "message to delete not found" in str(e):
+                utils.bot.edit_message_text("Сообщение, которое требуется удалить, не найдено.",
+                                            message_vote.chat.id, message_vote.message_id)
+            else:
+                utils.bot.edit_message_text("Ошибка удаления сообщения по голосованию.",
+                                            message_vote.chat.id, message_vote.message_id)
             return
         utils.bot.edit_message_text("Сообщение пользователя " + datalist[1] + " удалено успешно.\n"
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)

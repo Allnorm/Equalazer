@@ -28,6 +28,8 @@ def auto_thresholds_init(main_chat_id):
 
     if auto_thresholds:
         votes_need = int(bot.get_chat_members_count(main_chat_id) / 2)
+        if votes_need > 7:
+            votes_need = 7
         if votes_need <= 1:
             votes_need = 2
 
@@ -35,7 +37,7 @@ def auto_thresholds_init(main_chat_id):
         if bot.get_chat_members_count(main_chat_id) > 15:
             votes_need_ban = 5
         elif bot.get_chat_members_count(main_chat_id) > 5:
-            votes_need_ban = 4
+            votes_need_ban = 3
         elif bot.get_chat_members_count(main_chat_id) > 1:
             votes_need_ban = bot.get_chat_members_count(main_chat_id)
         else:
@@ -129,3 +131,26 @@ def is_voting_exists(records, message, unique_id):
     else:
         bot.reply_to(message, "Голосование о данном вопросе уже идёт.")
         return True
+
+
+def time_parser(str_time: str):
+    get_seconds = {"d": 86400, "h": 3600, "m": 60}
+    try:
+        if str_time[-1].lower() in get_seconds:
+            return int(float(str_time[:-1]) * get_seconds.get(str_time[-1]))
+        else:
+            return int(str_time)
+    except ValueError:
+        return None
+
+
+def formatted_timer(timer_in_second):
+    if timer_in_second < 60:
+        return time.strftime("%Sс.", time.gmtime(timer_in_second))
+    elif timer_in_second < 3600:
+        return time.strftime("%Mм. и %Sс.", time.gmtime(timer_in_second))
+    elif timer_in_second < 86400:
+        return time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
+    else:
+        return time.strftime("%m мес., %d дн., %Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
+    # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
