@@ -47,8 +47,8 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.5 beta"
-    build = "3"
+    version = "0.5.6 beta"
+    build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -1068,12 +1068,12 @@ def mute_user(message):
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
-        utils.bot.reply_to(message, "Я смог снять права данного пользователя на время "
+        utils.bot.reply_to(message, "Я смог снять права данного пользователя на "
                            + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
     if message.from_user.id == message.reply_to_message.from_user.id:
         utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
-                           + " решил отдохнуть от чата на время " + utils.formatted_timer(timer_mute))
+                           + " решил отдохнуть от чата на " + utils.formatted_timer(timer_mute))
         return
     utils.bot.reply_to(message, "Обоюдоострый Меч сработал. Теперь " + utils.username_parser(message) + " и "
                        + utils.username_parser(message.reply_to_message) + " будут дружно молчать в течении "

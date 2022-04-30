@@ -52,7 +52,6 @@ def extract_arg(text, num):
 
 
 def username_parser(message):
-
     if message.from_user.first_name == "":
         return "DELETED USER"
 
@@ -133,7 +132,30 @@ def is_voting_exists(records, message, unique_id):
         return True
 
 
-def time_parser(str_time: str):
+def time_parser(instring: str):
+    preparsedata = 0
+    buf = ""
+    for letter in instring:
+        if letter.isnumeric():
+            buf += letter
+        else:
+            if letter == "s":  # seconds
+                preparsedata += int(buf)
+            elif letter == "m":  # minutes
+                preparsedata += int(buf) * 60
+            elif letter == "h":  # hours
+                preparsedata += int(buf) * 60 * 60
+            elif letter == "d":  # days
+                preparsedata += int(buf) * 60 * 60 * 24
+            elif letter == "w":  # weeks
+                preparsedata += int(buf) * 60 * 60 * 24 * 7
+            elif letter == "M":  # months
+                preparsedata += int(buf) * 60 * 60 * 24 * 30
+            buf = ""
+    return preparsedata
+
+
+def time_parser_legacy(str_time: str):
     get_seconds = {"d": 86400, "h": 3600, "m": 60, "s": 1}
     try:
         if str_time[-1].lower() in get_seconds:
