@@ -48,7 +48,7 @@ def config_init():
 
     sql_worker.table_init()
     version = "0.5.6 beta"
-    build = "1"
+    build = "2"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
