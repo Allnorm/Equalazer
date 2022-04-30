@@ -48,7 +48,7 @@ def config_init():
 
     sql_worker.table_init()
     version = "0.5.6 beta"
-    build = "2"
+    build = "3"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -411,7 +411,7 @@ def ban_usr(message):
                 utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше 365 суток.")
                 return
 
-    if restrict_timer == 31536000:
+    if 31535991 <= restrict_timer <= 31536000:
         restrict_timer = 31535990
 
     if utils.extract_arg(message.text, 0) == "/kickuser" and restrict_timer == 0:

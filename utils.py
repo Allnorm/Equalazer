@@ -139,6 +139,7 @@ def time_parser(instring: str):
         if letter.isnumeric():
             buf += letter
         else:
+            letter = letter.lower()
             if letter == "s":  # seconds
                 preparsedata += int(buf)
             elif letter == "m":  # minutes
@@ -149,8 +150,6 @@ def time_parser(instring: str):
                 preparsedata += int(buf) * 60 * 60 * 24
             elif letter == "w":  # weeks
                 preparsedata += int(buf) * 60 * 60 * 24 * 7
-            elif letter == "M":  # months
-                preparsedata += int(buf) * 60 * 60 * 24 * 30
             else:
                 return None
             buf = ""
@@ -180,5 +179,7 @@ def formatted_timer(timer_in_second):
     elif timer_in_second < 86400:
         return time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
     else:
-        return time.strftime("%m мес., %d дн., %Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
+        days = timer_in_second // 86400
+        timer_in_second = timer_in_second - days * 86400
+        return str(days) + " дн., " + time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
     # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
