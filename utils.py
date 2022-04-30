@@ -151,6 +151,8 @@ def time_parser(instring: str):
                 preparsedata += int(buf) * 60 * 60 * 24 * 7
             elif letter == "M":  # months
                 preparsedata += int(buf) * 60 * 60 * 24 * 30
+            else:
+                return None
             buf = ""
 
     if buf != "":
