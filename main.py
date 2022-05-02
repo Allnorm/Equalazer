@@ -25,15 +25,14 @@ abuse_random = 0
 wait_timer = 30
 
 
-def var_init(var):
-    try:
-        var = int(var)
-        return var
-    except ValueError:
-        return 0
-
-
 def config_init():
+    def var_init(var):
+        try:
+            var = int(var)
+            return var
+        except ValueError:
+            return 0
+
     global main_chat_id, minimum_vote, debug, vote_mode, abuse_random, wait_timer
 
     reload(logging)
@@ -47,8 +46,8 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.6 beta"
-    build = "3"
+    version = "0.5.7 beta"
+    build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -119,13 +118,12 @@ def config_init():
     return token
 
 
-def auto_clear():
-    while True:
-        sql_worker.deletion_of_overdue()
-        time.sleep(3600)
-
-
 def init():
+    def auto_clear():
+        while True:
+            sql_worker.deletion_of_overdue()
+            time.sleep(3600)
+
     utils.auto_thresholds_init(main_chat_id)
 
     global allies
@@ -177,12 +175,6 @@ def vote_make(text, message, adduser=False, silent=False):
     if not silent:
         utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
     return vote_message
-
-
-def vote_timer(unique_id, message_vote, time_to_sleep):
-    time.sleep(time_to_sleep)
-    vote_abuse.clear()
-    vote_result(unique_id, message_vote)
 
 
 def vote_result(unique_id, message_vote):
@@ -266,14 +258,19 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str,
                      current_timer: int, current_votes: int, vote_args: list, adduser=False, silent=False):
+    def vote_timer():
+        time.sleep(current_timer)
+        vote_abuse.clear()
+        vote_result(unique_id, message_vote)
+
     vote_text = vote_text + "\nГолосование будет закрыто через " + utils.formatted_timer(current_timer) \
-                + ", для досрочного завершения требуется голосов за один из пунктов: " + str(current_votes) + "\n" \
-                + "Минимальный порог голосов для принятия решения: " + str(minimum_vote + 1)
+        + ", для досрочного завершения требуется голосов за один из пунктов: " + str(current_votes) + "\n" \
+        + "Минимальный порог голосов для принятия решения: " + str(minimum_vote + 1)
 
     message_vote = vote_make(vote_text, message, adduser=adduser, silent=silent)
     sql_worker.addpool(unique_id, message_vote, vote_type,
                        int(time.time()) + current_timer, str(vote_args), current_votes)
-    threading.Thread(target=vote_timer, args=(unique_id, message_vote, current_timer,)).start()
+    threading.Thread(target=vote_timer).start()
 
 
 @utils.bot.message_handler(commands=['adduser'])
@@ -637,23 +634,22 @@ def del_msg(message):
                      silent=silent_del)
 
 
-def chname(message, rank):
-    if len(rank) > 16:
-        utils.bot.reply_to(message, "Звание не может быть длиннее 16 символов.")
-        return
-    try:
-        utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank)
-        utils.bot.reply_to(message, "Звание успешно изменено.")
-    except telebot.apihelper.ApiTelegramException as e:
-        if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
-            utils.bot.reply_to(message, "В звании не поддерживаются эмодзи.")
-            return
-        logging.error(traceback.format_exc())
-        utils.bot.reply_to(message, "Не удалось сменить звание.")
-
-
 @utils.bot.message_handler(commands=['op'])
 def op(message):
+    def chname(msg, rank):
+        if len(rank) > 16:
+            utils.bot.reply_to(msg, "Звание не может быть длиннее 16 символов.")
+            return
+        try:
+            utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank)
+            utils.bot.reply_to(msg, "Звание успешно изменено.")
+        except telebot.apihelper.ApiTelegramException as e:
+            if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
+                utils.bot.reply_to(msg, "В звании не поддерживаются эмодзи.")
+                return
+            logging.error(traceback.format_exc())
+            utils.bot.reply_to(msg, "Не удалось сменить звание.")
+
     if not botname_checker(message):
         return
 
@@ -1082,7 +1078,6 @@ def mute_user(message):
 
 @utils.bot.message_handler(content_types=['new_chat_members'])
 def whitelist_checker(message):
-
     if utils.bot.get_chat_member(main_chat_id,
                                  message.json.get("new_chat_participant").get("id")).status == "creator":
         utils.bot.reply_to(message, "Приветствую вас, Владыка.")

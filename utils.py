@@ -132,43 +132,27 @@ def is_voting_exists(records, message, unique_id):
         return True
 
 
-def time_parser(instring: str):
-    preparsedata = 0
-    buf = ""
-    for letter in instring:
-        if letter.isnumeric():
-            buf += letter
+def time_parser(instr: str):
+    tf = {
+        "s": lambda x: x,
+        "m": lambda x: tf['s'](x) * 60,
+        "h": lambda x: tf['m'](x) * 60,
+        "d": lambda x: tf['h'](x) * 24,
+        "w": lambda x: tf['d'](x) * 7,
+    }
+    buf = 0
+    pdata = 0
+    for label in instr:
+        if label.isnumeric():
+            buf = buf * 10 + int(label)
         else:
-            letter = letter.lower()
-            if letter == "s":  # seconds
-                preparsedata += int(buf)
-            elif letter == "m":  # minutes
-                preparsedata += int(buf) * 60
-            elif letter == "h":  # hours
-                preparsedata += int(buf) * 60 * 60
-            elif letter == "d":  # days
-                preparsedata += int(buf) * 60 * 60 * 24
-            elif letter == "w":  # weeks
-                preparsedata += int(buf) * 60 * 60 * 24 * 7
+            label = label.lower()
+            if label in tf:
+                pdata += tf[label](buf)
             else:
                 return None
-            buf = ""
-
-    if buf != "":
-        preparsedata += int(buf)
-
-    return preparsedata
-
-
-def time_parser_legacy(str_time: str):
-    get_seconds = {"d": 86400, "h": 3600, "m": 60, "s": 1}
-    try:
-        if str_time[-1].lower() in get_seconds:
-            return int(float(str_time[:-1]) * get_seconds.get(str_time[-1]))
-        else:
-            return int(str_time)
-    except ValueError:
-        return None
+            buf = 0
+    return pdata + buf
 
 
 def formatted_timer(timer_in_second):
