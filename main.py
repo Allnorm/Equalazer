@@ -46,7 +46,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.5.7 beta"
+    version = "0.5.8 beta"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -299,7 +299,7 @@ def add_usr(message):
     abuse_chk = sql_worker.abuse_check(message.from_user.id)
     if abuse_chk > 0:
         utils.bot.reply_to(message, "Сработала защита от абуза инвайта! Вам следует подождать ещё "
-                           + time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(abuse_chk - int(time.time()))))
+                           + utils.formatted_timer(abuse_chk - int(time.time())))
         return
 
     vote_text = ("Пользователь " + "[" + utils.username_parser(message)
