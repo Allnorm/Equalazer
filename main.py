@@ -47,7 +47,7 @@ def config_init():
 
     sql_worker.table_init()
     version = "0.5.8 beta"
-    build = "1"
+    build = "2"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -173,7 +173,10 @@ def vote_make(text, message, adduser=False, silent=False):
     else:
         vote_message = utils.bot.reply_to(message, text, reply_markup=keyboard, parse_mode='html')
     if not silent:
-        utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
+        try:
+            utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
     return vote_message
 
 
@@ -940,6 +943,7 @@ def random_msg(message):
         try:
             msg_id = random.randint(1, message.id)
             utils.bot.forward_message(message.chat.id, message.chat.id, msg_id)
+            utils.bot.get_state(message.chat.id, message.user.id)
             return
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
