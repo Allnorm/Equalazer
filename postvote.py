@@ -20,8 +20,8 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
                 and utils.bot.get_chat_member(message_vote.chat.id, datalist[2]).status != "kicked" \
                 and utils.bot.get_chat_member(message_vote.chat.id, datalist[2]).status != "restricted" \
                 or utils.bot.get_chat_member(message_vote.chat.id, datalist[2]).is_member:
-            utils.bot.edit_message_text("Пользователь "
-                                        + mention + "уже есть в этом чате. Инвайт отправлен не будет.\n "
+            utils.bot.edit_message_text("Пользователь " + mention
+                                        + " уже есть в этом чате. Инвайт отправлен не будет.\n "
                                         + votes_counter, message_vote.chat.id, message_vote.message_id,
                                         parse_mode="markdown")
             utils.bot.send_message(datalist[0], "Вы уже есть в нужном вам чате. Повторный инвайт выдавать запрещено.")

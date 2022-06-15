@@ -47,7 +47,7 @@ def config_init():
 
     sql_worker.table_init()
     version = "0.5.8 beta"
-    build = "2"
+    build = "3"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -716,12 +716,12 @@ def op(message):
     if is_myself:
         vote_text = ("От пользователя " + who_name
                      + " поступило предложение дать права администратора себе, великому.\n"
-                     + "Звание можно будет установить после закрытия голосования.")
+                     + "Звание можно будет установить ПОСЛЕ закрытия голосования.")
     else:
         vote_text = ("От пользователя " + utils.username_parser(message)
                      + " поступило предложение дать права администратора пользователю "
                      + who_name + ".\n"
-                     + "Звание можно будет установить после закрытия голосования.")
+                     + "Звание можно будет установить ПОСЛЕ закрытия голосования.")
 
     pool_constructor(unique_id, vote_text, message, "op", utils.global_timer, utils.votes_need, [who_id, who_name])
 
