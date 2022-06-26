@@ -1034,6 +1034,11 @@ def mute_user(message):
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
+    if message.from_user.id != message.reply_to_message.from_user.id and abuse_mode == 2 \
+            and utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "administrator":
+        utils.bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
+        return
+
     if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "restricted":
         utils.bot.reply_to(message, "Он и так в муте, не увеличивайте его страдания.")
         return
@@ -1063,11 +1068,6 @@ def mute_user(message):
         return
 
     vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
-
-    if message.from_user.id != message.reply_to_message.from_user.id and abuse_mode == 2 \
-            and utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "administrator":
-        utils.bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
-        return
 
     try:
         utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
