@@ -23,6 +23,7 @@ vote_abuse = {}
 allies = []
 abuse_random = 0
 wait_timer = 30
+abuse_mode = 2
 
 
 def config_init():
@@ -33,7 +34,7 @@ def config_init():
         except ValueError:
             return 0
 
-    global main_chat_id, minimum_vote, debug, vote_mode, abuse_random, wait_timer
+    global main_chat_id, minimum_vote, debug, vote_mode, abuse_random, wait_timer, abuse_mode
 
     reload(logging)
     logging.basicConfig(
@@ -46,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.6"
+    version = "0.6.1"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -68,9 +69,10 @@ def config_init():
         utils.global_timer_ban = config["Ancap"]["bantimer"]
         utils.votes_need = config["Ancap"]["votes"]
         utils.votes_need_ban = config["Ancap"]["banvotes"]
-        vote_mode = int(config["Ancap"]["mode"])
+        vote_mode = int(config["Ancap"]["votes-mode"])
         abuse_random = int(config["Ancap"]["abuse-random"])
         wait_timer = int(config["Ancap"]["wait-timer"])
+        abuse_mode = int(config["Ancap"]["abuse-mode"])
         if config["Ancap"]["chatid"] != "init":
             main_chat_id = int(config["Ancap"]["chatid"])
         else:
@@ -260,7 +262,6 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 
 def command_checker(message, command_name):
-
     if utils.extract_arg(message.text, 0) == "/" + command_name \
             or utils.extract_arg(message.text, 0) == "/" + command_name + "@" + utils.bot.get_me().username:
         return True
@@ -276,7 +277,7 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str,
 
     vote_text = "{}\nГолосование будет закрыто через {}, " \
                 "для досрочного завершения требуется голосов за один из пунктов: {}.\n" \
-                "Минимальный порог голосов для принятия решения: {}."\
+                "Минимальный порог голосов для принятия решения: {}." \
         .format(vote_text, utils.formatted_timer(current_timer), str(current_votes), str(minimum_vote + 1))
 
     message_vote = vote_make(vote_text, message, adduser=adduser, silent=silent)
@@ -1007,16 +1008,26 @@ def mute_user(message):
     if not botname_checker(message):
         return
 
+    if abuse_mode == 0:
+        utils.bot.reply_to(message, "Команда /abuse отключена в файле конфигурации бота.")
+        return
+
     if message.chat.id != main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
     if message.reply_to_message is None:
+
+        if abuse_mode == 2:
+            only_for_admins = "\nВ текущем режиме команду могут применять только администраторы чата."
+        else:
+            only_for_admins = ""
+
         utils.bot.reply_to(message, "Ответьте на сообщение пользователя, которого необходимо отправить в мут.\n"
                            + "ВНИМАНИЕ: использовать только в крайних случаях - во избежание злоупотреблений "
                            + "вы так же будете лишены прав на тот же срок.\n"
                            + "Даже если у вас есть права админа, вы будете их автоматически лишены, "
-                           + "если они были выданы с помощью бота.")
+                           + "если они были выданы с помощью бота." + only_for_admins)
         return
 
     if utils.bot.get_me().id == message.reply_to_message.from_user.id:
@@ -1053,6 +1064,11 @@ def mute_user(message):
 
     vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
 
+    if message.from_user.id != message.reply_to_message.from_user.id and abuse_mode == 2 \
+            and utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "administrator":
+        utils.bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
+        return
+
     try:
         utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
                                        until_date=int(time.time()) + timer_mute, can_send_messages=False,
@@ -1061,6 +1077,12 @@ def mute_user(message):
         logging.error(traceback.format_exc())
         utils.bot.reply_to(message, "Я не смог снять права данного пользователя. Не имею права.")
         return
+
+    if message.from_user.id == message.reply_to_message.from_user.id:
+        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
+                           + " решил отдохнуть от чата на " + utils.formatted_timer(timer_mute))
+        return
+
     try:
         utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
                                        until_date=int(time.time()) + timer_mute, can_send_messages=False,
@@ -1070,10 +1092,7 @@ def mute_user(message):
         utils.bot.reply_to(message, "Я смог снять права данного пользователя на "
                            + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
-    if message.from_user.id == message.reply_to_message.from_user.id:
-        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
-                           + " решил отдохнуть от чата на " + utils.formatted_timer(timer_mute))
-        return
+
     utils.bot.reply_to(message, "Обоюдоострый Меч сработал. Теперь " + utils.username_parser(message) + " и "
                        + utils.username_parser(message.reply_to_message) + " будут дружно молчать в течении "
                        + utils.formatted_timer(timer_mute))

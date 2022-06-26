@@ -84,9 +84,10 @@ def remake_conf():
     config.set("Ancap", "bantimer", "")
     config.set("Ancap", "votes", "")
     config.set("Ancap", "banvotes", "")
-    config.set("Ancap", "mode", "3")
+    config.set("Ancap", "votes-mode", "3")
     config.set("Ancap", "abuse-random", "0")
     config.set("Ancap", "wait-timer", "30")
+    config.set("Ancap", "abuse-mode", "2")
     try:
         config.write(open("config.ini", "w"))
         print("New config file was created successful")
