@@ -47,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.6.1"
+    version = "0.6.2"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -342,8 +342,12 @@ def add_answer(message):
         return
 
     pool = sql_worker.msg_chk(message_vote=message.reply_to_message)
-    if not pool:
-        utils.bot.reply_to(message, "Заявка на вступление не найдена или закрыта")
+    if pool:
+        if pool[0][2] != "adduser":
+            utils.bot.reply_to(message, "Данное голосование не является голосованием о вступлении.")
+            return
+    else:
+        utils.bot.reply_to(message, "Заявка на вступление не найдена или закрыта.")
         return
 
     try:
