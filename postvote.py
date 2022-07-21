@@ -290,9 +290,9 @@ def vote_result_description(records, message_vote, votes_counter, accept):
                                         + datalist[1] + ".\n" + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            utils.bot.edit_message_text("Описание чата успешно сменено на \"" + datalist[0]
-                                        + "\" пользователем " + datalist[1] + ".\n" + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id)
+            utils.bot.edit_message_text("Описание чата успешно сменено на\n<b>" + datalist[0]
+                                        + "</b>\nпользователем " + datalist[1] + ".\n" + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id, parse_mode="html")
     else:
         utils.bot.edit_message_text("Вопрос смены описания чата отклонён.\n"
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)

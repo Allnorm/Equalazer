@@ -47,7 +47,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.6.2"
+    version = "0.6.3"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -863,8 +863,8 @@ def description(message):
                      + " поступило предложение сменить описание чата на пустое.")
     else:
         vote_text = ("От пользователя " + utils.username_parser(message)
-                     + " поступило предложение сменить описание чата на \""
-                     + inputtext + "\".")
+                     + " поступило предложение сменить описание чата на\n<b>"
+                     + inputtext + "</b>")
 
     unique_id = "desc"
     records = sql_worker.msg_chk(unique_id=unique_id)
