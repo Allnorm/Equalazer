@@ -49,7 +49,7 @@ def config_init():
 
     sql_worker.table_init()
     version = "0.7"
-    build = "1"
+    build = "2"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -198,7 +198,7 @@ def vote_result(unique_id, message_vote):
         accept = False
     else:
         accept = False
-        votes_counter = "Недостаточно голосов (требуется как минимум " + str(minimum_vote + 1) + ")"
+        votes_counter = "\nНедостаточно голосов (требуется как минимум " + str(minimum_vote + 1) + ")"
 
     functions = {
         "adduser": postvote.vote_result_useradd,
