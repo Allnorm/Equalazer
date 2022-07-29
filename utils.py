@@ -88,6 +88,7 @@ def remake_conf():
     config.set("Ancap", "abuse-random", "0")
     config.set("Ancap", "wait-timer", "30")
     config.set("Ancap", "abuse-mode", "2")
+    config.set("Ancap", "private-mode", "true")
     try:
         config.write(open("config.ini", "w"))
         print("New config file was created successful")

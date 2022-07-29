@@ -16,11 +16,13 @@ def table_init():
                                     counter_no INTEGER,
                                     timer INTEGER,
                                     data TEXT NOT NULL,
-                                    votes_need INTEGER);''')
+                                    votes_need INTEGER,
+                                    user_id INTEGER);''')
     cursor.execute("""CREATE TABLE if not exists users_choise (
                                     message_id INTEGER,
                                     user_id INTEGER,
-                                    choice TEXT);""")
+                                    choice TEXT,
+                                    username TEXT);""")
     cursor.execute("""CREATE TABLE if not exists abuse (
                                     user_id INTEGER PRIMARY KEY,
                                     start_time INTEGER,
@@ -102,11 +104,11 @@ def whitelist(user_id, add=False, remove=False):
     return is_white
 
 
-def addpool(unique_id, message_vote, pool_type, current_time, work_data, votes_need):
+def addpool(unique_id, message_vote, pool_type, current_time, work_data, votes_need, user_id):
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
-    cursor.execute("""INSERT INTO current_pools VALUES (?,?,?,?,?,?,?,?);""",
-                   (unique_id, message_vote.id, pool_type, 0, 0, current_time, work_data, votes_need,))
+    cursor.execute("""INSERT INTO current_pools VALUES (?,?,?,?,?,?,?,?,?);""",
+                   (unique_id, message_vote.id, pool_type, 0, 0, current_time, work_data, votes_need, user_id))
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
@@ -158,15 +160,15 @@ def pool_update(counter_yes, counter_no, unique_id):
     sqlite_connection.close()
 
 
-def user_vote_update(call_msg):
+def user_vote_update(call_msg, username):
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
     cursor.execute("""SELECT * FROM users_choise WHERE user_id = ? AND message_id = ?""",
                    (call_msg.from_user.id, call_msg.message.id,))
     record = cursor.fetchall()
     if not record:
-        cursor.execute("""INSERT INTO users_choise VALUES (?,?,?)""",
-                       (call_msg.message.id, call_msg.from_user.id, call_msg.data,))
+        cursor.execute("""INSERT INTO users_choise VALUES (?,?,?,?)""",
+                       (call_msg.message.id, call_msg.from_user.id, call_msg.data, username))
     else:
         cursor.execute("""UPDATE users_choise SET choice = ? where message_id = ? AND user_id = ?""",
                        (call_msg.data, call_msg.message.id, call_msg.from_user.id))
