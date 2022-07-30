@@ -48,8 +48,8 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.7"
-    build = "2"
+    version = "0.7.1"
+    build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
     try:
@@ -165,6 +165,7 @@ init()
 
 
 def vote_make(text, message, adduser=False, silent=False):
+    print(text)
     buttons = [
         types.InlineKeyboardButton(text="Да - " + "0", callback_data="yes"),
         types.InlineKeyboardButton(text="Нет - " + "0", callback_data="no"),
@@ -175,7 +176,7 @@ def vote_make(text, message, adduser=False, silent=False):
     if adduser:
         vote_message = utils.bot.send_message(main_chat_id, text, reply_markup=keyboard, parse_mode='markdown')
     else:
-        vote_message = utils.bot.reply_to(message, text, reply_markup=keyboard, parse_mode='html')
+        vote_message = utils.bot.reply_to(message, text, reply_markup=keyboard, parse_mode='markdown')
     if not silent:
         try:
             utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
@@ -392,8 +393,8 @@ def ban_usr(message):
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
-    kickuser = True if command_checker(message, "kickuser") else False
-    banuser = True if command_checker(message, "banuser") else False
+    kickuser = True if command_checker(message, "kick") else False
+    banuser = True if command_checker(message, "ban") else False
     mute = True if command_checker(message, "mute") else False
 
     if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left" and kickuser:
@@ -448,7 +449,7 @@ def ban_usr(message):
     if message.from_user.id == message.reply_to_message.from_user.id:
         ban_text = "самовыпилиться"
         if banuser:
-            ban_text = "самовыпилиться из чата <b>навсегда</b>"
+            ban_text = "самовыпилиться из чата *навсегда*"
         if mute:
             ban_text = "сыграть в молчанку с самим собой"
         vote_text = ("От пользователя " + utils.username_parser(message) + " поступило предложение "
@@ -456,12 +457,13 @@ def ban_usr(message):
     else:
         ban_text = "кикнуть"
         if banuser:
-            ban_text = "<b>забанить перманентно</b>"
+            ban_text = "*забанить перманентно*"
         if mute:
             ban_text = "отправить в мут"
 
         vote_text = ("От пользователя " + utils.username_parser(message) + " поступило предложение " + ban_text
                      + " пользователя " + utils.username_parser(message.reply_to_message) + ban_timer_text)
+        print(vote_text)
     vote_type = 1
     if mute:
         vote_type = 0
@@ -637,7 +639,7 @@ def del_msg(message):
         return
 
     silent_del, votes, timer_del, clear, warn = False, utils.votes_need_ban, utils.global_timer_ban, "", ""
-    clearmsg = True if command_checker(message, "clearmsg") else False
+    clearmsg = True if command_checker(message, "clear") else False
     if clearmsg:
         silent_del, votes, timer_del, clear = True, utils.votes_need, utils.global_timer, "бесследно "
         warn = "\nВнимание, голосования для бесследной очистки не закрепляются автоматически. Пожалуйста, " \
@@ -841,6 +843,8 @@ def deop(message):
                  + " поступило предложение сменить название чата на \""
                  + message.text.split(maxsplit=1)[1] + "\".")
 
+    print(vote_text)
+
     pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
                      [message.text.split(maxsplit=1)[1], utils.username_parser(message)], message.from_user.id)
 
@@ -876,8 +880,8 @@ def description(message):
                      + " поступило предложение сменить описание чата на пустое.")
     else:
         vote_text = ("От пользователя " + utils.username_parser(message)
-                     + " поступило предложение сменить описание чата на\n<b>"
-                     + inputtext + "</b>")
+                     + " поступило предложение сменить описание чата на\n*"
+                     + inputtext + "*")
 
     unique_id = "desc"
     records = sql_worker.msg_chk(unique_id=unique_id)
@@ -1219,7 +1223,7 @@ def cancel(message):
         sql_worker.rem_rec(message.reply_to_message.id, pool[0][0])
         utils.bot.edit_message_text(message.reply_to_message.text
                                     + "\n\nГолосование было отменено автором голосования.",
-                                    main_chat_id, message.reply_to_message.id, parse_mode='html')
+                                    main_chat_id, message.reply_to_message.id, parse_mode='markdown')
         utils.bot.reply_to(message, "Голосование было отменено.")
 
         try:
@@ -1252,7 +1256,7 @@ def my_vote(call_msg):
     if not records:
         sql_worker.rem_rec(call_msg.message.id)
         utils.bot.edit_message_text(call_msg.message.text + "\n\nГолосование не найдено в БД и закрыто.",
-                                    main_chat_id, call_msg.message.id, parse_mode='html')
+                                    main_chat_id, call_msg.message.id, parse_mode='markdown')
         try:
             utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:
@@ -1297,7 +1301,7 @@ def callback_inline(call_msg):
     if not records:
         sql_worker.rem_rec(call_msg.message.id)
         utils.bot.edit_message_text(call_msg.message.text + "\n\nГолосование не найдено в БД и закрыто.",
-                                    main_chat_id, call_msg.message.id, parse_mode='html')
+                                    main_chat_id, call_msg.message.id, parse_mode='markdown')
         try:
             utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:

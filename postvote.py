@@ -228,8 +228,8 @@ def vote_result_op(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка назначения администратора " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате."
-                                    + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode='html')
+        utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате." + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id, parse_mode='markdown')
     else:
         utils.bot.edit_message_text("Вопрос назначения " + datalist[1] + " администратором отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -292,9 +292,9 @@ def vote_result_description(records, message_vote, votes_counter, accept):
                                         + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            utils.bot.edit_message_text("Описание чата успешно сменено на\n<b>" + datalist[0]
-                                        + "</b>\nпользователем " + datalist[1] + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id, parse_mode="html")
+            utils.bot.edit_message_text("Описание чата успешно сменено на\n*" + datalist[0]
+                                        + "*\nпользователем " + datalist[1] + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
     else:
         utils.bot.edit_message_text("Вопрос смены описания чата отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
