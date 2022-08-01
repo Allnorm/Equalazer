@@ -235,6 +235,34 @@ def vote_result_op(records, message_vote, votes_counter, accept):
                                     message_vote.chat.id, message_vote.message_id)
 
 
+def vote_result_rank(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        if utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
+            try:
+                utils.bot.set_chat_administrator_custom_title(message_vote.chat.id, datalist[0], datalist[2])
+                utils.bot.edit_message_text("Звание успешно изменено для бота "
+                                            + datalist[1] + " пользователем " + datalist[3] + "." + votes_counter,
+                                            message_vote.chat.id, message_vote.message_id)
+            except telebot.apihelper.ApiTelegramException as e:
+                if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
+                    utils.bot.edit_message_text("Ошибка смены звания для бота " + datalist[1]
+                                                + " - в звании не поддерживаются эмодзи." + votes_counter,
+                                                message_vote.chat.id, message_vote.message_id)
+                    return
+                logging.error(traceback.format_exc())
+                utils.bot.edit_message_text("Ошибка смены звания для бота " + datalist[1] + "." + votes_counter,
+                                            message_vote.chat.id, message_vote.message_id)
+            return
+        else:
+            utils.bot.edit_message_text("Бот " + datalist[1] + " не является администратором. Смена звания невозможна."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            return
+    else:
+        utils.bot.edit_message_text("Вопрос смены звания бота " + datalist[1] + " отклонён." + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id)
+
+
 def vote_result_deop(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
@@ -269,9 +297,9 @@ def vote_result_title(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?" + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        utils.bot.edit_message_text("Название чата успешно сменено на \"" + datalist[0]
-                                    + "\" пользователем " + datalist[1] + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id)
+        utils.bot.edit_message_text("Название чата успешно сменено на `" + datalist[0]
+                                    + "` пользователем " + datalist[1] + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
     else:
         utils.bot.edit_message_text("Вопрос смены названия чата отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -292,8 +320,8 @@ def vote_result_description(records, message_vote, votes_counter, accept):
                                         + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            utils.bot.edit_message_text("Описание чата успешно сменено на\n*" + datalist[0]
-                                        + "*\nпользователем " + datalist[1] + votes_counter,
+            utils.bot.edit_message_text("Описание чата успешно сменено на\n`" + datalist[0]
+                                        + "`\nпользователем " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
     else:
         utils.bot.edit_message_text("Вопрос смены описания чата отклонён."
