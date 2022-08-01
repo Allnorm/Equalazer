@@ -682,8 +682,8 @@ def msg_remover(message, clearmsg):
     silent_del, votes, timer_del, clear, warn = False, utils.votes_need_ban, utils.global_timer_ban, "", ""
     if clearmsg:
         silent_del, votes, timer_del, clear = True, utils.votes_need, utils.global_timer, "бесследно "
-        warn = "\nВнимание, голосования для бесследной очистки не закрепляются автоматически. Пожалуйста, " \
-               "закрепите их самостоятельно при необходимости."
+        warn = "\n\n*Внимание, голосования для бесследной очистки не закрепляются автоматически. Пожалуйста, " \
+               "закрепите их самостоятельно при необходимости.*\n"
 
     vote_text = ("Пользователь " + utils.username_parser(message) + " хочет " + clear
                  + "удалить сообщение пользователя "
@@ -779,7 +779,8 @@ def rank(message):
         if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "administrator":
             try:
                 utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank_text)
-                utils.bot.reply_to(message, "Звание `" + rank_text + "` успешно установлено.", parse_mode="markdown")
+                utils.bot.reply_to(message, "Звание `" + rank_text + "` успешно установлено пользователю "
+                                   + utils.username_parser(message) + ".", parse_mode="markdown")
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
                     utils.bot.reply_to(message, "В звании не поддерживаются эмодзи.")
