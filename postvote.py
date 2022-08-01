@@ -241,9 +241,9 @@ def vote_result_rank(records, message_vote, votes_counter, accept):
         if utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
             try:
                 utils.bot.set_chat_administrator_custom_title(message_vote.chat.id, datalist[0], datalist[2])
-                utils.bot.edit_message_text("Звание успешно изменено для бота "
+                utils.bot.edit_message_text("Звание `" + datalist[2] + "` успешно установлено для бота "
                                             + datalist[1] + " пользователем " + datalist[3] + "." + votes_counter,
-                                            message_vote.chat.id, message_vote.message_id)
+                                            message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
                     utils.bot.edit_message_text("Ошибка смены звания для бота " + datalist[1]

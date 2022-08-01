@@ -48,7 +48,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.8"
+    version = "0.8.1"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -765,11 +765,11 @@ def rank(message):
     if not botname_checker(message):
         return
 
-    rank_text = utils.extract_arg(message.text, 1)
-
-    if rank_text is None:
+    if utils.extract_arg(message.text, 1) is None:
         utils.bot.reply_to(message, "Звание не может быть пустым.")
         return
+
+    rank_text = message.text.split(maxsplit=1)[1]
 
     if len(rank_text) > 16:
         utils.bot.reply_to(message, "Звание не может быть длиннее 16 символов.")
@@ -779,13 +779,16 @@ def rank(message):
         if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "administrator":
             try:
                 utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank_text)
-                utils.bot.reply_to(message, "Звание успешно изменено.")
+                utils.bot.reply_to(message, "Звание `" + rank_text + "` успешно установлено.", parse_mode="markdown")
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
                     utils.bot.reply_to(message, "В звании не поддерживаются эмодзи.")
                     return
                 logging.error(traceback.format_exc())
                 utils.bot.reply_to(message, "Не удалось сменить звание.")
+            return
+        elif utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "creator":
+            utils.bot.reply_to(message, "Я не могу изменить звание создателя чата.")
             return
         else:
             utils.bot.reply_to(message, "Вы не являетесь администратором.")
@@ -814,7 +817,7 @@ def rank(message):
 
     vote_text = ("От пользователя " + utils.username_parser(message)
                  + " поступило предложение сменить звание для бота "
-                 + utils.username_parser(message.reply_to_message) + ".")
+                 + utils.username_parser(message.reply_to_message) + " на `" + rank_text + "`.")
 
     pool_constructor(unique_id, vote_text, message, "rank", utils.global_timer, utils.votes_need,
                      [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
@@ -1106,7 +1109,7 @@ def mute_user(message):
         return
 
     if abuse_mode == 0:
-        utils.bot.reply_to(message, "Команда /abuse отключена в файле конфигурации бота.")
+        utils.bot.reply_to(message, "Команда /abyss отключена в файле конфигурации бота.")
         return
 
     if message.chat.id != main_chat_id:
