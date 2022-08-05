@@ -48,7 +48,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.8.1"
+    version = "0.8.2"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -1256,6 +1256,10 @@ def whitelist_checker(message):
 
 @utils.bot.message_handler(commands=['allies'])
 def allies_list(message):
+
+    if not botname_checker(message):
+        return
+
     for chat in allies:
         if chat.rstrip("\n") == str(message.chat.id):
             utils.bot.reply_to(message, "Данный чат является союзным чатом для "
@@ -1276,11 +1280,31 @@ def allies_list(message):
             allies_text = allies_text + utils.bot.get_chat(i).title + " - " + invite + "\n"
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
+    if allies_text == "":
+        allies_text = "В настоящее время у вас нет союзников"
     utils.bot.reply_to(message, "Список союзных чатов: \n" + allies_text)
+
+
+@utils.bot.message_handler(commands=['revoke'])
+def revoke(message):
+
+    if not botname_checker(message):
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
+        return
+
+    try:
+        utils.bot.revoke_chat_invite_link(main_chat_id, utils.bot.get_chat(main_chat_id).invite_link)
+        utils.bot.reply_to(message, "Пригласительная ссылка на основной чат успешно сброшена.")
+    except telebot.apihelper.ApiTelegramException:
+        utils.bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
 
 
 @utils.bot.message_handler(commands=['whitelist'])
 def whitelist(message):
+
     if not botname_checker(message):
         return
 
@@ -1304,6 +1328,7 @@ def whitelist(message):
 
 @utils.bot.message_handler(commands=['cancel'])
 def cancel(message):
+
     if not botname_checker(message):
         return
 
@@ -1335,6 +1360,7 @@ def cancel(message):
 
 @utils.bot.message_handler(commands=['niko'])
 def niko(message):
+
     if not botname_checker(message):
         return
 
