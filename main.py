@@ -1291,7 +1291,12 @@ def revoke(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    is_allies = False
+    for chat in allies:
+        if chat.rstrip("\n") == str(message.chat.id):
+            is_allies = True
+
+    if message.chat.id != main_chat_id and not is_allies:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
         return
 
