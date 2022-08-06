@@ -191,7 +191,7 @@ def vote_result(unique_id, message_vote):
     if not records:
         return
 
-    if records[1] != message_vote.id:
+    if records[0][1] != message_vote.id:
         return
 
     sql_worker.rem_rec(message_vote.id, unique_id)
