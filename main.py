@@ -48,7 +48,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.8.2"
+    version = "0.8.3"
     build = "1"
     logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
 
@@ -186,11 +186,15 @@ def vote_make(text, message, parse_mode, adduser, silent):
 
 
 def vote_result(unique_id, message_vote):
+
     records = sql_worker.msg_chk(unique_id=unique_id)
-    sql_worker.rem_rec(message_vote.id, unique_id)
     if not records:
         return
 
+    if records[1] != message_vote.id:
+        return
+
+    sql_worker.rem_rec(message_vote.id, unique_id)
     utils.auto_thresholds_init(main_chat_id)
     votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
     if records[0][3] > records[0][4] and records[0][3] > minimum_vote:
@@ -392,7 +396,7 @@ def ban_usr(message):
         restrict_timer = utils.time_parser(utils.extract_arg(message.text, 1))
         if restrict_timer is None:
             utils.bot.reply_to(message,
-                               "Некорректный аргумент времени (должно быть меньше 31 секунды и больше 365 суток).")
+                               "Некорректный аргумент времени (не должно быть меньше 31 секунды и больше 365 суток).")
             return
         if not 30 < restrict_timer <= 31536000:
             utils.bot.reply_to(message, "Время не должно быть меньше 31 секунды и больше 365 суток.")
