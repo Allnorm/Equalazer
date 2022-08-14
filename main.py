@@ -48,9 +48,8 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.9"
-    build = "1"
-    logging.info("###ANK REMOTE CONTROL {} build {} HAS BEEN STARTED!###".format(version, build))
+    version = "0.9.1"
+    logging.info("###ANK REMOTE CONTROL {} HAS BEEN STARTED!###".format(version))
 
     try:
         if sys.argv[1] == "--debug":
@@ -689,7 +688,7 @@ def msg_remover(message, clearmsg):
     if clearmsg:
         silent_del, votes, timer_del, clear = True, utils.votes_need, utils.global_timer, "бесследно "
         warn = "\n\n<b>Внимание, голосования для бесследной очистки не закрепляются автоматически. Пожалуйста, " \
-               "закрепите их самостоятельно при необходимости.</b>>\n"
+               "закрепите их самостоятельно при необходимости.</b>\n"
 
     vote_text = ("Пользователь " + utils.username_parser(message, True) + " хочет " + clear
                  + "удалить сообщение пользователя "
@@ -1348,9 +1347,9 @@ def cancel(message):
             return
         vote_abuse.clear()
         sql_worker.rem_rec(message.reply_to_message.id, pool[0][0])
-        utils.bot.edit_message_text(message.reply_to_message.text
-                                    + "\n\nГолосование было отменено автором голосования.",
-                                    main_chat_id, message.reply_to_message.id)
+        utils.bot.edit_message_text(utils.html_fix(message.reply_to_message.text)
+                                    + "\n\n<b>Голосование было отменено автором голосования.</b>",
+                                    main_chat_id, message.reply_to_message.id, parse_mode="html")
         utils.bot.reply_to(message, "Голосование было отменено.")
 
         try:
