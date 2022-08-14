@@ -11,7 +11,8 @@ import utils
 
 def vote_result_useradd(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
-    mention = "[" + datalist[1] + "](tg://user?id=" + str(datalist[0]) + ")"
+    # mention = "[" + datalist[1] + "](tg://user?id=" + str(datalist[0]) + ")"
+    mention = "<a href=\"tg://user?id=" + str(datalist[0]) + "\">" + utils.html_fix(datalist[1]) + "</a>"
     if accept:
         sql_worker.abuse_remove(records[0][8])
         sql_worker.abuse_update(records[0][8])
@@ -20,19 +21,18 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
                 and utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "kicked" \
                 and utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "restricted" \
                 or utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).is_member:
-            utils.bot.edit_message_text("Пользователь " + mention
-                                        + " уже есть в этом чате. Инвайт отправлен не будет."
-                                        + votes_counter, message_vote.chat.id, message_vote.message_id,
-                                        parse_mode="markdown")
+            utils.bot.edit_message_text("Пользователь " + mention + " уже есть в этом чате. Инвайт отправлен не будет."
+                                        + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id, parse_mode="html")
             utils.bot.send_message(datalist[0], "Вы уже есть в нужном вам чате. Повторный инвайт выдавать запрещено.")
             return
 
         try:
             invite = utils.bot.create_chat_invite_link(message_vote.chat.id, expire_date=int(time.time()) + 86400)
         except telebot.apihelper.ApiTelegramException:
-            utils.bot.edit_message_text("Ошибка создания инвайт-ссылки для пользователя "
-                                        + mention + "! Недостаточно прав?" + votes_counter, message_vote.chat.id,
-                                        message_vote.message_id, parse_mode="markdown")
+            utils.bot.edit_message_text("Ошибка создания инвайт-ссылки для пользователя " + mention
+                                        + "! Недостаточно прав?" + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id, parse_mode="html")
             utils.bot.send_message(datalist[0], "Ошибка создания инвайт-ссылки для вступления.")
             logging.error(traceback.format_exc())
             return
@@ -42,16 +42,15 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
-        utils.bot.edit_message_text("Создана инвайт-ссылка и отправлена запросившему кандидату " + mention + ".\n"
-                                    + "Ссылка истечёт через 1 сутки." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
+        utils.bot.edit_message_text("Создана инвайт-ссылка и отправлена запросившему кандидату "
+                                    + mention + ".\n" + "Ссылка истечёт через 1 сутки." + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id, parse_mode="html")
         utils.bot.send_message(datalist[0], "Дано добро на вступление! Glory to 4\\<!\nСсылка истечёт через 1 сутки.\n"
                                + invite.invite_link)
     else:
         sql_worker.abuse_update(datalist[0])
-        utils.bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention
-                                    + " отклонён." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
+        utils.bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention + " отклонён."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
 
         utils.bot.send_message(datalist[0], "Запрос на вступление был отклонён." + votes_counter)
 
@@ -229,7 +228,7 @@ def vote_result_op(records, message_vote, votes_counter, accept):
                                         message_vote.chat.id, message_vote.message_id)
             return
         utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id, parse_mode='markdown')
+                                    message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос назначения " + datalist[1] + " администратором отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -241,9 +240,9 @@ def vote_result_rank(records, message_vote, votes_counter, accept):
         if utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
             try:
                 utils.bot.set_chat_administrator_custom_title(message_vote.chat.id, datalist[0], datalist[2])
-                utils.bot.edit_message_text("Звание `" + datalist[2] + "` успешно установлено для бота "
+                utils.bot.edit_message_text("Звание \"" + datalist[2] + "\" успешно установлено для бота "
                                             + datalist[1] + " пользователем " + datalist[3] + "." + votes_counter,
-                                            message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
+                                            message_vote.chat.id, message_vote.message_id)
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
                     utils.bot.edit_message_text("Ошибка смены звания для бота " + datalist[1]
@@ -297,9 +296,9 @@ def vote_result_title(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?" + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        utils.bot.edit_message_text("Название чата успешно сменено на `" + datalist[0]
-                                    + "` пользователем " + datalist[1] + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
+        utils.bot.edit_message_text("Название чата успешно сменено на \"" + datalist[0]
+                                    + "\" пользователем " + datalist[1] + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос смены названия чата отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -320,9 +319,9 @@ def vote_result_description(records, message_vote, votes_counter, accept):
                                         + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            utils.bot.edit_message_text("Описание чата успешно сменено на\n`" + datalist[0]
-                                        + "`\nпользователем " + datalist[1] + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id, parse_mode="markdown")
+            utils.bot.edit_message_text("Описание чата успешно сменено на\n<code>" + datalist[0]
+                                        + "</code>\nпользователем " + datalist[1] + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id, parse_mode="html")
     else:
         utils.bot.edit_message_text("Вопрос смены описания чата отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)

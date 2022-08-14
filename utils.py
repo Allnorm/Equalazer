@@ -51,7 +51,11 @@ def extract_arg(text, num):
         pass
 
 
-def username_parser(message):
+def html_fix(text):
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def username_parser(message, html=False):
     if message.from_user.first_name == "":
         return "DELETED USER"
 
@@ -67,7 +71,10 @@ def username_parser(message):
             username = str(message.from_user.first_name) + " " + str(message.from_user.last_name) + \
                        " (@" + str(message.from_user.username) + ")"
 
-    return username
+    if not html:
+        return username
+
+    return html_fix(username)
 
 
 def remake_conf():
