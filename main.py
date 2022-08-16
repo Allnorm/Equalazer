@@ -48,7 +48,7 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.9.1"
+    version = "0.9.2"
     logging.info("###ANK REMOTE CONTROL {} HAS BEEN STARTED!###".format(version))
 
     try:
@@ -782,7 +782,7 @@ def rank(message):
         if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "administrator":
             try:
                 utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank_text)
-                utils.bot.reply_to(message, "Звание \"" + rank_text + " \"успешно установлено пользователю "
+                utils.bot.reply_to(message, "Звание \"" + rank_text + "\" успешно установлено пользователю "
                                    + utils.username_parser(message, True) + ".")
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
@@ -991,6 +991,11 @@ def chat_pic(message):
         utils.bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на фотографию, файл jpg или png.")
         return
 
+    unique_id = "chatpic"
+    records = sql_worker.msg_chk(unique_id=unique_id)
+    if utils.is_voting_exists(records, message, unique_id):
+        return
+
     if message.reply_to_message.photo is not None:
         file_buffer = (utils.bot.download_file
                        (utils.bot.get_file(message.reply_to_message.photo[-1].file_id).file_path))
@@ -1011,11 +1016,6 @@ def chat_pic(message):
         logging.error((str(e)))
         logging.error(traceback.format_exc())
         utils.bot.reply_to(message, "Ошибка записи изображения в файл!")
-        return
-
-    unique_id = "chatpic"
-    records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
