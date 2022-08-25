@@ -27,7 +27,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.0"
+VERSION = "1.0.1"
 
 
 def config_init():
@@ -1475,6 +1475,10 @@ def cancel(message):
             return
         vote_abuse.clear()
         sql_worker.rem_rec(message.reply_to_message.id, pool[0][0])
+        try:
+            os.remove(utils.PATH + pool[0][0])
+        except IOError:
+            pass
         utils.bot.edit_message_text(utils.html_fix(message.reply_to_message.text)
                                     + "\n\n<b>Голосование было отменено автором голосования.</b>",
                                     main_chat_id, message.reply_to_message.id, parse_mode="html")
