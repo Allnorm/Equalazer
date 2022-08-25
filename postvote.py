@@ -142,6 +142,18 @@ def vote_result_treshold(records, message_vote, votes_counter, accept):
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
+def vote_result_new_usr(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        utils.bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} одобрено!" + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id)
+
+    else:
+        utils.bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time())+60)
+        utils.bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} отклонено."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
 def vote_result_treshold_ban(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
@@ -331,24 +343,18 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         try:
-            utils.bot.set_chat_photo(message_vote.chat.id, open('tmp_img', 'rb'))
-            os.remove("tmp_img")
+            utils.bot.set_chat_photo(message_vote.chat.id, open(utils.PATH + 'tmp_img', 'rb'))
+            utils.bot.edit_message_text("Фотография чата успешно изменена пользователем " + datalist[0]
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
         except Exception as e:
             logging.error((str(e)))
             logging.error(traceback.format_exc())
-            try:
-                os.remove("tmp_img")
-            except IOError:
-                pass
             utils.bot.edit_message_text("Ошибка установки новой фотографии чата." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
-            return
-        utils.bot.edit_message_text("Фотография чата успешно изменена пользователем " + datalist[0]
-                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
-        try:
-            os.remove("tmp_img")
-        except IOError:
-            pass
         utils.bot.edit_message_text("Вопрос смены фотографии чата отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
+    try:
+        os.remove(utils.PATH + "tmp_img")
+    except IOError:
+        pass

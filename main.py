@@ -1,6 +1,7 @@
 import configparser
 import logging
 import os
+import pickle
 import random
 import sys
 import threading
@@ -24,10 +25,13 @@ allies = []
 abuse_random = 0
 wait_timer = 30
 abuse_mode = 2
-private_mode = "true"
+private_mode = True
+rules = False
+VERSION = "1.0"
 
 
 def config_init():
+
     def var_init(var):
         try:
             var = int(var)
@@ -35,12 +39,25 @@ def config_init():
         except ValueError:
             return 0
 
-    global main_chat_id, minimum_vote, debug, vote_mode, abuse_random, wait_timer, abuse_mode, private_mode
+    global main_chat_id, minimum_vote, debug, vote_mode, abuse_random, wait_timer, abuse_mode, private_mode, rules
+    global VERSION
+
+    try:
+        utils.PATH = sys.argv[1] + "/"
+        if not os.path.isdir(sys.argv[1]):
+            print("WARNING: working path IS NOT EXIST. Remake.")
+            os.mkdir(sys.argv[1])
+    except IndexError:
+        pass
+    except IOError:
+        traceback.print_exc()
+        print("ERROR: Failed to create working directory! Bot will be closed!")
+        sys.exit(1)
 
     reload(logging)
     logging.basicConfig(
         handlers=[
-            logging.FileHandler("ancap.log", 'w', 'utf-8'),
+            logging.FileHandler(utils.PATH + "logging.log", 'w', 'utf-8'),
             logging.StreamHandler(sys.stdout)
         ],
         level=logging.INFO,
@@ -48,37 +65,35 @@ def config_init():
         datefmt="%d-%m-%Y %H:%M:%S")
 
     sql_worker.table_init()
-    version = "0.9.2"
-    logging.info("###ANK REMOTE CONTROL {} HAS BEEN STARTED!###".format(version))
+    logging.info("###ANK REMOTE CONTROL {} HAS BEEN STARTED!###".format(VERSION))
 
-    try:
-        if sys.argv[1] == "--debug":
-            debug = True
-    except IndexError:
-        pass
-
-    if not os.path.isfile("config.ini"):
+    if not os.path.isfile(utils.PATH + "config.ini"):
         print("Config file isn't found! Trying to remake!")
         utils.remake_conf()
 
     config = configparser.ConfigParser()
     try:
-        config.read("config.ini")
-        token = config["Ancap"]["token"]
-        utils.global_timer = config["Ancap"]["timer"]
-        utils.global_timer_ban = config["Ancap"]["bantimer"]
-        utils.votes_need = config["Ancap"]["votes"]
-        utils.votes_need_ban = config["Ancap"]["banvotes"]
-        vote_mode = int(config["Ancap"]["votes-mode"])
-        abuse_random = int(config["Ancap"]["abuse-random"])
-        wait_timer = int(config["Ancap"]["wait-timer"])
-        abuse_mode = int(config["Ancap"]["abuse-mode"])
-        private_mode = config["Ancap"]["private-mode"]
-        if config["Ancap"]["chatid"] != "init":
-            main_chat_id = int(config["Ancap"]["chatid"])
+        config.read(utils.PATH + "config.ini")
+        token = config["Chat"]["token"]
+        utils.global_timer = config["Chat"]["timer"]
+        utils.global_timer_ban = config["Chat"]["bantimer"]
+        utils.votes_need = config["Chat"]["votes"]
+        utils.votes_need_ban = config["Chat"]["banvotes"]
+        vote_mode = int(config["Chat"]["votes-mode"])
+        abuse_random = int(config["Chat"]["abuse-random"])
+        wait_timer = int(config["Chat"]["wait-timer"])
+        abuse_mode = int(config["Chat"]["abuse-mode"])
+        str_private_mode = config["Chat"]["private-mode"]
+        str_rules = config["Chat"]["rules"]
+        if config["Chat"]["chatid"] != "init":
+            main_chat_id = int(config["Chat"]["chatid"])
         else:
             debug = True
             main_chat_id = "init"
+        if str_private_mode.lower() == "false":
+            private_mode = False
+        if str_rules.lower() == "true":
+            rules = True
     except Exception as e:
         logging.error((str(e)))
         logging.error(traceback.format_exc())
@@ -94,6 +109,13 @@ def config_init():
             sys.exit(0)
         else:
             sys.exit(0)
+
+    try:
+        str_debug = config["Chat"]["debug"]
+        if str_debug.lower() == "true":
+            debug = True
+    except KeyError:
+        pass
 
     if debug:
         utils.global_timer = 20
@@ -121,68 +143,6 @@ def config_init():
     return token
 
 
-def init():
-    def auto_clear():
-        while True:
-            sql_worker.deletion_of_overdue()
-            time.sleep(3600)
-
-    utils.auto_thresholds_init(main_chat_id)
-
-    global allies
-
-    try:
-        file = open("allies.txt", 'r', encoding="utf-8")
-        allies = file.readlines()
-    except FileNotFoundError:
-        logging.warning("file \"allies.txt\" not found.")
-    except IOError:
-        logging.error("file \"allies.txt\" isn't readable.")
-    if not allies:
-        logging.warning("allies is empty.")
-
-    try:
-        os.remove("tmp_img")
-    except IOError:
-        pass
-
-    threading.Thread(target=auto_clear).start()
-
-    if main_chat_id == "init":
-        logging.info("WARNING! STARTED IN INIT MODE!")
-        return
-
-    if debug:
-        logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
-        utils.bot.send_message(main_chat_id, "Бот запущен в режиме отладки!")
-    else:
-        utils.bot.send_message(main_chat_id, "Бот перезапущен")
-
-
-utils.bot_init(config_init())
-init()
-
-
-def vote_make(text, message, adduser, silent):
-    buttons = [
-        types.InlineKeyboardButton(text="Да - " + "0", callback_data="yes"),
-        types.InlineKeyboardButton(text="Нет - " + "0", callback_data="no"),
-        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
-    ]
-    keyboard = types.InlineKeyboardMarkup(row_width=2)
-    keyboard.add(*buttons)
-    if adduser:
-        vote_message = utils.bot.send_message(main_chat_id, text, reply_markup=keyboard, parse_mode="html")
-    else:
-        vote_message = utils.bot.reply_to(message, text, reply_markup=keyboard, parse_mode="html")
-    if not silent:
-        try:
-            utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-    return vote_message
-
-
 def vote_result(unique_id, message_vote):
     records = sql_worker.msg_chk(unique_id=unique_id)
     if not records:
@@ -190,6 +150,12 @@ def vote_result(unique_id, message_vote):
 
     if records[0][1] != message_vote.id:
         return
+
+    try:
+        os.remove(utils.PATH + unique_id)
+    except IOError:
+        logging.error("Failed to clear a pool file!")
+        logging.error(traceback.format_exc())
 
     sql_worker.rem_rec(message_vote.id, unique_id)
     utils.auto_thresholds_init(main_chat_id)
@@ -216,7 +182,8 @@ def vote_result(unique_id, message_vote):
         "title": postvote.vote_result_title,
         "chatpic": postvote.vote_result_chat_pic,
         "desc": postvote.vote_result_description,
-        "rank": postvote.vote_result_rank
+        "rank": postvote.vote_result_rank,
+        "new_usr": postvote.vote_result_new_usr
     }
 
     try:
@@ -239,7 +206,86 @@ def vote_result(unique_id, message_vote):
     utils.update_conf(debug)
 
 
-def vote_update(counter_yes, counter_no, call):
+def vote_timer(current_timer, unique_id, message_vote):
+    time.sleep(current_timer)
+    vote_abuse.clear()
+    vote_result(unique_id, message_vote)
+
+
+def auto_restart_pools():
+
+    time_now = int(time.time())
+    records = sql_worker.get_all_pools()
+    for record in records:
+        try:
+            pool = open(utils.PATH + record[0], 'rb')
+            message_vote = pickle.load(pool)
+            pool.close()
+        except (IOError, pickle.UnpicklingError):
+            logging.error(f"Failed to read a pool {record[0]}!")
+            logging.error(traceback.format_exc())
+            continue
+        if record[5] > time_now:
+            threading.Thread(target=vote_timer, args=(record[5] - time_now, record[0], message_vote)).start()
+            logging.info("Restarted poll " + record[0])
+        else:
+            vote_result(record[0], message_vote)
+
+
+def init():
+
+    def auto_clear():
+        while True:
+            records = sql_worker.get_all_pools()
+            for record in records:
+                if record[5] + 600 < int(time.time()):
+                    sql_worker.rem_rec(record[1], record[0])
+                    try:
+                        os.remove(utils.PATH + record[0])
+                    except IOError:
+                        pass
+                    logging.info('Removed deprecated poll "' + record[0] + '"')
+            time.sleep(3600)
+
+    utils.auto_thresholds_init(main_chat_id)
+
+    global allies
+
+    try:
+        file = open(utils.PATH + "allies.txt", 'r', encoding="utf-8")
+        allies = file.readlines()
+    except FileNotFoundError:
+        logging.warning("file \"allies.txt\" not found.")
+    except IOError:
+        logging.error("file \"allies.txt\" isn't readable.")
+    if not allies:
+        logging.warning("allies is empty.")
+
+    try:
+        os.remove(utils.PATH + "tmp_img")
+    except IOError:
+        pass
+
+    auto_restart_pools()
+    threading.Thread(target=auto_clear).start()
+
+    if main_chat_id == "init":
+        logging.info("WARNING! STARTED IN INIT MODE!")
+        return
+
+    if debug:
+        logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
+        utils.bot.send_message(main_chat_id, f"Бот запущен в режиме отладки!\nВерсия бота: {VERSION}")
+    else:
+        utils.bot.send_message(main_chat_id, f"Бот перезапущен. Текущая версия: {VERSION}")
+
+
+utils.bot_init(config_init())
+init()
+
+
+def make_keyboard(counter_yes, counter_no):
+
     buttons = [
         types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes"),
         types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no"),
@@ -247,7 +293,28 @@ def vote_update(counter_yes, counter_no, call):
     ]
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
-    utils.bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id, reply_markup=keyboard)
+    return keyboard
+
+
+def vote_make(text, message, adduser, silent):
+
+    if adduser:
+        vote_message = utils.bot.send_message(main_chat_id, text,
+                                              reply_markup=make_keyboard("0", "0"), parse_mode="html")
+    else:
+        vote_message = utils.bot.reply_to(message, text, reply_markup=make_keyboard("0", "0"), parse_mode="html")
+    if not silent:
+        try:
+            utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+    return vote_message
+
+
+def vote_update(counter_yes, counter_no, call):
+
+    utils.bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id,
+                                        reply_markup=make_keyboard(counter_yes, counter_no))
 
 
 def botname_checker(message, getchat=False):  # Crutch to prevent the bot from responding to other bots commands
@@ -267,18 +334,25 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 
 def private_checker(message):
-    if private_mode.lower() == "false":
+    if not private_mode:
         return utils.username_parser(message)
     else:
         return "none"
 
 
+def pool_saver(unique_id, message_vote):
+
+    try:
+        pool = open(utils.PATH + unique_id, 'wb')
+        pickle.dump(message_vote, pool, protocol=4)
+        pool.close()
+    except (IOError, pickle.PicklingError):
+        logging.error("Failed to picking a pool! You will not be able to resume the timer after restarting the bot!")
+        logging.error(traceback.format_exc())
+
+
 def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, current_timer: int, current_votes: int,
                      vote_args: list, user_id: int, adduser=False, silent=False):
-    def vote_timer():
-        time.sleep(current_timer)
-        vote_abuse.clear()
-        vote_result(unique_id, message_vote)
 
     vote_text = "{}\nГолосование будет закрыто через {}, " \
                 "для досрочного завершения требуется голосов за один из пунктов: {}.\n" \
@@ -288,7 +362,20 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
     message_vote = vote_make(vote_text, message, adduser, silent)
     sql_worker.addpool(unique_id, message_vote, vote_type,
                        int(time.time()) + current_timer, str(vote_args), current_votes, user_id)
-    threading.Thread(target=vote_timer).start()
+    pool_saver(unique_id, message_vote)
+    threading.Thread(target=vote_timer, args=(current_timer, unique_id, message_vote)).start()
+
+
+def is_voting_exists(records, message, unique_id):
+    if not records:
+        return False
+    if records[0][5] <= int(time.time()):
+        sql_worker.rem_rec("", unique_id=unique_id)
+        sql_worker.rem_rec(records[0][1])
+        return False
+    else:
+        utils.bot.reply_to(message, "Голосование о данном вопросе уже идёт.")
+        return True
 
 
 @utils.bot.message_handler(commands=['invite'])
@@ -311,7 +398,7 @@ def add_usr(message):
         return
 
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     abuse_chk = sql_worker.abuse_check(message.from_user.id)
@@ -388,7 +475,16 @@ def ban_usr(message):
         utils.bot.reply_to(message, "Ответьте на сообщение пользователя, которого требуется забанить.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked":
+    if message.reply_to_message.json.get("new_chat_participant") is not None:
+        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
+        username = utils.username_parser_invite(message.reply_to_message, True)
+        is_bot = message.reply_to_message.json.get("new_chat_participant").get("is_bot")
+    else:
+        userid = message.reply_to_message.from_user.id
+        username = utils.username_parser(message.reply_to_message, True)
+        is_bot = message.reply_to_message.from_user.is_bot
+
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
@@ -408,36 +504,36 @@ def ban_usr(message):
 
     kickuser = True if restrict_timer != 0 else False
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left" and kickuser:
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "left" and kickuser:
         utils.bot.reply_to(message, "Пользователя нет в чате, чтобы можно было кикнуть его.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "creator":
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if utils.bot.get_me().id == message.reply_to_message.from_user.id:
+    if utils.bot.get_me().id == userid:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if not kickuser and message.reply_to_message.from_user.is_bot:
+    if not kickuser and is_bot:
         utils.bot.reply_to(message, "Запрещено перманентно банить ботов.")
         return
 
-    unique_id = str(message.reply_to_message.from_user.id) + "_userban"
+    unique_id = str(userid) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     ban_timer_text = "."
     if restrict_timer != 0:
         ban_timer_text = " на срок {}".format(utils.formatted_timer(restrict_timer))
 
-    if message.from_user.id == message.reply_to_message.from_user.id:
+    if message.from_user.id == userid:
         ban_text = ""
         if not kickuser:
             ban_text = " из чата <b>навсегда</b>"
-        vote_text = ("От пользователя " + utils.username_parser(message, True) + " поступило предложение самовыпилиться"
+        vote_text = ("От пользователя " + username + " поступило предложение самовыпилиться"
                      + ban_text + ban_timer_text)
     else:
         ban_text = "кикнуть"
@@ -445,13 +541,13 @@ def ban_usr(message):
             ban_text = "<b>забанить перманентно</b>"
 
         vote_text = ("От пользователя " + utils.username_parser(message, True) + " поступило предложение " + ban_text
-                     + " пользователя " + utils.username_parser(message.reply_to_message, True) + ban_timer_text)
+                     + " пользователя " + username + ban_timer_text)
 
     vote_type = 1 if kickuser else 2
 
     pool_constructor(unique_id, vote_text, message, "banuser", utils.global_timer_ban, utils.votes_need_ban,
-                     [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
-                      utils.username_parser(message), vote_type, restrict_timer], message.from_user.id)
+                     [userid, username, utils.username_parser(message), vote_type, restrict_timer],
+                     message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['mute'])
@@ -501,7 +597,7 @@ def mute_usr(message):
 
     unique_id = str(message.reply_to_message.from_user.id) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     ban_timer_text = "."
@@ -546,7 +642,7 @@ def unban_usr(message):
 
     unique_id = str(message.reply_to_message.from_user.id) + "_unban"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
@@ -588,7 +684,7 @@ def thresholds(message):
         bantext = " для бана"
 
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     if mode != "auto":
@@ -651,7 +747,7 @@ def timer(message):
         return
 
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
@@ -681,7 +777,7 @@ def msg_remover(message, clearmsg):
     unique_id = str(message.reply_to_message.message_id) + "_delmsg"
 
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     silent_del, votes, timer_del, clear, warn = False, utils.votes_need_ban, utils.global_timer_ban, "", ""
@@ -746,7 +842,7 @@ def op(message):
 
     unique_id = str(who_id) + "_op"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     if is_myself:
@@ -816,7 +912,7 @@ def rank(message):
 
     unique_id = str(message.reply_to_message.from_user.id) + "_rank"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
@@ -885,7 +981,7 @@ def deop(message):
 
     unique_id = str(message.reply_to_message.from_user.id) + "_deop"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
@@ -920,7 +1016,7 @@ def deop(message):
 
     unique_id = "title"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
@@ -968,7 +1064,7 @@ def description(message):
 
     unique_id = "desc"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     if inputtext is None:
@@ -993,7 +1089,7 @@ def chat_pic(message):
 
     unique_id = "chatpic"
     records = sql_worker.msg_chk(unique_id=unique_id)
-    if utils.is_voting_exists(records, message, unique_id):
+    if is_voting_exists(records, message, unique_id):
         return
 
     if message.reply_to_message.photo is not None:
@@ -1010,7 +1106,7 @@ def chat_pic(message):
         return
 
     try:
-        tmp_img = open('tmp_img', 'wb')
+        tmp_img = open(utils.PATH + 'tmp_img', 'wb')
         tmp_img.write(file_buffer)
     except Exception as e:
         logging.error((str(e)))
@@ -1081,7 +1177,6 @@ def get_usr(message):
         return
 
     if debug and message.reply_to_message is not None:
-        print("c")
         utils.bot.reply_to(message, "ID пользователя " + utils.username_parser(message.reply_to_message)
                            + " - " + str(message.reply_to_message.from_user.id))
 
@@ -1096,15 +1191,37 @@ def help_msg(message):
         return
 
     try:
-        help_text = open("help.txt", encoding="utf-8").read()
+        help_text = open(utils.PATH + "help.txt", encoding="utf-8").read()
     except FileNotFoundError:
-        utils.bot.reply_to(message, "Файл help.txt не найден.")
+        utils.bot.reply_to(message, "Файл help.txt не найден")
         return
     except IOError:
-        utils.bot.reply_to(message, "Файл help.txt не читается.")
+        utils.bot.reply_to(message, "Файл help.txt не читается")
         return
 
     utils.bot.reply_to(message, help_text, parse_mode="html")
+
+
+@utils.bot.message_handler(commands=['rules'])
+def rules_msg(message):
+
+    if not botname_checker(message) or not rules:
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+        return
+
+    try:
+        rules_text = open(utils.PATH + "rules.txt", encoding="utf-8").read()
+    except FileNotFoundError:
+        utils.bot.reply_to(message, "Файл rules.txt не найден")
+        return
+    except IOError:
+        utils.bot.reply_to(message, "Файл rules.txt не читается")
+        return
+
+    utils.bot.reply_to(message, rules_text, parse_mode="html")
 
 
 @utils.bot.message_handler(commands=['abyss'])
@@ -1237,24 +1354,33 @@ def whitelist_checker(message):
             utils.bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
     elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == main_chat_id:
 
-        if message.json.get("new_chat_participant").get("username") is None:
-            if message.json.get("new_chat_participant").get("last_name") is None:
-                username = message.json.get("new_chat_participant").get("first_name")
-            else:
-                username = message.json.get("new_chat_participant").get("first_name") + " " \
-                           + message.json.get("new_chat_participant").get("last_name")
-        else:
-            if message.json.get("new_chat_participant").get("last_name") is None:
-                username = message.json.get("new_chat_participant").get("first_name") \
-                           + " (@" + message.json.get("new_chat_participant").get("username") + ")"
-            else:
-                username = message.json.get("new_chat_participant").get("first_name") + " " \
-                           + message.json.get("new_chat_participant").get("last_name") + \
-                           " (@" + message.json.get("new_chat_participant").get("username") + ")"
-
-        utils.bot.reply_to(message, username + ", добро пожаловать в " + message.chat.title
+        utils.bot.reply_to(message, utils.username_parser_invite(message) + ", добро пожаловать в " + message.chat.title
                            + ", экспериментальный уголок демократии в Telegram! Разрешено всё, "
                              "что не запрещено другими людьми - ведь здесь всё решает народ!")
+
+    elif message.chat.id == main_chat_id:
+
+        unique_id = str(message.json.get("new_chat_participant").get("id")) + "_new_usr"
+        records = sql_worker.msg_chk(unique_id=unique_id)
+        if is_voting_exists(records, message, unique_id):
+            return
+
+        try:
+            utils.bot.restrict_chat_member(main_chat_id, message.json.get("new_chat_participant").get("id"),
+                                           can_send_messages=False, can_change_info=False, can_invite_users=False,
+                                           can_pin_messages=False, until_date=int(time.time()) + 60)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            utils.bot.reply_to(message, "Ошибка блокировки нового бота. Недостаточно прав?")
+            return
+
+        vote_text = ("Пользователь " + utils.username_parser(message, True)
+                     + " добавил нового бота. Требуется набрать достаточное количество голосов за вступление, "
+                       "в противном случае он будет кикнут.")
+
+        pool_constructor(unique_id, vote_text, message, "new_usr", 60, utils.votes_need,
+                         [utils.username_parser_invite(message),
+                          message.json.get("new_chat_participant").get("id"), "бота"], utils.bot.get_me().id)
 
 
 @utils.bot.message_handler(commands=['allies'])
@@ -1283,8 +1409,10 @@ def allies_list(message):
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
     if allies_text == "":
-        allies_text = "В настоящее время у вас нет союзников"
-    utils.bot.reply_to(message, "Список союзных чатов: \n" + allies_text)
+        allies_text = "В настоящее время у вас нет союзников."
+    else:
+        allies_text = "Список союзных чатов: \n" + allies_text
+    utils.bot.reply_to(message, allies_text)
 
 
 @utils.bot.message_handler(commands=['revoke'])
@@ -1364,6 +1492,7 @@ def cancel(message):
 
 @utils.bot.message_handler(commands=['niko'])
 def niko(message):
+
     if not botname_checker(message):
         return
 
@@ -1381,8 +1510,9 @@ def my_vote(call_msg):
     records = sql_worker.msg_chk(message_vote=call_msg.message)
     if not records:
         sql_worker.rem_rec(call_msg.message.id)
-        utils.bot.edit_message_text(call_msg.message.text + "\n\nГолосование не найдено в БД и закрыто.",
-                                    main_chat_id, call_msg.message.id)
+        utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
+                                    + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
+                                    main_chat_id, call_msg.message.id, parse_mode='html')
         try:
             utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:

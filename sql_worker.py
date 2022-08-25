@@ -1,11 +1,15 @@
-import logging
 import sqlite3
 import time
+import utils
 
-dbname = "ancap.db"
+dbname = ""
 
 
 def table_init():
+
+    global dbname
+
+    dbname = utils.PATH + "database.db"
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
     cursor.execute('''CREATE TABLE if not exists current_pools (
@@ -34,17 +38,14 @@ def table_init():
     sqlite_connection.close()
 
 
-def deletion_of_overdue():
+def get_all_pools():
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
     cursor.execute("""SELECT * FROM current_pools""")
     records = cursor.fetchall()
-    for record in records:
-        if record[5] + 600 < int(time.time()):
-            rem_rec(record[1], record[0])
-            logging.info('Removed deprecated poll "' + record[0] + '"')
     cursor.close()
     sqlite_connection.close()
+    return records
 
 
 def abuse_update(user_id):
@@ -121,10 +122,10 @@ def msg_chk(message_vote=None, unique_id=None):
         cursor.execute("""SELECT * FROM current_pools WHERE message_id = ?""", (message_vote.message_id,))
     elif unique_id is not None:
         cursor.execute("""SELECT * FROM current_pools WHERE unique_id = ?""", (unique_id,))
-    fetchall = cursor.fetchall()
+    records = cursor.fetchall()
     cursor.close()
     sqlite_connection.close()
-    return fetchall
+    return records
 
 
 def rem_rec(message_id, unique_id=None):

@@ -6,8 +6,6 @@ import traceback
 
 import telebot
 
-import sql_worker
-
 bot: telebot.TeleBot
 
 global_timer = 3600
@@ -16,6 +14,7 @@ votes_need = 0
 votes_need_ban = 0
 auto_thresholds = False
 auto_thresholds_ban = False
+PATH = ""
 
 
 def bot_init(token):
@@ -77,6 +76,29 @@ def username_parser(message, html=False):
     return html_fix(username)
 
 
+def username_parser_invite(message, html=False):
+
+    if message.json.get("new_chat_participant").get("username") is None:
+        if message.json.get("new_chat_participant").get("last_name") is None:
+            username = message.json.get("new_chat_participant").get("first_name")
+        else:
+            username = message.json.get("new_chat_participant").get("first_name") + " " \
+                       + message.json.get("new_chat_participant").get("last_name")
+    else:
+        if message.json.get("new_chat_participant").get("last_name") is None:
+            username = message.json.get("new_chat_participant").get("first_name") \
+                       + " (@" + message.json.get("new_chat_participant").get("username") + ")"
+        else:
+            username = message.json.get("new_chat_participant").get("first_name") + " " \
+                       + message.json.get("new_chat_participant").get("last_name") + \
+                       " (@" + message.json.get("new_chat_participant").get("username") + ")"
+
+    if not html:
+        return username
+
+    return html_fix(username)
+
+
 def remake_conf():
     token, chat_id = "", ""
     while token == "":
@@ -84,20 +106,21 @@ def remake_conf():
     while chat_id == "":
         chat_id = input("Please, write your main chat ID: ")
     config = configparser.ConfigParser()
-    config.add_section("Ancap")
-    config.set("Ancap", "token", token)
-    config.set("Ancap", "chatid", chat_id)
-    config.set("Ancap", "timer", "")
-    config.set("Ancap", "bantimer", "")
-    config.set("Ancap", "votes", "")
-    config.set("Ancap", "banvotes", "")
-    config.set("Ancap", "votes-mode", "3")
-    config.set("Ancap", "abuse-random", "0")
-    config.set("Ancap", "wait-timer", "30")
-    config.set("Ancap", "abuse-mode", "2")
-    config.set("Ancap", "private-mode", "true")
+    config.add_section("Chat")
+    config.set("Chat", "token", token)
+    config.set("Chat", "chatid", chat_id)
+    config.set("Chat", "timer", "")
+    config.set("Chat", "bantimer", "")
+    config.set("Chat", "votes", "")
+    config.set("Chat", "banvotes", "")
+    config.set("Chat", "votes-mode", "3")
+    config.set("Chat", "abuse-random", "0")
+    config.set("Chat", "wait-timer", "30")
+    config.set("Chat", "abuse-mode", "2")
+    config.set("Chat", "private-mode", "true")
+    config.set("Chat", "rules", "false")
     try:
-        config.write(open("config.ini", "w"))
+        config.write(open(PATH + "config.ini", "w"))
         print("New config file was created successful")
     except IOError:
         print("ERR: Bot cannot write new config file and will close")
@@ -111,34 +134,22 @@ def update_conf(debug):
 
     config = configparser.ConfigParser()
     try:
-        config.read("config.ini")
+        config.read(PATH + "config.ini")
         if auto_thresholds:
-            config.set("Ancap", "votes", "")
+            config.set("Chat", "votes", "")
         else:
-            config.set("Ancap", "votes", str(votes_need))
+            config.set("Chat", "votes", str(votes_need))
         if auto_thresholds_ban:
-            config.set("Ancap", "banvotes", "")
+            config.set("Chat", "banvotes", "")
         else:
-            config.set("Ancap", "banvotes", str(votes_need_ban))
-        config.set("Ancap", "timer", str(global_timer))
-        config.set("Ancap", "bantimer", str(global_timer_ban))
-        config.write(open("config.ini", "w"))
+            config.set("Chat", "banvotes", str(votes_need_ban))
+        config.set("Chat", "timer", str(global_timer))
+        config.set("Chat", "bantimer", str(global_timer_ban))
+        config.write(open(PATH + "config.ini", "w"))
     except Exception as e:
         print(e)
         logging.error(traceback.format_exc())
         return
-
-
-def is_voting_exists(records, message, unique_id):
-    if not records:
-        return False
-    if records[0][5] <= int(time.time()):
-        sql_worker.rem_rec("", unique_id=unique_id)
-        sql_worker.rem_rec(records[0][1])
-        return False
-    else:
-        bot.reply_to(message, "Голосование о данном вопросе уже идёт.")
-        return True
 
 
 def time_parser(instr: str):
