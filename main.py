@@ -27,7 +27,8 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.0.1"
+VERSION = "1.1"
+welc_default = "Welcome to {1}!"
 
 
 def config_init():
@@ -89,7 +90,7 @@ def config_init():
             main_chat_id = int(config["Chat"]["chatid"])
         else:
             debug = True
-            main_chat_id = "init"
+            main_chat_id = -1
         if str_private_mode.lower() == "false":
             private_mode = False
         if str_rules.lower() == "true":
@@ -192,6 +193,8 @@ def vote_result(unique_id, message_vote):
         logging.error(traceback.format_exc())
         utils.bot.edit_message_text("Ошибка применения результатов голосования. Итоговая функция не найдена!",
                                     message_vote.chat.id, message_vote.id)
+    except Warning:  # Пусть не срёт в логи после clearmsg
+        return
 
     try:
         utils.bot.unpin_chat_message(main_chat_id, message_vote.message_id)
@@ -258,6 +261,7 @@ def init():
         logging.warning("file \"allies.txt\" not found.")
     except IOError:
         logging.error("file \"allies.txt\" isn't readable.")
+        logging.error(traceback.format_exc())
     if not allies:
         logging.warning("allies is empty.")
 
@@ -269,7 +273,7 @@ def init():
     auto_restart_pools()
     threading.Thread(target=auto_clear).start()
 
-    if main_chat_id == "init":
+    if main_chat_id == -1:
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
@@ -321,10 +325,10 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
     cmd_text = message.text.split()[0]
 
-    if main_chat_id != "init" and getchat:
+    if main_chat_id != -1 and getchat:
         return False
 
-    if main_chat_id == "init" and not getchat:
+    if main_chat_id == -1 and not getchat:
         return False
 
     if ("@" in cmd_text and "@" + utils.bot.get_me().username in cmd_text) or not ("@" in cmd_text):
@@ -389,9 +393,7 @@ def add_usr(message):
     except IndexError:
         msg_from_usr = "нет"
 
-    if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "left" \
-            and utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "kicked" \
-            and utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "restricted" \
+    if not utils.bot.get_chat_member(main_chat_id, message.from_user.id).status in ["left", "kicked", "restricted"] \
             or utils.bot.get_chat_member(main_chat_id, message.from_user.id).is_member:
         # Fuuuuuuuck my brain
         utils.bot.reply_to(message, "Вы уже есть в нужном вам чате.")
@@ -1224,6 +1226,37 @@ def rules_msg(message):
     utils.bot.reply_to(message, rules_text, parse_mode="html")
 
 
+@utils.bot.message_handler(commands=['votes'])
+def votes_msg(message):
+
+    if not botname_checker(message):
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+        return
+
+    records = sql_worker.get_all_pools()
+    pool_list = ""
+    number = 1
+
+    if utils.bot.get_chat(main_chat_id).username is not None:
+        format_chat_id = utils.bot.get_chat(main_chat_id).username
+    else:
+        format_chat_id = "c/" + str(main_chat_id)[4:]
+
+    for record in records:
+        pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, тип - {record[2]}\n"
+        number = number + 1
+
+    if pool_list == "":
+        pool_list = "У вас нет активных голосований!"
+    else:
+        pool_list = "Список активных голосований:\n" + pool_list
+
+    utils.bot.reply_to(message, pool_list)
+
+
 @utils.bot.message_handler(commands=['abyss'])
 def mute_user(message):
     if not botname_checker(message):
@@ -1322,6 +1355,7 @@ def mute_user(message):
 
 @utils.bot.message_handler(content_types=['new_chat_members'])
 def whitelist_checker(message):
+
     if utils.bot.get_chat_member(main_chat_id,
                                  message.json.get("new_chat_participant").get("id")).status == "creator":
         utils.bot.reply_to(message, "Приветствую вас, Владыка.")
@@ -1354,9 +1388,22 @@ def whitelist_checker(message):
             utils.bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
     elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == main_chat_id:
 
-        utils.bot.reply_to(message, utils.username_parser_invite(message) + ", добро пожаловать в " + message.chat.title
-                           + ", экспериментальный уголок демократии в Telegram! Разрешено всё, "
-                             "что не запрещено другими людьми - ведь здесь всё решает народ!")
+        try:
+            file = open(utils.PATH + "welcome.txt", 'r', encoding="utf-8")
+            welc_msg = file.read().format(utils.username_parser_invite(message), message.chat.title)
+            file.close()
+        except FileNotFoundError:
+            logging.warning("file \"welcome.txt\" isn't found. The standard welcome message will be used.")
+            welc_msg = welc_default.format(utils.username_parser_invite(message), message.chat.title)
+        except (IOError, IndexError):
+            logging.error("file \"welcome.txt\" isn't readable. The standard welcome message will be used.")
+            logging.error(traceback.format_exc())
+            welc_msg = welc_default.format(utils.username_parser_invite(message), message.chat.title)
+        if welc_msg == "":
+            logging.warning("file \"welcome.txt\" is empty. The standard welcome message will be used.")
+            welc_msg = welc_default.format(utils.username_parser_invite(message), message.chat.title)
+
+        utils.bot.reply_to(message, welc_msg)
 
     elif message.chat.id == main_chat_id:
 

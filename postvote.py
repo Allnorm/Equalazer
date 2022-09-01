@@ -45,7 +45,8 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
         utils.bot.edit_message_text("Создана инвайт-ссылка и отправлена запросившему кандидату "
                                     + mention + ".\n" + "Ссылка истечёт через 1 сутки." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id, parse_mode="html")
-        utils.bot.send_message(datalist[0], "Дано добро на вступление! Glory to 4\\<!\nСсылка истечёт через 1 сутки.\n"
+        utils.bot.send_message(datalist[0], f"Дано добро на вступление в чат {message_vote.chat.title}!\n"
+                                            "Ссылка истечёт через 1 сутки.\n"
                                + invite.invite_link)
     else:
         sql_worker.abuse_update(datalist[0])
@@ -198,7 +199,7 @@ def vote_result_delmsg(records, message_vote, votes_counter, accept):
             utils.bot.delete_message(message_vote.chat.id, datalist[0])
             if datalist[2]:
                 utils.bot.delete_message(message_vote.chat.id, message_vote.message_id)
-                return
+                raise Warning
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(traceback.format_exc())
             if datalist[2]:
@@ -211,6 +212,7 @@ def vote_result_delmsg(records, message_vote, votes_counter, accept):
                 utils.bot.edit_message_text("Ошибка удаления сообщения по голосованию." + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
             return
+
         utils.bot.edit_message_text("Сообщение пользователя " + datalist[1] + " удалено успешно."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
