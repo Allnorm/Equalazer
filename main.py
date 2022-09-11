@@ -27,7 +27,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.1"
+VERSION = "1.1.1"
 welc_default = "Welcome to {1}!"
 
 
@@ -170,21 +170,21 @@ def vote_result(unique_id, message_vote):
         votes_counter = "\nНедостаточно голосов (требуется как минимум " + str(minimum_vote + 1) + ")"
 
     functions = {
-        "adduser": postvote.vote_result_useradd,
-        "banuser": postvote.vote_result_userkick,
-        "unbanuser": postvote.vote_result_unban,
+        "invite": postvote.vote_result_useradd,
+        "ban": postvote.vote_result_userkick,
+        "unban": postvote.vote_result_unban,
         "threshold": postvote.vote_result_treshold,
-        "threshold_ban": postvote.vote_result_treshold_ban,
+        "threshold for ban votes": postvote.vote_result_treshold_ban,
         "timer": postvote.vote_result_timer,
-        "timer_ban": postvote.vote_result_timer,
-        "delmsg": postvote.vote_result_delmsg,
+        "timer for ban votes": postvote.vote_result_timer,
+        "delete message": postvote.vote_result_delmsg,
         "op": postvote.vote_result_op,
         "deop": postvote.vote_result_deop,
         "title": postvote.vote_result_title,
-        "chatpic": postvote.vote_result_chat_pic,
-        "desc": postvote.vote_result_description,
+        "chat picture": postvote.vote_result_chat_pic,
+        "description": postvote.vote_result_description,
         "rank": postvote.vote_result_rank,
-        "new_usr": postvote.vote_result_new_usr
+        "captcha": postvote.vote_result_new_usr
     }
 
     try:
@@ -417,7 +417,7 @@ def add_usr(message):
     # + "](tg://user?id=" + str(message.from_user.id) + ")" + " хочет в чат.\n"
     # + "Сообщение от пользователя: " + msg_from_usr + ".")
 
-    pool_constructor(unique_id, vote_text, message, "adduser", utils.global_timer, utils.votes_need,
+    pool_constructor(unique_id, vote_text, message, "invite", utils.global_timer, utils.votes_need,
                      [message.chat.id, utils.username_parser(message)], message.from_user.id, adduser=True)
 
     warn = ""
@@ -547,7 +547,7 @@ def ban_usr(message):
 
     vote_type = 1 if kickuser else 2
 
-    pool_constructor(unique_id, vote_text, message, "banuser", utils.global_timer_ban, utils.votes_need_ban,
+    pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
                      [userid, username, utils.username_parser(message), vote_type, restrict_timer],
                      message.from_user.id)
 
@@ -565,21 +565,28 @@ def mute_usr(message):
         utils.bot.reply_to(message, "Ответьте на имя пользователя, которого требуется замутить.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked":
+    if message.reply_to_message.json.get("new_chat_participant") is not None:
+        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
+        username = utils.username_parser_invite(message.reply_to_message, True)
+    else:
+        userid = message.reply_to_message.from_user.id
+        username = utils.username_parser(message.reply_to_message, True)
+
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "restricted":
-        until_date = utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).until_date
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
+        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
         if until_date == 0 or until_date is None:
             utils.bot.reply_to(message, "Данный пользователь уже ограничен.")
             return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "creator":
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if utils.bot.get_me().id == message.reply_to_message.from_user.id:
+    if utils.bot.get_me().id == userid:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -597,7 +604,7 @@ def mute_usr(message):
     if 31535991 <= restrict_timer <= 31536000:
         restrict_timer = 31535990
 
-    unique_id = str(message.reply_to_message.from_user.id) + "_userban"
+    unique_id = str(userid) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
@@ -606,18 +613,18 @@ def mute_usr(message):
     if restrict_timer != 0:
         ban_timer_text = " на срок {}".format(utils.formatted_timer(restrict_timer))
 
-    if message.from_user.id == message.reply_to_message.from_user.id:
-        vote_text = ("От пользователя " + utils.username_parser(message, True)
-                     + " поступило предложение сыграть в молчанку с самим собой" + ban_timer_text)
+    if message.from_user.id == userid:
+        vote_text = ("От пользователя " + username + " поступило предложение сыграть в молчанку с самим собой"
+                     + ban_timer_text)
     else:
         vote_text = ("От пользователя " + utils.username_parser(message, True)
                      + " поступило предложение отправить в мут пользователя "
-                     + utils.username_parser(message.reply_to_message, True) + ban_timer_text)
+                     + username + ban_timer_text)
 
     vote_type = 0
-    pool_constructor(unique_id, vote_text, message, "banuser", utils.global_timer_ban, utils.votes_need_ban,
-                     [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
-                      utils.username_parser(message), vote_type, restrict_timer], message.from_user.id)
+    pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
+                     [userid, username, utils.username_parser(message), vote_type, restrict_timer],
+                     message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['unmute', 'unban'])
@@ -633,27 +640,32 @@ def unban_usr(message):
         utils.bot.reply_to(message, "Ответьте на имя пользователя, которого требуется размутить или разбанить.")
         return
 
-    if utils.bot.get_me().id == message.reply_to_message.from_user.id:
+    if message.reply_to_message.json.get("new_chat_participant") is not None:
+        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
+        username = utils.username_parser_invite(message.reply_to_message, True)
+    else:
+        userid = message.reply_to_message.from_user.id
+        username = utils.username_parser(message.reply_to_message, True)
+
+    if utils.bot.get_me().id == userid:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status != "restricted" and \
-            utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status != "kicked":
+    if utils.bot.get_chat_member(main_chat_id, userid).status != "restricted" and \
+            utils.bot.get_chat_member(main_chat_id, userid).status != "kicked":
         utils.bot.reply_to(message, "Данный пользователь не ограничен.")
         return
 
-    unique_id = str(message.reply_to_message.from_user.id) + "_unban"
+    unique_id = str(userid) + "_unban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
-                 + " поступило предложение снять ограничения с пользователя "
-                 + utils.username_parser(message.reply_to_message, True) + ".")
+                 + " поступило предложение снять ограничения с пользователя " + username + ".")
 
-    pool_constructor(unique_id, vote_text, message, "unbanuser", utils.global_timer, utils.votes_need,
-                     [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
-                      utils.username_parser(message)], message.from_user.id)
+    pool_constructor(unique_id, vote_text, message, "unban", utils.global_timer, utils.votes_need,
+                     [userid, username, utils.username_parser(message)], message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['threshold'])
@@ -682,7 +694,7 @@ def thresholds(message):
     unique_id = "threshold"
     bantext = ""
     if utils.extract_arg(message.text, 2) == "ban":
-        unique_id = "threshold_ban"
+        unique_id = "threshold for ban votes"
         bantext = " для бана"
 
     records = sql_worker.msg_chk(unique_id=unique_id)
@@ -736,7 +748,7 @@ def timer(message):
     unique_id = "timer"
     bantext = ""
     if utils.extract_arg(message.text, 2) == "ban":
-        unique_id = "timer_ban"
+        unique_id = "timer for ban votes"
         bantext = " для бана"
 
     mode = utils.time_parser(mode)
@@ -792,7 +804,7 @@ def msg_remover(message, clearmsg):
                  + "удалить сообщение пользователя "
                  + utils.username_parser(message.reply_to_message, True) + "." + warn)
 
-    pool_constructor(unique_id, vote_text, message, "delmsg", timer_del, votes,
+    pool_constructor(unique_id, vote_text, message, "delete message", timer_del, votes,
                      [message.reply_to_message.message_id, utils.username_parser(message.reply_to_message), silent_del],
                      message.from_user.id, silent=silent_del)
 
@@ -1072,7 +1084,7 @@ def description(message):
     if inputtext is None:
         inputtext = ""
 
-    pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
+    pool_constructor(unique_id, vote_text, message, "description", utils.global_timer, utils.votes_need,
                      [inputtext, utils.username_parser(message)], message.from_user.id)
 
 
@@ -1119,7 +1131,7 @@ def chat_pic(message):
     vote_text = ("От пользователя " + utils.username_parser(message, True)
                  + " поступило предложение сменить аватарку чата.")
 
-    pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer,
+    pool_constructor(unique_id, vote_text, message, "chat picture", utils.global_timer,
                      utils.votes_need, [utils.username_parser(message)], message.from_user.id)
 
 
@@ -1425,7 +1437,7 @@ def whitelist_checker(message):
                      + " добавил нового бота. Требуется набрать достаточное количество голосов за вступление, "
                        "в противном случае он будет кикнут.")
 
-        pool_constructor(unique_id, vote_text, message, "new_usr", 60, utils.votes_need,
+        pool_constructor(unique_id, vote_text, message, "captcha", 60, utils.votes_need,
                          [utils.username_parser_invite(message),
                           message.json.get("new_chat_participant").get("id"), "бота"], utils.bot.get_me().id)
 
