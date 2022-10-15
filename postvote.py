@@ -48,6 +48,7 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
         utils.bot.send_message(datalist[0], f"Дано добро на вступление в чат {message_vote.chat.title}!\n"
                                             "Ссылка истечёт через 1 сутки.\n"
                                + invite.invite_link)
+        sql_worker.update_rate(datalist[0], 0)
     else:
         sql_worker.abuse_update(datalist[0])
         utils.bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention + " отклонён."
@@ -74,20 +75,23 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                                             + "по милости пользователя " + datalist[2]
                                             + " и не сможет войти в чат до разблокировки." + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
+                sql_worker.clear_rate(datalist[0])
             elif datalist[3] == 1:
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
                 utils.bot.edit_message_text("Пользователь " + datalist[1] + " кикнут из чата "
-                                            + "по милости пользователя " + datalist[2]
-                                            + until_text + votes_counter,
-                                            message_vote.chat.id, message_vote.message_id)
+                                            + "по милости пользователя " + datalist[2] + until_text
+                                            + "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
+                                            + votes_counter, message_vote.chat.id, message_vote.message_id)
+                sql_worker.update_rate(datalist[0], -10)
             elif datalist[3] == 0:
                 utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0],
                                                can_send_messages=False, can_change_info=False,
                                                can_invite_users=False, can_pin_messages=False, until_date=until_date)
                 utils.bot.edit_message_text("Пользователь " + datalist[1]
                                             + " лишён права переписки в чате по милости пользователя " + datalist[2]
-                                            + until_text + votes_counter,
-                                            message_vote.chat.id, message_vote.message_id)
+                                            + until_text + "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
+                                            + votes_counter, message_vote.chat.id, message_vote.message_id)
+                sql_worker.update_rate(datalist[0], -5)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.edit_message_text("Ошибка блокировки пользователя " + datalist[1] + votes_counter,
@@ -109,9 +113,11 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
                                            can_send_media_messages=True, can_send_polls=True,
                                            can_send_other_messages=True,
                                            can_add_web_page_previews=True)
+            sql_worker.update_rate(datalist[0], 2)
             utils.bot.edit_message_text("Пользователю " + datalist[1] + " восстановлено право переписки в чате "
-                                        + "по милости пользователя " + datalist[2] + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id)
+                                        + "по милости пользователя " + datalist[2]
+                                        + "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.edit_message_text("Я не смог вынести из мута пользователя " + datalist[1]
@@ -180,11 +186,12 @@ def vote_result_timer(records, message_vote, votes_counter, accept):
     if accept:
         if datalist[1] == "timer":
             utils.global_timer = datalist[0]
-            utils.bot.edit_message_text("Установлен таймер основного голосования на " + str(datalist[0]) + " секунд."
-                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            utils.bot.edit_message_text("Установлен таймер основного голосования на "
+                                        + utils.formatted_timer(datalist[0]) + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
         elif datalist[1] == "timer_ban":
             utils.global_timer_ban = datalist[0]
-            utils.bot.edit_message_text("Установлен таймер голосования за бан на " + str(datalist[0]) + " секунд."
+            utils.bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(datalist[0])
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
         ban = "" if datalist[1] == "timer" else "для бана "
@@ -241,8 +248,10 @@ def vote_result_op(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка назначения администратора " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id)
+        sql_worker.update_rate(datalist[0], 3)
+        utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате."
+                                    + "\nЕго рейтинг повышен на 3 пункта."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос назначения " + datalist[1] + " администратором отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -293,8 +302,10 @@ def vote_result_deop(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка снятия администратора " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        utils.bot.edit_message_text("Пользователь " + datalist[1] + " разжалован из админов." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id)
+        sql_worker.update_rate(datalist[0], -3)
+        utils.bot.edit_message_text("Пользователь " + datalist[1] + " разжалован из админов."
+                                    + "\nЕго рейтинг снижен на 3 пункта."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос снятия " + datalist[1] + " из администраторов отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
@@ -360,3 +371,19 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
         os.remove(utils.PATH + "tmp_img")
     except IOError:
         pass
+
+
+def vote_result_change_rate(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        if datalist[2] > 0:
+            chrate = "увеличил на " + str(datalist[2])
+        else:
+            chrate = "уменьшил на " + str(-datalist[2])
+        sql_worker.update_rate(datalist[1], datalist[2])
+        utils.bot.edit_message_text(f"Пользователь {datalist[3]} "
+                                    f"{chrate} социальный рейтинг пользователя {datalist[0]}."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+    else:
+        utils.bot.edit_message_text(f"Вопрос изменения социального рейтинга пользователя {datalist[0]} отклонён."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)

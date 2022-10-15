@@ -33,6 +33,9 @@ def table_init():
                                     timer INTEGER);""")
     cursor.execute("""CREATE TABLE if not exists whitelist (
                                     user_id INTEGER PRIMARY KEY);""")
+    cursor.execute("""CREATE TABLE if not exists rating (
+                                    user_id INTEGER PRIMARY KEY,
+                                    rate INTEGER);""")
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
@@ -183,6 +186,59 @@ def user_vote_remove(call_msg):
     cursor = sqlite_connection.cursor()
     cursor.execute("""DELETE FROM users_choise WHERE message_id = ? AND user_id = ?""",
                    (call_msg.message.id, call_msg.from_user.id,))
+    sqlite_connection.commit()
+    cursor.close()
+    sqlite_connection.close()
+
+
+def get_rate(user_id):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM rating WHERE user_id = ?""", (user_id,))
+    record = cursor.fetchall()
+    if not record:
+        cursor.execute("""INSERT INTO rating VALUES (?,?)""", (user_id, 0))
+        sqlite_connection.commit()
+        cursor.close()
+        sqlite_connection.close()
+        return 0
+    cursor.close()
+    sqlite_connection.close()
+    return record[0][1]
+
+
+def get_all_rates():
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM rating""")
+    record = cursor.fetchall()
+    if not record:
+        cursor.close()
+        sqlite_connection.close()
+        return None
+    cursor.close()
+    sqlite_connection.close()
+    return record
+
+
+def update_rate(user_id, change):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM rating WHERE user_id = ?""", (user_id,))
+    record = cursor.fetchall()
+    if not record:
+        cursor.execute("""INSERT INTO rating VALUES (?,?)""", (user_id, change))
+    else:
+        cursor.execute("""UPDATE rating SET rate = ? where user_id = ?""", (record[0][1] + change, user_id))
+    sqlite_connection.commit()
+    cursor.close()
+    sqlite_connection.close()
+
+
+def clear_rate(user_id):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""DELETE FROM rating WHERE user_id = ?""", (user_id,))
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
