@@ -36,6 +36,8 @@ def table_init():
     cursor.execute("""CREATE TABLE if not exists rating (
                                     user_id INTEGER PRIMARY KEY,
                                     rate INTEGER);""")
+    cursor.execute("""CREATE TABLE if not exists allies (
+                                    chat_id INTEGER PRIMARY KEY);""")
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
@@ -212,12 +214,10 @@ def get_all_rates():
     cursor = sqlite_connection.cursor()
     cursor.execute("""SELECT * FROM rating""")
     record = cursor.fetchall()
-    if not record:
-        cursor.close()
-        sqlite_connection.close()
-        return None
     cursor.close()
     sqlite_connection.close()
+    if not record:
+        return None
     return record
 
 
@@ -239,6 +239,48 @@ def clear_rate(user_id):
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
     cursor.execute("""DELETE FROM rating WHERE user_id = ?""", (user_id,))
+    sqlite_connection.commit()
+    cursor.close()
+    sqlite_connection.close()
+
+
+def get_ally(chat_id):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM allies WHERE chat_id = ?""", (chat_id,))
+    record = cursor.fetchall()
+    cursor.close()
+    sqlite_connection.close()
+    if not record:
+        return None
+    return record[0]
+
+
+def get_allies():
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM allies""")
+    record = cursor.fetchall()
+    cursor.close()
+    sqlite_connection.close()
+    if not record:
+        return None
+    return record
+
+
+def add_ally(chat_id):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""INSERT INTO allies VALUES (?)""", (chat_id,))
+    sqlite_connection.commit()
+    cursor.close()
+    sqlite_connection.close()
+
+
+def remove_ally(chat_id):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""DELETE FROM allies WHERE chat_id = ?""", (chat_id,))
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()

@@ -387,3 +387,68 @@ def vote_result_change_rate(records, message_vote, votes_counter, accept):
     else:
         utils.bot.edit_message_text(f"Вопрос изменения социального рейтинга пользователя {datalist[0]} отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_add_allies(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        sql_worker.abuse_remove(datalist[0])
+        sql_worker.abuse_update(datalist[0])
+        sql_worker.add_ally(datalist[0])
+        try:
+            ally_title = utils.bot.get_chat(datalist[0]).title
+            invite = utils.bot.get_chat(datalist[0]).invite_link
+            if invite is None:
+                invite = "Инвайт-ссылка на данный чат отсутствует."
+            else:
+                invite = f"Инвайт ссылка на данный чат: {invite}."
+            utils.bot.send_message(datalist[0], f"Установлены союзные отношения с чатом "
+                                                f"<b>{utils.html_fix(message_vote.chat.title)}</b>!\n"
+                                                f"Ссылка для упрощённого перехода: "
+                                                f"{utils.bot.get_chat(message_vote.chat.id).invite_link}.",
+                                   parse_mode="html")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            utils.bot.edit_message_text("Ошибка установки союзных отношений с чатом! Информация сохранена в логах бота."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            return
+
+        utils.bot.edit_message_text(f"Установлены союзные отношения с чатом "
+                                    f"<b>{utils.html_fix(ally_title)}!</b>\n{invite}"
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
+    else:
+        sql_worker.abuse_update(datalist[0])
+        try:
+            utils.bot.edit_message_text(f"Вопрос установки союзных отношения с чатом "
+                                        f"{utils.bot.get_chat(datalist[0]).title} отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            utils.bot.send_message(datalist[0], f"Вопрос установки союзных отношения с чатом "
+                                                f"{message_vote.chat.title} отклонён." + votes_counter)
+        except telebot.apihelper.ApiTelegramException:
+            utils.bot.edit_message_text(f"Вопрос установки союзных отношения с чатом отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_remove_allies(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        sql_worker.abuse_remove(datalist[0])
+        sql_worker.remove_ally(datalist[0])
+        try:
+            ally_title = f" <b>{utils.html_fix(utils.bot.get_chat(datalist[0]).title)}</b> "
+            utils.bot.send_message(datalist[0], f"Cоюз с чатом <b>{utils.html_fix(message_vote.chat.title)}</b> "
+                                                f"разорван." + votes_counter, parse_mode="html")
+        except telebot.apihelper.ApiTelegramException:
+            ally_title = " "
+        utils.bot.edit_message_text(f"Союзные отношения с чатом{ally_title}разорваны." + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id, parse_mode="html")
+    else:
+        try:
+            utils.bot.edit_message_text(f"Вопрос разрыва союзных отношений с чатом "
+                                        f"{utils.bot.get_chat(datalist[0]).title} отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            utils.bot.send_message(datalist[0], f"Вопрос разрыва союзных отношения с чатом "
+                                                f"{message_vote.chat.title} отклонён." + votes_counter)
+        except telebot.apihelper.ApiTelegramException:
+            utils.bot.edit_message_text(f"Вопрос разрыва союзных отношения с чатом отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)

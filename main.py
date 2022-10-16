@@ -21,13 +21,12 @@ debug = False
 minimum_vote = 1
 vote_mode = 3
 vote_abuse = {}
-allies = []
 abuse_random = 0
 wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.2.3"
+VERSION = "1.3"
 welc_default = "Welcome to {1}!"
 
 
@@ -184,7 +183,9 @@ def vote_result(unique_id, message_vote):
         "description": postvote.vote_result_description,
         "rank": postvote.vote_result_rank,
         "captcha": postvote.vote_result_new_usr,
-        "change rate": postvote.vote_result_change_rate
+        "change rate": postvote.vote_result_change_rate,
+        "add allies": postvote.vote_result_add_allies,
+        "remove allies": postvote.vote_result_remove_allies
     }
 
     try:
@@ -249,19 +250,6 @@ def init():
             time.sleep(3600)
 
     utils.auto_thresholds_init(main_chat_id)
-
-    global allies
-
-    try:
-        file = open(utils.PATH + "allies.txt", 'r', encoding="utf-8")
-        allies = file.readlines()
-    except FileNotFoundError:
-        logging.warning("file \"allies.txt\" not found.")
-    except IOError:
-        logging.error("file \"allies.txt\" isn't readable.")
-        logging.error(traceback.format_exc())
-    if not allies:
-        logging.warning("allies is empty.")
 
     try:
         os.remove(utils.PATH + "tmp_img")
@@ -1308,14 +1296,14 @@ def random_msg(message):
     utils.bot.reply_to(message, "Ошибка взятия рандомного сообщения с номером {}!".format(msg_id))
 
 
-@utils.bot.message_handler(commands=['reinvite'])
-def reinvite(message):
+@utils.bot.message_handler(commands=['reset'])
+def reset(message):
     if not botname_checker(message):
         return
 
     if debug:
-        sql_worker.abuse_remove(message.from_user.id)
-        utils.bot.reply_to(message, "Абуз инвайта сброшен.")
+        sql_worker.abuse_remove(message.chat.id)
+        utils.bot.reply_to(message, "Абуз инвайта и союзников сброшен.")
 
 
 @utils.bot.message_handler(commands=['getid'])
@@ -1513,38 +1501,8 @@ def mute_user(message):
 
 @utils.bot.message_handler(content_types=['new_chat_members'])
 def whitelist_checker(message):
-    if utils.bot.get_chat_member(main_chat_id,
-                                 message.json.get("new_chat_participant").get("id")).status == "creator":
-        utils.bot.reply_to(message, "Приветствую вас, Владыка.")
-        return
 
-    if not (sql_worker.whitelist(message.json.get("new_chat_participant").get("id"))
-            or message.json.get("new_chat_participant").get("is_bot")):
-        # Fuck you Durov
-        for chat in allies:
-            if chat.rstrip("\n") == str(message.chat.id):
-                if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "kicked":
-                    utils.bot.reply_to(message, utils.username_parser(message)
-                                       + " ранее был заблокирован и не может быть добавлен в вайтлист "
-                                       + "по упрощённой схеме входа.")
-                    return
-                sql_worker.whitelist(message.from_user.id, add=True)
-                utils.bot.reply_to(message, utils.username_parser(message) + " добавлен в вайтлист в союзном чате "
-                                   + utils.bot.get_chat(main_chat_id).title + "!")
-                utils.bot.send_message(main_chat_id, utils.username_parser(message)
-                                       + " добавлен в вайтлист в союзном чате " + message.chat.title + "!")
-                return
-        if message.chat.id != main_chat_id:
-            return
-        try:
-            utils.bot.ban_chat_member(main_chat_id, message.json.get("new_chat_participant").get("id"),
-                                      until_date=int(time.time()) + 86400)
-            utils.bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-            utils.bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
-    elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == main_chat_id:
-
+    def welc_msg_get():
         try:
             file = open(utils.PATH + "welcome.txt", 'r', encoding="utf-8")
             welc_msg = file.read().format(utils.username_parser_invite(message), message.chat.title)
@@ -1559,20 +1517,44 @@ def whitelist_checker(message):
         if welc_msg == "":
             logging.warning("file \"welcome.txt\" is empty. The standard welcome message will be used.")
             welc_msg = welc_default.format(utils.username_parser_invite(message), message.chat.title)
+        return welc_msg
 
-        utils.bot.reply_to(message, welc_msg)
+    user_id = message.json.get("new_chat_participant").get("id")
 
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
+        utils.bot.reply_to(message, "Приветствую вас, Владыка.")
+        return
+
+    if not (sql_worker.whitelist(user_id) or message.json.get("new_chat_participant").get("is_bot")):
+        # Fuck you Durov
+        if message.chat.id != main_chat_id:
+            return
+
+        allies = sql_worker.get_allies()
+        if allies is not None:
+            for i in allies:
+                if utils.bot.get_chat_member(i[0], user_id).status != "left" \
+                        and utils.bot.get_chat_member(i[0], user_id).status != "kicked":
+                    sql_worker.whitelist(user_id, add=True)
+                    utils.bot.reply_to(message, welc_msg_get())
+                    return
+        try:
+            utils.bot.ban_chat_member(main_chat_id, user_id, until_date=int(time.time()) + 86400)
+            utils.bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            utils.bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
+    elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == main_chat_id:
+        utils.bot.reply_to(message, welc_msg_get())
     elif message.chat.id == main_chat_id:
-
-        unique_id = str(message.json.get("new_chat_participant").get("id")) + "_new_usr"
+        unique_id = str(user_id) + "_new_usr"
         records = sql_worker.msg_chk(unique_id=unique_id)
         if is_voting_exists(records, message, unique_id):
             return
-
         try:
-            utils.bot.restrict_chat_member(main_chat_id, message.json.get("new_chat_participant").get("id"),
-                                           can_send_messages=False, can_change_info=False, can_invite_users=False,
-                                           can_pin_messages=False, until_date=int(time.time()) + 60)
+            utils.bot.restrict_chat_member(main_chat_id, user_id, can_send_messages=False, can_change_info=False,
+                                           can_invite_users=False, can_pin_messages=False,
+                                           until_date=int(time.time()) + 60)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.reply_to(message, "Ошибка блокировки нового бота. Недостаточно прав?")
@@ -1583,8 +1565,7 @@ def whitelist_checker(message):
                        "в противном случае он будет кикнут.")
 
         pool_constructor(unique_id, vote_text, message, "captcha", 60, utils.votes_need,
-                         [utils.username_parser_invite(message),
-                          message.json.get("new_chat_participant").get("id"), "бота"], utils.bot.get_me().id)
+                         [utils.username_parser_invite(message), user_id, "бота"], utils.bot.get_me().id)
 
 
 @utils.bot.message_handler(commands=['allies'])
@@ -1592,30 +1573,91 @@ def allies_list(message):
     if not botname_checker(message):
         return
 
-    for chat in allies:
-        if chat.rstrip("\n") == str(message.chat.id):
-            utils.bot.reply_to(message, "Данный чат является союзным чатом для "
-                               + utils.bot.get_chat(main_chat_id).title
-                               + ", ссылка для инвайта - " + utils.bot.get_chat(main_chat_id).invite_link)
-            return
-
-    if message.chat.id != main_chat_id:
-        utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
+    if message.chat.id == message.from_user.id:
+        utils.bot.reply_to(message, "Данная команда не может быть запущена в личных сообщениях.")
         return
 
-    allies_text = ""
+    mode = utils.extract_arg(message.text, 1)
+
+    if mode == "add" or mode == "remove":
+
+        if message.chat.id == main_chat_id:
+            utils.bot.reply_to(message, "Данную команду нельзя запустить в основном чате!")
+            return
+
+        if sql_worker.get_ally(message.chat.id) is not None and mode == "add":
+            utils.bot.reply_to(message, "Данный чат уже входит в список союзников!")
+            return
+
+        if sql_worker.get_ally(message.chat.id) is None and mode == "remove":
+            utils.bot.reply_to(message, "Данный чат не входит в список союзников!")
+            return
+
+        abuse_chk = sql_worker.abuse_check(message.chat.id)
+        if abuse_chk > 0 and mode == "add":
+            utils.bot.reply_to(message, "Сработала защита от абуза добавления в союзники! Вам следует подождать ещё "
+                               + utils.formatted_timer(abuse_chk - int(time.time())))
+            return
+
+        unique_id = str(message.chat.id) + "_allies"
+        records = sql_worker.msg_chk(unique_id=unique_id)
+        if is_voting_exists(records, message, unique_id):
+            return
+
+        if mode == "add":
+            vote_type_text, vote_type = "установить", "add allies"
+            invite = utils.bot.get_chat(message.chat.id).invite_link
+            if invite is None:
+                invite = "\nИнвайт-ссылка на данный чат отсутствует."
+            else:
+                invite = f"\nИнвайт-ссылка на данный чат: {invite}."
+        else:
+            vote_type_text, vote_type = "разорвать", "remove allies"
+            invite = ""
+
+        vote_text = (f"От чата <b>{utils.html_fix(utils.bot.get_chat(message.chat.id).title)}</b> "
+                     f"поступило предложение {vote_type_text} союзные отношения с данным чатом.{invite}")
+
+        pool_constructor(unique_id, vote_text, message, vote_type, 86400, utils.votes_need,
+                         [message.chat.id], message.from_user.id, adduser=True)
+
+        mode_text = "создании" if mode == "add" else "прекращении"
+
+        utils.bot.reply_to(message, f"Голосование о {mode_text} союза отправлено в чат "
+                                    f"<b>{utils.html_fix(utils.bot.get_chat(main_chat_id).title)}</b>. "
+                                    f"Оно завершится через 24 часа или ранее в зависимости от количества голосов.",
+                           parse_mode="html")
+        return
+
+    elif mode is not None:
+        utils.bot.reply_to(message, "Неправильный аргумент (поддерживаются add и remove).")
+        return
+
+    if sql_worker.get_ally(message.chat.id) is not None:
+        utils.bot.reply_to(message, "Данный чат является союзным чатом для " + utils.bot.get_chat(main_chat_id).title
+                           + ", ссылка для инвайта - " + utils.bot.get_chat(main_chat_id).invite_link)
+        return
+
+    if message.chat.id != main_chat_id:
+        utils.bot.reply_to(message, "Данную команду без аргументов можно запустить "
+                                    "только в основном чате или в союзных чатах.")
+        return
+
+    allies_text = "Список союзных чатов: \n"
+    allies = sql_worker.get_allies()
+    if allies is None:
+        utils.bot.reply_to(message, "В настоящее время у вас нет союзников.")
+        return
+
     for i in allies:
         try:
-            invite = utils.bot.get_chat(i).invite_link
+            invite = utils.bot.get_chat(i[0]).invite_link
             if invite is None:
                 invite = "инвайт-ссылка отсутствует"
-            allies_text = allies_text + utils.bot.get_chat(i).title + " - " + invite + "\n"
+            allies_text = allies_text + utils.bot.get_chat(i[0]).title + " - " + invite + "\n"
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-    if allies_text == "":
-        allies_text = "В настоящее время у вас нет союзников."
-    else:
-        allies_text = "Список союзных чатов: \n" + allies_text
+
     utils.bot.reply_to(message, allies_text)
 
 
@@ -1624,10 +1666,7 @@ def revoke(message):
     if not botname_checker(message):
         return
 
-    is_allies = False
-    for chat in allies:
-        if chat.rstrip("\n") == str(message.chat.id):
-            is_allies = True
+    is_allies = False if sql_worker.get_ally(message.chat.id) is None else True
 
     if message.chat.id != main_chat_id and not is_allies:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
