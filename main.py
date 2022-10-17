@@ -26,7 +26,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.3"
+VERSION = "1.3.2"
 welc_default = "Welcome to {1}!"
 
 
@@ -718,8 +718,8 @@ def timer(message):
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
-    mode = utils.extract_arg(message.text, 1)
-    if mode is None:
+    timer_arg = utils.extract_arg(message.text, 1)
+    if timer_arg is None:
         utils.bot.reply_to(message, "Текущие пороги таймера:\n"
                            + time.strftime("%Hч., %Mм., %Sс.",
                                            time.gmtime(utils.global_timer)) + " для обычного голосования\n"
@@ -733,12 +733,12 @@ def timer(message):
         unique_id = "timer for ban votes"
         bantext = " для бана"
 
-    mode = utils.time_parser(mode)
-    if mode is None:
+    timer_arg = utils.time_parser(timer_arg)
+    if timer_arg is None:
         utils.bot.reply_to(message, "Неверный аргумент (должно быть число a от 5 секунд до 1 суток).")
         return
 
-    if mode < 5 or mode > 86400:
+    if timer_arg < 5 or timer_arg > 86400:
         utils.bot.reply_to(message, "Количество времени не может быть меньше 5 секунд и больше 1 суток.")
         return
 
@@ -748,10 +748,10 @@ def timer(message):
 
     vote_text = ("От пользователя " + utils.username_parser(message, True)
                  + " поступило предложение изменить таймер на "
-                 + time.strftime("%Hч., %Mм. и %Sс", time.gmtime(mode)) + bantext + ".")
+                 + time.strftime("%Hч., %Mм. и %Sс", time.gmtime(timer_arg)) + bantext + ".")
 
     pool_constructor(unique_id, vote_text, message, unique_id, utils.global_timer, utils.votes_need,
-                     [mode, unique_id], message.from_user.id)
+                     [timer_arg, unique_id], message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['rate'])
@@ -844,21 +844,20 @@ def rating(message):
             utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
             return
 
-        unique_id = str(message.reply_to_message.from_user.id) + "_" + str(message.from_user.id) + "_rating"
+        unique_id = str(message.reply_to_message.from_user.id) + "_rating_" + mode
         records = sql_worker.msg_chk(unique_id=unique_id)
         if is_voting_exists(records, message, unique_id):
             return
 
-        ch_rate = 1 if mode == "up" else -1
         mode_text = "увеличить" if mode == "up" else "уменьшить"
 
         vote_text = ("От пользователя " + utils.username_parser(message)
                      + " поступило предложение " + mode_text + " социальный рейтинг пользователя "
                      + utils.username_parser(message.reply_to_message) + ".")
 
-        pool_constructor(unique_id, vote_text, message, "change rate", 60, utils.votes_need,
+        pool_constructor(unique_id, vote_text, message, "change rate", utils.global_timer, utils.votes_need,
                          [utils.username_parser(message.reply_to_message), message.reply_to_message.from_user.id,
-                          ch_rate, utils.username_parser(message)], message.from_user.id)
+                          mode, utils.username_parser(message)], message.from_user.id)
         return
 
     utils.bot.reply_to(message, "Неправильные аргументы (доступны top, up, down и команда без аргументов).")
@@ -1288,11 +1287,11 @@ def random_msg(message):
         try:
             msg_id = random.randint(1, message.id)
             utils.bot.forward_message(message.chat.id, message.chat.id, msg_id)
-            utils.bot.get_state(message.chat.id, message.user.id)
             return
         except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+            pass
 
+    logging.error(traceback.format_exc())
     utils.bot.reply_to(message, "Ошибка взятия рандомного сообщения с номером {}!".format(msg_id))
 
 

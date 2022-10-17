@@ -189,7 +189,7 @@ def vote_result_timer(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Установлен таймер основного голосования на "
                                         + utils.formatted_timer(datalist[0]) + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
-        elif datalist[1] == "timer_ban":
+        elif datalist[1] == "timer for ban votes":
             utils.global_timer_ban = datalist[0]
             utils.bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(datalist[0])
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
@@ -376,11 +376,12 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
 def vote_result_change_rate(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        if datalist[2] > 0:
-            chrate = "увеличил на " + str(datalist[2])
+        if datalist[2] == "up":
+            chrate = "увеличил на " + str(records[0][3] - records[0][4])
+            sql_worker.update_rate(datalist[1], records[0][3] - records[0][4])
         else:
-            chrate = "уменьшил на " + str(-datalist[2])
-        sql_worker.update_rate(datalist[1], datalist[2])
+            chrate = "уменьшил на " + str(records[0][3] - records[0][4])
+            sql_worker.update_rate(datalist[1], records[0][4] - records[0][3])
         utils.bot.edit_message_text(f"Пользователь {datalist[3]} "
                                     f"{chrate} социальный рейтинг пользователя {datalist[0]}."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
