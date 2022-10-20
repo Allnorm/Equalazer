@@ -26,7 +26,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 welc_default = "Welcome to {1}!"
 
 
@@ -886,13 +886,15 @@ def status(message):
     if target_msg.json.get("new_chat_participant") is not None:
         userid = target_msg.json.get("new_chat_participant").get("id")
         username = utils.username_parser_invite(target_msg)
+        is_bot = target_msg.json.get("new_chat_participant").get("is_bot")
     else:
         userid = target_msg.from_user.id
         username = utils.username_parser(target_msg)
+        is_bot = target_msg.from_user.is_bot
 
     if sql_worker.whitelist(target_msg.from_user.id):
         whitelist_status = "да"
-    elif target_msg.from_user.is_bot:
+    elif is_bot:
         whitelist_status = "является ботом"
     else:
         whitelist_status = "нет"
@@ -1386,7 +1388,8 @@ def votes_msg(message):
         format_chat_id = "c/" + str(main_chat_id)[4:]
 
     for record in records:
-        pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, тип - {record[2]}\n"
+        pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, тип - {record[2]},\n" + \
+                    f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
         number = number + 1
 
     if pool_list == "":
