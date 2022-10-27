@@ -26,7 +26,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.3.4.1"
+VERSION = "1.3.5"
 welc_default = "Welcome to {1}!"
 
 
@@ -1431,16 +1431,6 @@ def mute_user(message):
 
     vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
 
-    try:
-        utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
-                                       until_date=int(time.time()) + timer_mute, can_send_messages=False,
-                                       can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        sql_worker.update_rate(message.reply_to_message.from_user.id, -5)
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
-        utils.bot.reply_to(message, "Я не смог снять права данного пользователя. Не имею права.")
-        return
-
     if message.from_user.id == message.reply_to_message.from_user.id:
         sql_worker.update_rate(message.reply_to_message.from_user.id, -3)
         utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
@@ -1449,20 +1439,35 @@ def mute_user(message):
         return
 
     try:
+        utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
+                                       until_date=int(time.time()) + timer_mute, can_send_messages=False,
+                                       can_change_info=False, can_invite_users=False, can_pin_messages=False)
+        if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
+            sql_worker.update_rate(message.reply_to_message.from_user.id, -5)
+    except telebot.apihelper.ApiTelegramException:
+        logging.error(traceback.format_exc())
+        utils.bot.reply_to(message, "Я не смог снять права данного пользователя. Не имею права.")
+        return
+
+    try:
         utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
                                        until_date=int(time.time()) + timer_mute, can_send_messages=False,
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        sql_worker.update_rate(message.from_user.id, -5)
+        if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
+            sql_worker.update_rate(message.from_user.id, -5)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
         utils.bot.reply_to(message, "Я смог снять права данного пользователя на "
                            + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
 
-    utils.bot.reply_to(message, "<b>Обоюдоострый Меч сработал</b>.\nТеперь " + utils.username_parser(message, True)
-                       + " и " + utils.username_parser(message.reply_to_message, True)
-                       + " будут дружно молчать в течении " + utils.formatted_timer(timer_mute)
-                       + "\nИх рейтинг снижен на 5 пунктов.", parse_mode="html")
+    rate = ""
+    if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
+        rate = "\nРейтинг обоих пользователей снижен на 5 пунктов."
+
+    utils.bot.reply_to(message, f"<b>Обоюдоострый Меч сработал</b>.\nТеперь {utils.username_parser(message, True)} "
+                       f"и {utils.username_parser(message.reply_to_message, True)} будут дружно молчать в течении "
+                       + utils.formatted_timer(timer_mute) + rate, parse_mode="html")
 
 
 @utils.bot.message_handler(content_types=['new_chat_members'])

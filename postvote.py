@@ -78,20 +78,30 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                 sql_worker.clear_rate(datalist[0])
             elif datalist[3] == 1:
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
+
+                rate = ""
+                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+                    sql_worker.update_rate(datalist[0], -10)
+                    rate = "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
+
                 utils.bot.edit_message_text("Пользователь " + datalist[1] + " кикнут из чата "
-                                            + "по милости пользователя " + datalist[2] + until_text
-                                            + "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
+                                            + "по милости пользователя " + datalist[2] + until_text + rate
                                             + votes_counter, message_vote.chat.id, message_vote.message_id)
-                sql_worker.update_rate(datalist[0], -10)
+
             elif datalist[3] == 0:
                 utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0],
                                                can_send_messages=False, can_change_info=False,
                                                can_invite_users=False, can_pin_messages=False, until_date=until_date)
+                rate = ""
+                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+                    sql_worker.update_rate(datalist[0], -5)
+                    rate = "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
+
                 utils.bot.edit_message_text("Пользователь " + datalist[1]
                                             + " лишён права переписки в чате по милости пользователя " + datalist[2]
-                                            + until_text + "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
-                                            + votes_counter, message_vote.chat.id, message_vote.message_id)
-                sql_worker.update_rate(datalist[0], -5)
+                                            + until_text + rate + votes_counter,
+                                            message_vote.chat.id, message_vote.message_id)
+
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.edit_message_text("Ошибка блокировки пользователя " + datalist[1] + votes_counter,
@@ -113,10 +123,14 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
                                            can_send_media_messages=True, can_send_polls=True,
                                            can_send_other_messages=True,
                                            can_add_web_page_previews=True)
-            sql_worker.update_rate(datalist[0], 2)
+
+            rate = ""
+            if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+                sql_worker.update_rate(datalist[0], 2)
+                rate = "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
+
             utils.bot.edit_message_text("Пользователю " + datalist[1] + " восстановлено право переписки в чате "
-                                        + "по милости пользователя " + datalist[2]
-                                        + "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
+                                        + "по милости пользователя " + datalist[2] + rate
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
@@ -248,10 +262,14 @@ def vote_result_op(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка назначения администратора " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        sql_worker.update_rate(datalist[0], 3)
+
+        rate = ""
+        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+            sql_worker.update_rate(datalist[0], 3)
+            rate = "\nРейтинг " + datalist[1] + " повышен на 3 пункта."
+
         utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате."
-                                    + "\nЕго рейтинг повышен на 3 пункта."
-                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                    + rate + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос назначения " + datalist[1] + " администратором отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
@@ -302,10 +320,14 @@ def vote_result_deop(records, message_vote, votes_counter, accept):
             utils.bot.edit_message_text("Ошибка снятия администратора " + datalist[1] + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
-        sql_worker.update_rate(datalist[0], -3)
+
+        rate = ""
+        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+            sql_worker.update_rate(datalist[0], -3)
+            rate = "\nРейтинг " + datalist[1] + " снижен на 3 пункта."
+
         utils.bot.edit_message_text("Пользователь " + datalist[1] + " разжалован из админов."
-                                    + "\nЕго рейтинг снижен на 3 пункта."
-                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                    + rate + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
         utils.bot.edit_message_text("Вопрос снятия " + datalist[1] + " из администраторов отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
