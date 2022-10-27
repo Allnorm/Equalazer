@@ -26,7 +26,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.3.4"
+VERSION = "1.3.4.1"
 welc_default = "Welcome to {1}!"
 
 
@@ -445,7 +445,7 @@ def add_answer(message):
         utils.bot.reply_to(message, "Ошибка отправки сообщению пользователю.")
 
 
-@utils.bot.message_handler(commands=['ban'])
+@utils.bot.message_handler(commands=['ban', 'kick'])
 def ban_usr(message):
     if not botname_checker(message):
         return
@@ -461,11 +461,9 @@ def ban_usr(message):
     if message.reply_to_message.json.get("new_chat_participant") is not None:
         userid = message.reply_to_message.json.get("new_chat_participant").get("id")
         username = utils.username_parser_invite(message.reply_to_message, True)
-        is_bot = message.reply_to_message.json.get("new_chat_participant").get("is_bot")
     else:
         userid = message.reply_to_message.from_user.id
         username = utils.username_parser(message.reply_to_message, True)
-        is_bot = message.reply_to_message.from_user.is_bot
 
     if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
@@ -499,20 +497,16 @@ def ban_usr(message):
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if not kickuser and is_bot:
-        utils.bot.reply_to(message, "Запрещено перманентно банить ботов.")
-        return
-
     unique_id = str(userid) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
 
-    ban_timer_text = "" if restrict_timer != 0 else f"\nСрок: {utils.formatted_timer(restrict_timer)}"
-    ban_text = "кик" if not kickuser else "<b>перманентный бан</b>"
+    ban_timer_text = "Срок блокировки: <b>перманентный</b>" if restrict_timer == 0 else \
+        f"\nСрок блокировки: {utils.formatted_timer(restrict_timer)}"
     vote_type = 1 if kickuser else 2
 
-    vote_text = ("Тема голосования: " + ban_text + " пользователя " + username + ban_timer_text +
+    vote_text = ("Тема голосования: блокировка пользователя " + username + ban_timer_text +
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
@@ -577,7 +571,7 @@ def mute_usr(message):
     if is_voting_exists(records, message, unique_id):
         return
 
-    ban_timer_text = "" if restrict_timer != 0 else f"\nСрок {utils.formatted_timer(restrict_timer)}"
+    ban_timer_text = "Срок: перманентно" if restrict_timer == 0 else f"\nСрок {utils.formatted_timer(restrict_timer)}"
 
     vote_text = ("Тема голосования: мут пользователя " + username + ban_timer_text
                  + f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
@@ -833,7 +827,7 @@ def rating(message):
         mode_text = "увеличение" if mode == "up" else "уменьшение"
 
         vote_text = (f"Тема голосования: {mode_text} "
-                     f"социального рейтинга пользователя {utils.username_parser(message.reply_to_message)}\n"
+                     f"социального рейтинга пользователя {utils.username_parser(message.reply_to_message)}"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
         pool_constructor(unique_id, vote_text, message, "change rate", utils.global_timer, utils.votes_need,
