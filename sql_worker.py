@@ -36,6 +36,9 @@ def table_init():
     cursor.execute("""CREATE TABLE if not exists rating (
                                     user_id INTEGER PRIMARY KEY,
                                     rate INTEGER);""")
+    cursor.execute("""CREATE TABLE if not exists abuse_random (
+                                    chat_id INTEGER PRIMARY KEY,
+                                    abuse_random INTEGER);""")
     cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
     sqlite_connection.commit()
@@ -108,6 +111,16 @@ def whitelist(user_id, add=False, remove=False):
     cursor.close()
     sqlite_connection.close()
     return is_white
+
+
+def whitelist_get_all():
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM whitelist""")
+    fetchall = cursor.fetchall()
+    cursor.close()
+    sqlite_connection.close()
+    return fetchall
 
 
 def addpool(unique_id, message_vote, pool_type, current_time, work_data, votes_need, user_id):
@@ -284,3 +297,21 @@ def remove_ally(chat_id):
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
+
+
+def abuse_random(chat_id, change=None):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM abuse_random WHERE chat_id = ?""", (chat_id,))
+    record = cursor.fetchall()
+    if change is not None:
+        if not record:
+            cursor.execute("""INSERT INTO abuse_random VALUES (?,?)""", (chat_id, change))
+        else:
+            cursor.execute("""UPDATE abuse_random SET abuse_random = ? where chat_id = ?""", (change, chat_id))
+        sqlite_connection.commit()
+    cursor.close()
+    sqlite_connection.close()
+    if not record:
+        return 0
+    return record[0][1]

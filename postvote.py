@@ -166,11 +166,13 @@ def vote_result_treshold(records, message_vote, votes_counter, accept):
 def vote_result_new_usr(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
+        utils.bot.restrict_chat_member(message_vote.chat.id, datalist[1],
+                                       None, True, True, True, True, True, True, True, True)
         utils.bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} одобрено!" + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
 
     else:
-        utils.bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time())+60)
+        utils.bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time()) + 60)
         utils.bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} отклонено."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
@@ -474,4 +476,27 @@ def vote_result_remove_allies(records, message_vote, votes_counter, accept):
                                                 f"{message_vote.chat.title} отклонён." + votes_counter)
         except telebot.apihelper.ApiTelegramException:
             utils.bot.edit_message_text(f"Вопрос разрыва союзных отношения с чатом отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_random_cooldown(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        sql_worker.abuse_random(message_vote.chat.id, datalist[0])
+        if datalist[0] == -1:
+            utils.bot.edit_message_text("Команда /random отключена." + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
+        elif datalist[0] == 0:
+            utils.bot.edit_message_text("Кулдаун команды /random отключён." + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
+        else:
+            utils.bot.edit_message_text("Установлен порог кулдауна команды /random на значение " +
+                                        utils.formatted_timer(datalist[0]) + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
+    else:
+        if datalist[0] == 1:
+            utils.bot.edit_message_text(f"Вопрос отключения команды /abuse отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+        else:
+            utils.bot.edit_message_text(f"Вопрос изменения таймера команды /abuse отклонён."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)

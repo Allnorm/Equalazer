@@ -176,7 +176,9 @@ def time_parser(instr: str):
 
 
 def formatted_timer(timer_in_second):
-    if timer_in_second < 60:
+    if timer_in_second <= 0:
+        return "0c."
+    elif timer_in_second < 60:
         return time.strftime("%Sс.", time.gmtime(timer_in_second))
     elif timer_in_second < 3600:
         return time.strftime("%Mм. и %Sс.", time.gmtime(timer_in_second))
