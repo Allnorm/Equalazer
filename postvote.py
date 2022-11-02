@@ -500,3 +500,23 @@ def vote_result_random_cooldown(records, message_vote, votes_counter, accept):
         else:
             utils.bot.edit_message_text(f"Вопрос изменения таймера команды /abuse отклонён."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_whitelist(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        if datalist[2] == "add":
+            sql_worker.whitelist(datalist[0], add=True)
+            utils.bot.edit_message_text(f"Пользователь {datalist[1]} добавлен в вайтлист."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+        else:
+            sql_worker.whitelist(datalist[0], remove=True)
+            utils.bot.edit_message_text(f"Пользователь {datalist[1]} удалён из вайтлиста."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+    else:
+        if datalist[2] == "add":
+            utils.bot.edit_message_text(f"Вопрос добавления пользователя {datalist[1]} в вайтлист отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+        else:
+            utils.bot.edit_message_text(f"Вопрос удаления пользователя {datalist[1]} из вайтлиста отклонён."
+                                        + votes_counter, message_vote.chat.id, message_vote.message_id)

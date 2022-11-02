@@ -25,7 +25,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4"
+VERSION = "1.4.1"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -47,7 +47,8 @@ functions = {
     "change rate": (postvote.vote_result_change_rate, "изменение рейтинга"),
     "add allies": (postvote.vote_result_add_allies, "добавление союзного чата"),
     "remove allies": (postvote.vote_result_remove_allies, "удаление союзного чата"),
-    "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random")
+    "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random"),
+    "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста")
 }
 
 
@@ -278,7 +279,8 @@ def make_keyboard(counter_yes, counter_no):
     buttons = [
         types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes"),
         types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no"),
-        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
+        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote"),
+        types.InlineKeyboardButton(text="Отмена голосования", callback_data="cancel")
     ]
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
@@ -973,6 +975,58 @@ def status(message):
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
+    if utils.extract_arg(message.text, 1) in ("add", "remove"):
+
+        if message.reply_to_message is not None:
+            if message.reply_to_message.json.get("new_chat_participant") is not None:
+                who_id = message.reply_to_message.json.get("new_chat_participant").get("id")
+                who_name = utils.username_parser_invite(message.reply_to_message)
+                is_bot = message.reply_to_message.json.get("new_chat_participant").get("is_bot")
+            else:
+                who_id = message.reply_to_message.from_user.id
+                who_name = utils.username_parser(message.reply_to_message)
+                is_bot = message.reply_to_message.from_user.is_bot
+        else:
+            who_id = message.from_user.id
+            who_name = utils.username_parser(message)
+            is_bot = message.from_user.is_bot
+
+        if utils.bot.get_me().id == who_id:
+            utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            return
+
+        if is_bot:
+            utils.bot.reply_to(message, f"Вайтлист не работает для ботов!")
+            return
+
+        is_whitelist = sql_worker.whitelist(who_id)
+
+        unique_id = str(who_id) + "_whitelist"
+        records = sql_worker.msg_chk(unique_id=unique_id)
+        if is_voting_exists(records, message, unique_id):
+            return
+
+        if is_whitelist and utils.extract_arg(message.text, 1) == "add":
+            utils.bot.reply_to(message, f"Пользователь {who_name} уже есть в вайтлисте!")
+            return
+
+        if not is_whitelist and utils.extract_arg(message.text, 1) == "remove":
+            utils.bot.reply_to(message, f"Пользователя {who_name} нет в вайтлисте!")
+            return
+
+        if utils.extract_arg(message.text, 1) == "add":
+            whitelist_text = f"добавление пользователя {who_name} в вайтлист"
+        else:
+            whitelist_text = f"удаление пользователя {who_name} из вайтлиста"
+
+        vote_text = (f"Тема голосования: {whitelist_text}.\n"
+                     f"Инициатор голосования: {utils.username_parser(message, True)}.")
+
+        pool_constructor(unique_id, vote_text, message, "whitelist", utils.global_timer, utils.votes_need,
+                         [who_id, who_name, utils.extract_arg(message.text, 1)], message.from_user.id)
+
+        return
+
     whitelist = sql_worker.whitelist_get_all()
     if not whitelist:
         utils.bot.reply_to(message, "Вайтлист данного чата пуст!")
@@ -1271,8 +1325,8 @@ def description(message):
 
     formatted_desc = " пустое" if description_text is None else f":\n<code>{description_text}</code>"
 
-    vote_text = (f"Тема голосования: смена описания чата на{formatted_desc}"
-                 f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+    vote_text = (f"Тема голосования: смена описания чата на{formatted_desc}\n"
+                 f"Инициатор голосования: {utils.username_parser(message, True)}.")
 
     unique_id = "desc"
     records = sql_worker.msg_chk(unique_id=unique_id)
@@ -1761,41 +1815,6 @@ def revoke(message):
         utils.bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
 
 
-@utils.bot.message_handler(commands=['cancel'])
-def cancel(message):
-    if not botname_checker(message):
-        return
-
-    if message.reply_to_message is None:
-        utils.bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на голосование.")
-        return
-
-    pool = sql_worker.msg_chk(message_vote=message.reply_to_message)
-    if pool:
-        if pool[0][8] != message.from_user.id:
-            utils.bot.reply_to(message, "Вы не можете отменить чужое голосование.")
-            return
-        vote_abuse.clear()
-        sql_worker.rem_rec(message.reply_to_message.id, pool[0][0])
-        try:
-            os.remove(utils.PATH + pool[0][0])
-        except IOError:
-            pass
-        utils.bot.edit_message_text(utils.html_fix(message.reply_to_message.text)
-                                    + "\n\n<b>Голосование было отменено автором голосования.</b>",
-                                    main_chat_id, message.reply_to_message.id, parse_mode="html")
-        utils.bot.reply_to(message, "Голосование было отменено.")
-
-        try:
-            utils.bot.unpin_chat_message(main_chat_id, message.reply_to_message.id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-
-    else:
-        utils.bot.reply_to(message, "Данное сообщение не является активным голосованием.")
-        return
-
-
 @utils.bot.message_handler(commands=['niko'])
 def niko(message):
     if not botname_checker(message):
@@ -1810,8 +1829,7 @@ def niko(message):
         pass
 
 
-@utils.bot.callback_query_handler(func=lambda call: call.data == "vote")
-def my_vote(call_msg):
+def call_msg_chk(call_msg):
     records = sql_worker.msg_chk(message_vote=call_msg.message)
     if not records:
         sql_worker.rem_rec(call_msg.message.id)
@@ -1822,6 +1840,39 @@ def my_vote(call_msg):
             utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
+
+    return records
+
+
+@utils.bot.callback_query_handler(func=lambda call: call.data == "cancel")
+def cancel_vote(call_msg):
+    pool = call_msg_chk(call_msg)
+    if not pool:
+        return
+    if pool[0][8] != call_msg.from_user.id:
+        utils.bot.answer_callback_query(callback_query_id=call_msg.id,
+                                        text='Вы не можете отменить чужое голосование!', show_alert=True)
+        return
+    vote_abuse.clear()
+    sql_worker.rem_rec(call_msg.message.reply_to_message.id, pool[0][0])
+    try:
+        os.remove(utils.PATH + pool[0][0])
+    except IOError:
+        pass
+    utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
+                                + "\n\n<b>Голосование было отменено автором голосования.</b>",
+                                main_chat_id, call_msg.message.id, parse_mode="html")
+    utils.bot.reply_to(call_msg.message, "Голосование было отменено.")
+
+    try:
+        utils.bot.unpin_chat_message(main_chat_id, call_msg.message.reply_to_message.id)
+    except telebot.apihelper.ApiTelegramException:
+        logging.error(traceback.format_exc())
+
+
+@utils.bot.callback_query_handler(func=lambda call: call.data == "vote")
+def my_vote(call_msg):
+    if not call_msg_chk(call_msg):
         return
 
     user_ch = sql_worker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
@@ -1858,16 +1909,8 @@ def callback_inline(call_msg):
         else:
             vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
 
-    records = sql_worker.msg_chk(message_vote=call_msg.message)
+    records = call_msg_chk(call_msg)
     if not records:
-        sql_worker.rem_rec(call_msg.message.id)
-        utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
-                                    + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
-                                    main_chat_id, call_msg.message.id, parse_mode='html')
-        try:
-            utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
         return
 
     if records[0][5] <= int(time.time()):
