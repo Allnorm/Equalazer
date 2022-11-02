@@ -25,7 +25,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -1854,7 +1854,7 @@ def cancel_vote(call_msg):
                                         text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
     vote_abuse.clear()
-    sql_worker.rem_rec(call_msg.message.reply_to_message.id, pool[0][0])
+    sql_worker.rem_rec(call_msg.message.id, pool[0][0])
     try:
         os.remove(utils.PATH + pool[0][0])
     except IOError:
@@ -1865,7 +1865,7 @@ def cancel_vote(call_msg):
     utils.bot.reply_to(call_msg.message, "Голосование было отменено.")
 
     try:
-        utils.bot.unpin_chat_message(main_chat_id, call_msg.message.reply_to_message.id)
+        utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
 
