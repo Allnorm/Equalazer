@@ -25,7 +25,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -264,11 +264,16 @@ def init():
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
+    get_version = sql_worker.get_version(VERSION)
+    update_text = "" if get_version is None else "\nВнимание! Обнаружено изменение версии.\n" \
+                                                 f"Текущая версия: {VERSION}\n" \
+                                                 f"Предыдущая версия: {get_version}"
+
     if debug:
         logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
-        utils.bot.send_message(main_chat_id, f"Бот запущен в режиме отладки!\nВерсия бота: {VERSION}")
+        utils.bot.send_message(main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
     else:
-        utils.bot.send_message(main_chat_id, f"Бот перезапущен. Текущая версия: {VERSION}")
+        utils.bot.send_message(main_chat_id, f"Бот перезапущен." + update_text)
 
 
 utils.bot_init(config_init())
@@ -370,18 +375,13 @@ def add_usr(message):
     if not botname_checker(message):
         return
 
-    unique_id = str(message.from_user.id) + "_useradd"
-    try:
-        msg_from_usr = message.text.split(None, 1)[1]
-    except IndexError:
-        msg_from_usr = "нет"
-
     if not utils.bot.get_chat_member(main_chat_id, message.from_user.id).status in ("left", "kicked", "restricted") \
             or utils.bot.get_chat_member(main_chat_id, message.from_user.id).is_member:
         # Fuuuuuuuck my brain
         utils.bot.reply_to(message, "Вы уже есть в нужном вам чате.")
         return
 
+    unique_id = str(message.from_user.id) + "_useradd"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
@@ -391,6 +391,20 @@ def add_usr(message):
         utils.bot.reply_to(message, "Сработала защита от абуза инвайта! Вам следует подождать ещё "
                            + utils.formatted_timer(abuse_chk - int(time.time())))
         return
+
+    if sql_worker.whitelist(message.from_user.id):
+        sql_worker.abuse_remove(message.from_user.id)
+        sql_worker.abuse_update(message.from_user.id)
+        invite = utils.bot.create_chat_invite_link(main_chat_id, expire_date=int(time.time()) + 86400)
+        utils.bot.reply_to(message, f"Вы получили личную ссылку для вступления в чат, так как находитесь в вайтлисте.\n"
+                                    "Ссылка истечёт через 1 сутки.\n"
+                           + invite.invite_link)
+        return
+
+    try:
+        msg_from_usr = message.text.split(None, 1)[1]
+    except IndexError:
+        msg_from_usr = "нет"
 
     vote_text = ("Тема голосования: заявка на вступление от пользователя <a href=\"tg://user?id="
                  + str(message.from_user.id) + "\">" + utils.username_parser(message, True) + "</a>.\n"
@@ -573,7 +587,7 @@ def mute_usr(message):
     if is_voting_exists(records, message, unique_id):
         return
 
-    ban_timer_text = "Срок: перманентно" if restrict_timer == 0 else f"\nСрок {utils.formatted_timer(restrict_timer)}"
+    ban_timer_text = "\nСрок: перманентно" if restrict_timer == 0 else f"\nСрок {utils.formatted_timer(restrict_timer)}"
 
     vote_text = ("Тема голосования: мут пользователя " + username + ban_timer_text
                  + f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
@@ -1133,18 +1147,19 @@ def rank(message):
     if not botname_checker(message):
         return
 
-    if utils.extract_arg(message.text, 1) is None:
-        utils.bot.reply_to(message, "Звание не может быть пустым.")
-        return
-
-    rank_text = message.text.split(maxsplit=1)[1]
-
-    if len(rank_text) > 16:
-        utils.bot.reply_to(message, "Звание не может быть длиннее 16 символов.")
-        return
-
     if message.reply_to_message is None or message.reply_to_message.from_user.id == message.from_user.id:
         if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "administrator":
+
+            if utils.extract_arg(message.text, 1) is None:
+                utils.bot.reply_to(message, "Звание не может быть пустым.")
+                return
+
+            rank_text = message.text.split(maxsplit=1)[1]
+
+            if len(rank_text) > 16:
+                utils.bot.reply_to(message, "Звание не может быть длиннее 16 символов.")
+                return
+
             try:
                 utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank_text)
                 utils.bot.reply_to(message, "Звание \"" + rank_text + "\" успешно установлено пользователю "
@@ -1182,6 +1197,16 @@ def rank(message):
     unique_id = str(message.reply_to_message.from_user.id) + "_rank"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
+        return
+
+    if utils.extract_arg(message.text, 1) is None:
+        utils.bot.reply_to(message, "Звание не может быть пустым.")
+        return
+
+    rank_text = message.text.split(maxsplit=1)[1]
+
+    if len(rank_text) > 16:
+        utils.bot.reply_to(message, "Звание не может быть длиннее 16 символов.")
         return
 
     vote_text = ("Тема голосования: смена звания бота " + utils.username_parser(message.reply_to_message, True)
@@ -1813,6 +1838,14 @@ def revoke(message):
         utils.bot.reply_to(message, "Пригласительная ссылка на основной чат успешно сброшена.")
     except telebot.apihelper.ApiTelegramException:
         utils.bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
+
+
+@utils.bot.message_handler(commands=['version'])
+def revoke(message):
+    if not botname_checker(message):
+        return
+
+    utils.bot.reply_to(message, f"Версия бота: {VERSION}\nCreated by Allnorm aka Peter Burzec")
 
 
 @utils.bot.message_handler(commands=['niko'])

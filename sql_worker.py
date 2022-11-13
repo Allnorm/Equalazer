@@ -41,6 +41,8 @@ def table_init():
                                     abuse_random INTEGER);""")
     cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
+    cursor.execute("""CREATE TABLE if not exists version (
+                                    version TEXT PRIMARY KEY);""")
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
@@ -315,3 +317,24 @@ def abuse_random(chat_id, change=None):
     if not record:
         return 0
     return record[0][1]
+
+
+def get_version(version):
+    sqlite_connection = sqlite3.connect(dbname)
+    cursor = sqlite_connection.cursor()
+    cursor.execute("""SELECT * FROM version""")
+    record = cursor.fetchall()
+    if not record:
+        cursor.execute("""INSERT INTO version VALUES (?)""", (version,))
+        sqlite_connection.commit()
+        cursor.close()
+        sqlite_connection.close()
+        return None
+    if record[0][0] != version:
+        cursor.execute("""UPDATE version SET version = ? where version = ?""", (version, record[0][0]))
+        sqlite_connection.commit()
+        cursor.close()
+        sqlite_connection.close()
+        return record[0][0]
+    else:
+        return None
