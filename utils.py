@@ -77,7 +77,6 @@ def username_parser(message, html=False):
 
 
 def username_parser_invite(message, html=False):
-
     if message.json.get("new_chat_participant").get("username") is None:
         if message.json.get("new_chat_participant").get("last_name") is None:
             username = message.json.get("new_chat_participant").get("first_name")
@@ -92,6 +91,25 @@ def username_parser_invite(message, html=False):
             username = message.json.get("new_chat_participant").get("first_name") + " " \
                        + message.json.get("new_chat_participant").get("last_name") + \
                        " (@" + message.json.get("new_chat_participant").get("username") + ")"
+
+    if not html:
+        return username
+
+    return html_fix(username)
+
+
+def username_parser_chat_member(chat_member, html=False):
+    if chat_member.user.username is None:
+        if chat_member.user.last_name is None:
+            username = chat_member.user.first_name
+        else:
+            username = chat_member.user.first_name + " " + chat_member.user.last_name
+    else:
+        if chat_member.user.last_name is None:
+            username = chat_member.user.first_name + " (@" + chat_member.user.username + ")"
+        else:
+            username = chat_member.user.first_name + " " + chat_member.user.last_name + \
+                   " (@" + chat_member.user.username + ")"
 
     if not html:
         return username

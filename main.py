@@ -25,7 +25,8 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.3"
+VERSION = "1.4.6"
+BUILD_DATE = "17.11.2022"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -481,10 +482,6 @@ def ban_usr(message):
         userid = message.reply_to_message.from_user.id
         username = utils.username_parser(message.reply_to_message, True)
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
-        utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
-        return
-
     restrict_timer = 0
     if utils.extract_arg(message.text, 1) is not None:
         restrict_timer = utils.time_parser(utils.extract_arg(message.text, 1))
@@ -518,12 +515,25 @@ def ban_usr(message):
     if is_voting_exists(records, message, unique_id):
         return
 
-    ban_timer_text = "\nСрок блокировки: <b>перманентный</b>" if restrict_timer == 0 else \
-        f"\nСрок блокировки: {utils.formatted_timer(restrict_timer)}"
+    ban_timer_text = "\nПредложенный срок блокировки: <b>перманентный</b>" if restrict_timer == 0 else \
+        f"\nПредложенный срок блокировки: {utils.formatted_timer(restrict_timer)}"
     vote_type = 1 if kickuser else 2
 
-    vote_text = ("Тема голосования: блокировка пользователя " + username + ban_timer_text +
-                 f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+    vote_theme = "блокировка пользователя"
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
+        vote_theme = "изменение срока блокировки пользователя"
+
+    date_unban = ""
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
+        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
+        if until_date == 0 or until_date is None:
+            date_unban = "\nПользователь был ранее заблокирован перманентно"
+        else:
+            date_unban = "\nДо разблокировки пользователя оставалось " \
+                         + utils.formatted_timer(until_date - int(time.time()))
+
+    vote_text = (f"Тема голосования: {vote_theme} {username}" + date_unban + ban_timer_text +
+                 f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
                      [userid, username, utils.username_parser(message), vote_type, restrict_timer],
@@ -554,12 +564,6 @@ def mute_usr(message):
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
-        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
-        if until_date == 0 or until_date is None:
-            utils.bot.reply_to(message, "Данный пользователь уже ограничен.")
-            return
-
     if utils.bot.get_chat_member(main_chat_id, userid).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
@@ -587,10 +591,24 @@ def mute_usr(message):
     if is_voting_exists(records, message, unique_id):
         return
 
-    ban_timer_text = "\nСрок: перманентно" if restrict_timer == 0 else f"\nСрок {utils.formatted_timer(restrict_timer)}"
+    ban_timer_text = "\nПредложенный срок ограничений: перманентно" if restrict_timer == 0 else \
+        f"\nПредложенный срок ограничений: {utils.formatted_timer(restrict_timer)}"
 
-    vote_text = ("Тема голосования: мут пользователя " + username + ban_timer_text
-                 + f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+    vote_theme = "ограничение сообщений пользователя"
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
+        vote_theme = "изменение срока ограничения сообщений пользователя"
+
+    date_unban = ""
+    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
+        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
+        if until_date == 0 or until_date is None:
+            date_unban = "\nПользователь был ранее заблокирован перманентно"
+        else:
+            date_unban = "\nДо разблокировки пользователя оставалось " \
+                         + utils.formatted_timer(until_date - int(time.time()))
+
+    vote_text = (f"Тема голосования: {vote_theme} {username}" + date_unban + ban_timer_text
+                 + f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     vote_type = 0
     pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
@@ -786,20 +804,38 @@ def timer(message):
                      [timer_arg, unique_id], message.from_user.id)
 
 
+def rate_top(message):
+
+    whitelist_msg = utils.bot.reply_to(message, "Сборка рейтинга, ожидайте...")
+    rates = sql_worker.get_all_rates()
+    if rates is None:
+        utils.bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
+        return
+
+    for k in range(0, len(rates)):
+        for j in range(0, len(rates) - 1):
+            if rates[j][1] < rates[j + 1][1]:
+                rates[j], rates[j + 1] = rates[j + 1], rates[j]
+
+    rate_text = "Список пользователей по социальному рейтингу:"
+    user_counter = 1
+
+    for user_rate in rates:
+        if utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "kicked" \
+                or utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "left":
+            sql_worker.clear_rate(user_rate[0])
+            continue
+        username = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, user_rate[0]), True)
+        rate_text = rate_text + f'\n{user_counter}. ' \
+                                f'<a href="tg://user?id={user_rate[0]}">{username}</a>: {str(user_rate[1])}'
+        user_counter += 1
+
+    utils.bot.edit_message_text(rate_text, chat_id=whitelist_msg.chat.id,
+                                message_id=whitelist_msg.id, parse_mode='html')
+
+
 @utils.bot.message_handler(commands=['rate'])
 def rating(message):
-    def username_parser_rating(user_data):
-        if user_data.user.last_name is None:
-            return str(user_data.user.first_name)
-        else:
-            return str(user_data.user.first_name) + " " + str(user_data.user.last_name)
-
-    def bubble(sorting_rates):
-        for k in range(0, len(sorting_rates)):
-            for j in range(0, len(sorting_rates) - 1):
-                if sorting_rates[j][1] < sorting_rates[j + 1][1]:
-                    sorting_rates[j], sorting_rates[j + 1] = sorting_rates[j + 1], sorting_rates[j]
-        return sorting_rates
 
     if not botname_checker(message):
         return
@@ -833,22 +869,7 @@ def rating(message):
         return
 
     if mode == "top":
-        rates = sql_worker.get_all_rates()
-        if rates is None:
-            utils.bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
-            return
-        rates = bubble(rates)
-        rate_text = "Список пользователей по социальному рейтингу:"
-        user_counter = 1
-        for user_rate in rates:
-            if utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "kicked" \
-                    or utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "left":
-                sql_worker.clear_rate(user_rate[0])
-                continue
-            username = username_parser_rating(utils.bot.get_chat_member(main_chat_id, user_rate[0]))
-            rate_text = rate_text + f"\n{user_counter}. {username}: {str(user_rate[1])}"
-            user_counter += 1
-        utils.bot.reply_to(message, rate_text)
+        threading.Thread(target=rate_top, args=(message,)).start()
         return
 
     if mode == "up" or mode == "down":
@@ -946,25 +967,12 @@ def status(message):
 
 
 def whitelist_building(message, whitelist):
+
     whitelist_msg = utils.bot.reply_to(message, "Сборка вайтлиста, ожидайте...")
-
-    def username_parser_local(chat_member):
-        if chat_member.user.username is None:
-            if chat_member.user.last_name is None:
-                return chat_member.user.first_name
-            else:
-                return chat_member.user.first_name + " " + chat_member.user.last_name
-        else:
-            if chat_member.user.last_name is None:
-                return chat_member.user.first_name + " (@" + chat_member.user.username + ")"
-            else:
-                return chat_member.user.first_name + " " + chat_member.user.last_name + \
-                       " (@" + chat_member.user.username + ")"
-
     user_list, counter = "Список пользователей, входящих в вайтлист:\n", 1
     for user in whitelist:
         try:
-            username = username_parser_local(utils.bot.get_chat_member(main_chat_id, user[0]))
+            username = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, user[0]), html=True)
             if username == "":
                 sql_worker.whitelist(user[0], remove=True)
                 continue
@@ -972,7 +980,7 @@ def whitelist_building(message, whitelist):
             logging.error(traceback.format_exc())
             sql_worker.whitelist(user[0], remove=True)
             continue
-        user_list = user_list + f'{counter}. <a href="tg://user?id={user[0]}">{utils.html_fix(username)}</a>\n'
+        user_list = user_list + f'{counter}. <a href="tg://user?id={user[0]}">{username}</a>\n'
         counter = counter + 1
 
     utils.bot.edit_message_text(user_list
@@ -1845,7 +1853,8 @@ def revoke(message):
     if not botname_checker(message):
         return
 
-    utils.bot.reply_to(message, f"Версия бота: {VERSION}\nCreated by Allnorm aka Peter Burzec")
+    utils.bot.reply_to(message, f"Версия бота: {VERSION}\nДата сборки: {BUILD_DATE}\n"
+                                f"Created by Allnorm aka Peter Burzec")
 
 
 @utils.bot.message_handler(commands=['niko'])

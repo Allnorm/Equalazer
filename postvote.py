@@ -71,20 +71,20 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
             if datalist[3] == 2:
                 sql_worker.whitelist(datalist[0], remove=True)
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0])
-                utils.bot.edit_message_text("Пользователь " + datalist[1] + " перманентно забанен "
+                utils.bot.edit_message_text("Пользователь " + datalist[1] + " перманентно заблокирован "
                                             + "по милости пользователя " + datalist[2]
                                             + " и не сможет войти в чат до разблокировки." + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
                 sql_worker.clear_rate(datalist[0])
             elif datalist[3] == 1:
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
-
                 rate = ""
-                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
+                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "kicked":
                     sql_worker.update_rate(datalist[0], -10)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
 
-                utils.bot.edit_message_text("Пользователь " + datalist[1] + " кикнут из чата "
+                utils.bot.edit_message_text("Пользователь " + datalist[1] + " заблокирован в чате "
                                             + "по милости пользователя " + datalist[2] + until_text + rate
                                             + votes_counter, message_vote.chat.id, message_vote.message_id)
 
@@ -93,7 +93,8 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                                                can_send_messages=False, can_change_info=False,
                                                can_invite_users=False, can_pin_messages=False, until_date=until_date)
                 rate = ""
-                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+                if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
+                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "restricted":
                     sql_worker.update_rate(datalist[0], -5)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
 
