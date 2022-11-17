@@ -25,7 +25,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.6"
+VERSION = "1.4.7"
 BUILD_DATE = "17.11.2022"
 welc_default = "Welcome to {1}!"
 
@@ -1350,13 +1350,13 @@ def description(message):
             utils.bot.reply_to(message, "В отвеченном сообщении не обнаружен текст!")
             return
     else:
-        description_text = None
+        description_text = ""
 
     if utils.bot.get_chat(main_chat_id).description == description_text:
         utils.bot.reply_to(message, "Описание чата не может совпадать с существующим описанием!")
         return
 
-    formatted_desc = " пустое" if description_text is None else f":\n<code>{description_text}</code>"
+    formatted_desc = " пустое" if description_text == "" else f":\n<code>{utils.html_fix(description_text)}</code>"
 
     vote_text = (f"Тема голосования: смена описания чата на{formatted_desc}\n"
                  f"Инициатор голосования: {utils.username_parser(message, True)}.")
@@ -1365,9 +1365,6 @@ def description(message):
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
-
-    if description_text is None:
-        description_text = ""
 
     pool_constructor(unique_id, vote_text, message, "description", utils.global_timer, utils.votes_need,
                      [description_text, utils.username_parser(message)], message.from_user.id)
