@@ -25,8 +25,8 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.7"
-BUILD_DATE = "17.11.2022"
+VERSION = "1.4.8"
+BUILD_DATE = "27.11.2022"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -1661,7 +1661,7 @@ def mute_user(message):
         rate = "\nРейтинг обоих пользователей снижен на 5 пунктов."
 
     utils.bot.reply_to(message, f"<b>Обоюдоострый Меч сработал</b>.\nТеперь {utils.username_parser(message, True)} "
-                                f"и {utils.username_parser(message.reply_to_message, True)}"
+                                f"и {utils.username_parser(message.reply_to_message, True)} "
                                 f"будут дружно молчать в течении " + utils.formatted_timer(timer_mute) + rate,
                        parse_mode="html")
 
