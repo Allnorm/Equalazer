@@ -25,8 +25,8 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.8"
-BUILD_DATE = "27.11.2022"
+VERSION = "1.4.9"
+BUILD_DATE = "11.12.2022"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -439,7 +439,7 @@ def add_answer(message):
 
     pool = sql_worker.msg_chk(message_vote=message.reply_to_message)
     if pool:
-        if pool[0][2] != "adduser":
+        if pool[0][2] != "invite":
             utils.bot.reply_to(message, "Данное голосование не является голосованием о вступлении.")
             return
     else:
