@@ -1018,6 +1018,8 @@ def status(message):
                 utils.bot.reply_to(message, "Удалена некорректная запись!")
                 return
 
+            is_bot = False
+
         if utils.bot.get_me().id == who_id:
             utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             return
