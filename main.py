@@ -25,7 +25,7 @@ wait_timer = 30
 abuse_mode = 2
 private_mode = True
 rules = False
-VERSION = "1.4.9"
+VERSION = "1.4.10"
 BUILD_DATE = "11.12.2022"
 welc_default = "Welcome to {1}!"
 
@@ -475,12 +475,7 @@ def ban_usr(message):
         utils.bot.reply_to(message, "Ответьте на сообщение пользователя, которого требуется забанить.")
         return
 
-    if message.reply_to_message.json.get("new_chat_participant") is not None:
-        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
-        username = utils.username_parser_invite(message.reply_to_message, True)
-    else:
-        userid = message.reply_to_message.from_user.id
-        username = utils.username_parser(message.reply_to_message, True)
+    user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
     restrict_timer = 0
     if utils.extract_arg(message.text, 1) is not None:
@@ -498,19 +493,19 @@ def ban_usr(message):
 
     kickuser = True if restrict_timer != 0 else False
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "left" and kickuser:
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "left" and kickuser:
         utils.bot.reply_to(message, "Пользователя нет в чате, чтобы можно было кикнуть его.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "creator":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if utils.bot.get_me().id == userid:
+    if utils.bot.get_me().id == user_id:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    unique_id = str(userid) + "_userban"
+    unique_id = str(user_id) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
@@ -520,12 +515,12 @@ def ban_usr(message):
     vote_type = 1 if kickuser else 2
 
     vote_theme = "блокировка пользователя"
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
         vote_theme = "изменение срока блокировки пользователя"
 
     date_unban = ""
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
-        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
+        until_date = utils.bot.get_chat_member(main_chat_id, user_id).until_date
         if until_date == 0 or until_date is None:
             date_unban = "\nПользователь был ранее заблокирован перманентно"
         else:
@@ -536,7 +531,7 @@ def ban_usr(message):
                  f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
-                     [userid, username, utils.username_parser(message), vote_type, restrict_timer],
+                     [user_id, username, utils.username_parser(message), vote_type, restrict_timer],
                      message.from_user.id)
 
 
@@ -553,22 +548,17 @@ def mute_usr(message):
         utils.bot.reply_to(message, "Ответьте на имя пользователя, которого требуется замутить.")
         return
 
-    if message.reply_to_message.json.get("new_chat_participant") is not None:
-        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
-        username = utils.username_parser_invite(message.reply_to_message, True)
-    else:
-        userid = message.reply_to_message.from_user.id
-        username = utils.username_parser(message.reply_to_message, True)
+    user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "kicked":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "creator":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if utils.bot.get_me().id == userid:
+    if utils.bot.get_me().id == user_id:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -586,7 +576,7 @@ def mute_usr(message):
     if 31535991 <= restrict_timer <= 31536000:
         restrict_timer = 31535990
 
-    unique_id = str(userid) + "_userban"
+    unique_id = str(user_id) + "_userban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
@@ -595,12 +585,12 @@ def mute_usr(message):
         f"\nПредложенный срок ограничений: {utils.formatted_timer(restrict_timer)}"
 
     vote_theme = "ограничение сообщений пользователя"
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "restricted":
         vote_theme = "изменение срока ограничения сообщений пользователя"
 
     date_unban = ""
-    if utils.bot.get_chat_member(main_chat_id, userid).status == "restricted":
-        until_date = utils.bot.get_chat_member(main_chat_id, userid).until_date
+    if utils.bot.get_chat_member(main_chat_id, user_id).status == "restricted":
+        until_date = utils.bot.get_chat_member(main_chat_id, user_id).until_date
         if until_date == 0 or until_date is None:
             date_unban = "\nПользователь был ранее заблокирован перманентно"
         else:
@@ -612,7 +602,7 @@ def mute_usr(message):
 
     vote_type = 0
     pool_constructor(unique_id, vote_text, message, "ban", utils.global_timer_ban, utils.votes_need_ban,
-                     [userid, username, utils.username_parser(message), vote_type, restrict_timer],
+                     [user_id, username, utils.username_parser(message), vote_type, restrict_timer],
                      message.from_user.id)
 
 
@@ -629,23 +619,18 @@ def unban_usr(message):
         utils.bot.reply_to(message, "Ответьте на имя пользователя, которого требуется размутить или разбанить.")
         return
 
-    if message.reply_to_message.json.get("new_chat_participant") is not None:
-        userid = message.reply_to_message.json.get("new_chat_participant").get("id")
-        username = utils.username_parser_invite(message.reply_to_message, True)
-    else:
-        userid = message.reply_to_message.from_user.id
-        username = utils.username_parser(message.reply_to_message, True)
+    user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if utils.bot.get_me().id == userid:
+    if utils.bot.get_me().id == user_id:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, userid).status != "restricted" and \
-            utils.bot.get_chat_member(main_chat_id, userid).status != "kicked":
+    if utils.bot.get_chat_member(main_chat_id, user_id).status != "restricted" and \
+            utils.bot.get_chat_member(main_chat_id, user_id).status != "kicked":
         utils.bot.reply_to(message, "Данный пользователь не ограничен.")
         return
 
-    unique_id = str(userid) + "_unban"
+    unique_id = str(user_id) + "_unban"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
@@ -654,7 +639,7 @@ def unban_usr(message):
                  + f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "unban", utils.global_timer, utils.votes_need,
-                     [userid, username, utils.username_parser(message)], message.from_user.id)
+                     [user_id, username, utils.username_parser(message)], message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['threshold'])
@@ -848,22 +833,23 @@ def rating(message):
 
     if mode is None:
         if message.reply_to_message is None:
-            user_id = message.from_user.id
-            username = utils.username_parser(message)
+            user_id, username, _ = utils.reply_msg_target(message)
         else:
             if utils.bot.get_me().id == message.reply_to_message.from_user.id:
                 utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 return
-            if message.reply_to_message.from_user.is_bot:
-                utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
-                return
+
             if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
                     or utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left":
                 sql_worker.clear_rate(message.reply_to_message.from_user.id)
                 utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
                 return
-            user_id = message.reply_to_message.from_user.id
-            username = utils.username_parser(message.reply_to_message)
+
+            user_id, username, is_bot = utils.reply_msg_target(message.reply_to_message)
+            if is_bot:
+                utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
+                return
+
         rate = sql_worker.get_rate(user_id)
         utils.bot.reply_to(message, f"Социальный рейтинг пользователя {username}: {rate}")
         return
@@ -879,25 +865,27 @@ def rating(message):
                                         "чей социальный рейтинг вы хотите изменить")
             return
 
-        if message.reply_to_message.from_user.id == message.from_user.id:
+        user_id, username, is_bot = utils.reply_msg_target(message.reply_to_message)
+
+        if user_id == message.from_user.id:
             utils.bot.reply_to(message, "Вы не можете менять свой собственный рейтинг!")
             return
 
-        if utils.bot.get_me().id == message.reply_to_message.from_user.id:
+        if user_id == utils.bot.get_me().id:
             utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             return
 
-        if message.reply_to_message.from_user.is_bot:
+        if is_bot:
             utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
             return
 
-        if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
-                or utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left":
-            sql_worker.clear_rate(message.reply_to_message.from_user.id)
+        if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked" \
+                or utils.bot.get_chat_member(main_chat_id, user_id).status == "left":
+            sql_worker.clear_rate(user_id)
             utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
             return
 
-        unique_id = str(message.reply_to_message.from_user.id) + "_rating_" + mode
+        unique_id = str(user_id) + "_rating_" + mode
         records = sql_worker.msg_chk(unique_id=unique_id)
         if is_voting_exists(records, message, unique_id):
             return
@@ -905,11 +893,11 @@ def rating(message):
         mode_text = "увеличение" if mode == "up" else "уменьшение"
 
         vote_text = (f"Тема голосования: {mode_text} "
-                     f"социального рейтинга пользователя {utils.username_parser(message.reply_to_message)}"
+                     f"социального рейтинга пользователя {username}"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
         pool_constructor(unique_id, vote_text, message, "change rate", utils.global_timer, utils.votes_need,
-                         [utils.username_parser(message.reply_to_message), message.reply_to_message.from_user.id,
+                         [username, message.reply_to_message.from_user.id,
                           mode, utils.username_parser(message)], message.from_user.id)
         return
 
@@ -936,14 +924,7 @@ def status(message):
                 "administrator": "администратор",
                 "member": "участник"}
 
-    if target_msg.json.get("new_chat_participant") is not None:
-        userid = target_msg.json.get("new_chat_participant").get("id")
-        username = utils.username_parser_invite(target_msg)
-        is_bot = target_msg.json.get("new_chat_participant").get("is_bot")
-    else:
-        userid = target_msg.from_user.id
-        username = utils.username_parser(target_msg)
-        is_bot = target_msg.from_user.is_bot
+    user_id, username, is_bot = utils.reply_msg_target(target_msg)
 
     if is_bot:
         whitelist_status = "является ботом"
@@ -953,16 +934,16 @@ def status(message):
         whitelist_status = "нет"
 
     until_date = ""
-    if utils.bot.get_chat_member(main_chat_id, userid).status in ("kicked", "restricted"):
-        if utils.bot.get_chat_member(main_chat_id, userid).until_date == 0:
+    if utils.bot.get_chat_member(main_chat_id, user_id).status in ("kicked", "restricted"):
+        if utils.bot.get_chat_member(main_chat_id, user_id).until_date == 0:
             until_date = "\nОсталось до снятия ограничений: ограничен бессрочно"
         else:
             until_date = "\nОсталось до снятия ограничений: " + \
-                         str(utils.formatted_timer(utils.bot.get_chat_member(main_chat_id, userid)
+                         str(utils.formatted_timer(utils.bot.get_chat_member(main_chat_id, user_id)
                                                    .until_date - int(time.time())))
 
     utils.bot.reply_to(message, f"Текущий статус пользователя {username}"
-                                f" - {statuses.get(utils.bot.get_chat_member(main_chat_id, userid).status)}"
+                                f" - {statuses.get(utils.bot.get_chat_member(main_chat_id, user_id).status)}"
                                 f"\nНаличие в вайтлисте: {whitelist_status}{until_date}")
 
 
@@ -1000,18 +981,42 @@ def status(message):
     if utils.extract_arg(message.text, 1) in ("add", "remove"):
 
         if message.reply_to_message is not None:
-            if message.reply_to_message.json.get("new_chat_participant") is not None:
-                who_id = message.reply_to_message.json.get("new_chat_participant").get("id")
-                who_name = utils.username_parser_invite(message.reply_to_message)
-                is_bot = message.reply_to_message.json.get("new_chat_participant").get("is_bot")
-            else:
-                who_id = message.reply_to_message.from_user.id
-                who_name = utils.username_parser(message.reply_to_message)
-                is_bot = message.reply_to_message.from_user.is_bot
+            who_id, who_name, is_bot = utils.reply_msg_target(message.reply_to_message)
         else:
-            who_id = message.from_user.id
-            who_name = utils.username_parser(message)
-            is_bot = message.from_user.is_bot
+            who_id, who_name, is_bot = utils.reply_msg_target(message)
+
+        if utils.extract_arg(message.text, 2) is not None and utils.extract_arg(message.text, 1) == "remove":
+
+            whitelist = sql_worker.whitelist_get_all()
+            if not whitelist:
+                utils.bot.reply_to(message, "Вайтлист данного чата пуст!")
+                return
+
+            try:
+                index = int(utils.extract_arg(message.text, 2)) - 1
+                if index < 0:
+                    raise ValueError
+            except ValueError:
+                utils.bot.reply_to(message, "Индекс должен быть больше нуля.")
+                return
+
+            try:
+                who_id = whitelist[index][0]
+            except IndexError:
+                utils.bot.reply_to(message, "Пользователь с данным индексом не найден в вайтлисте!")
+                return
+
+            try:
+                who_name = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, who_id), html=True)
+                if who_name == "":
+                    sql_worker.whitelist(who_id, remove=True)
+                    utils.bot.reply_to(message, "Удалена некорректная запись!")
+                    return
+            except telebot.apihelper.ApiTelegramException:
+                logging.error(traceback.format_exc())
+                sql_worker.whitelist(who_id, remove=True)
+                utils.bot.reply_to(message, "Удалена некорректная запись!")
+                return
 
         if utils.bot.get_me().id == who_id:
             utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
@@ -1114,11 +1119,9 @@ def op(message):
         return
 
     if message.reply_to_message is None:
-        who_id = message.from_user.id
-        who_name = utils.username_parser(message)
+        who_id, who_name, _ = utils.reply_msg_target(message)
     else:
-        who_id = message.reply_to_message.from_user.id
-        who_name = utils.username_parser(message.reply_to_message)
+        who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
 
     if utils.bot.get_chat_member(main_chat_id, who_id).status == "administrator":
         utils.bot.reply_to(message, "Пользователь уже администратор.")
@@ -1239,9 +1242,7 @@ def deop(message):
         utils.bot.reply_to(message, "Ответьте на сообщение или используйте аргумент \"me\"")
         return
 
-    me = False
-    if utils.extract_arg(message.text, 1) == "me":
-        me = True
+    me = True if utils.extract_arg(message.text, 1) == "me" else False
     if message.reply_to_message is not None:
         if message.reply_to_message.from_user.id == message.from_user.id:
             me = True
@@ -1267,36 +1268,34 @@ def deop(message):
             utils.bot.reply_to(message, "Я не могу изменить ваши права!")
             return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "creator":
-        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message.reply_to_message)
-                           + " является создателем чата, я не могу снять его права.")
+    who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
+
+    if utils.bot.get_chat_member(main_chat_id, who_id).status == "creator":
+        utils.bot.reply_to(message, f"Пользователь {who_name} является создателем чата, я не могу снять его права.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status != "administrator":
-        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message.reply_to_message)
-                           + " не является администратором!")
+    if utils.bot.get_chat_member(main_chat_id, who_id).status != "administrator":
+        utils.bot.reply_to(message, f"Пользователь {who_name} не является администратором!")
         return
 
     if utils.bot.get_me().id == message.reply_to_message.from_user.id:
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    unique_id = str(message.reply_to_message.from_user.id) + "_deop"
+    unique_id = str(who_id) + "_deop"
     records = sql_worker.msg_chk(unique_id=unique_id)
     if is_voting_exists(records, message, unique_id):
         return
 
-    vote_text = (f"Тема голосования: снятие прав администратора с пользователя "
-                 f"{utils.username_parser(message.reply_to_message, True)}"
+    vote_text = (f"Тема голосования: снятие прав администратора с пользователя {utils.html_fix(who_name)}"
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, "deop", utils.global_timer, utils.votes_need,
-                     [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message)],
+    pool_constructor(unique_id, vote_text, message, "deop", utils.global_timer, utils.votes_need, [who_id, who_name],
                      message.from_user.id)
 
 
 @utils.bot.message_handler(commands=['title'])
-def deop(message):
+def title(message):
     if not botname_checker(message):
         return
 
@@ -1474,14 +1473,8 @@ def get_usr(message):
 
     if debug and message.reply_to_message is not None:
 
-        if message.reply_to_message.json.get("new_chat_participant") is not None:
-            userid = message.reply_to_message.json.get("new_chat_participant").get("id")
-            username = utils.username_parser_invite(message.reply_to_message, True)
-        else:
-            userid = message.reply_to_message.from_user.id
-            username = utils.username_parser(message.reply_to_message, True)
-
-        utils.bot.reply_to(message, f"ID пользователя {username} - {userid}")
+        user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
+        utils.bot.reply_to(message, f"ID пользователя {username} - {user_id}")
 
 
 @utils.bot.message_handler(commands=['help'])

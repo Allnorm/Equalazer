@@ -117,6 +117,19 @@ def username_parser_chat_member(chat_member, html=False):
     return html_fix(username)
 
 
+def reply_msg_target(message):
+    if message.json.get("new_chat_participant") is not None:
+        user_id = message.json.get("new_chat_participant").get("id")
+        username = username_parser_invite(message)
+        is_bot = message.json.get("new_chat_participant").get("is_bot")
+    else:
+        user_id = message.from_user.id
+        username = username_parser(message)
+        is_bot = message.from_user.is_bot
+
+    return user_id, username, is_bot
+
+
 def remake_conf():
     token, chat_id = "", ""
     while token == "":
