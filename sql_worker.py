@@ -1,15 +1,11 @@
 import sqlite3
 import time
-import utils
 
 dbname = ""
 
 
 def table_init():
 
-    global dbname
-
-    dbname = utils.PATH + "database.db"
     sqlite_connection = sqlite3.connect(dbname)
     cursor = sqlite_connection.cursor()
     cursor.execute('''CREATE TABLE if not exists current_pools (
