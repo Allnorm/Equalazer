@@ -1692,20 +1692,22 @@ def callback_inline(call_msg):
     if call_msg.data != "yes" and call_msg.data != "no":
         return
 
-    try:
-        abuse_vote_timer = int(utils.vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
-    except TypeError:
-        abuse_vote_timer = None
+    def get_abuse_timer():
+        try:
+            abuse_vote_timer = int(utils.vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
+        except TypeError:
+            abuse_vote_timer = None
 
-    if abuse_vote_timer is not None:
-        if abuse_vote_timer + utils.wait_timer > int(time.time()):
-            please_wait = utils.wait_timer - int(time.time()) + abuse_vote_timer
-            utils.bot.answer_callback_query(callback_query_id=call_msg.id,
-                                            text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
-                                                 + str(please_wait) + " секунд", show_alert=True)
-            return
-        else:
-            utils.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+        if abuse_vote_timer is not None:
+            if abuse_vote_timer + utils.wait_timer > int(time.time()):
+                please_wait = utils.wait_timer - int(time.time()) + abuse_vote_timer
+                utils.bot.answer_callback_query(callback_query_id=call_msg.id,
+                                                text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
+                                                     + str(please_wait) + " секунд", show_alert=True)
+                return True
+            else:
+                utils.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+                return False
 
     records = call_msg_chk(call_msg)
     if not records:
@@ -1724,17 +1726,14 @@ def callback_inline(call_msg):
     user_ch = sql_worker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
         if utils.vote_mode == 1:
-            if user_ch == "yes":
-                option = "да"
-            elif user_ch == "no":
-                option = "нет"
-            else:
-                option = "None"
+            option = {"yes": "да", "no": "нет"}
             utils.bot.answer_callback_query(callback_query_id=call_msg.id,
-                                            text="Вы уже голосовали за вариант \"" + option
-                                                 + "\". Смена голоса запрещена.", show_alert=True)
+                                            text=f'Вы уже голосовали за вариант "{option[user_ch]}". '
+                                                 f'Смена голоса запрещена.', show_alert=True)
         elif utils.vote_mode == 2:
             if call_msg.data != user_ch:
+                if get_abuse_timer():
+                    return
                 if call_msg.data == "yes":
                     counter_yes = counter_yes + 1
                     counter_no = counter_no - 1
@@ -1749,6 +1748,8 @@ def callback_inline(call_msg):
                                                 text="Вы уже голосовали за этот вариант. " +
                                                      "Отмена голоса запрещена.", show_alert=True)
         else:
+            if get_abuse_timer():
+                return
             if call_msg.data != user_ch:
                 if call_msg.data == "yes":
                     counter_yes = counter_yes + 1

@@ -33,7 +33,7 @@ private_mode = True
 rules = False
 rate = True
 PATH = ""
-VERSION = "1.4.12"
+VERSION = "1.4.13"
 BUILD_DATE = "29.12.2022"
 welc_default = "Welcome to {1}!"
 
