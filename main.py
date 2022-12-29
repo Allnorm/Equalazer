@@ -16,17 +16,8 @@ import utils
 import sql_worker
 import postvote
 
-main_chat_id = ""
-debug = False
-minimum_vote = 1
-vote_mode = 3
-vote_abuse = {}
-wait_timer = 30
-abuse_mode = 2
-private_mode = True
-rules = False
-VERSION = "1.4.10"
-BUILD_DATE = "11.12.2022"
+VERSION = "1.4.11"
+BUILD_DATE = "29.12.2022"
 welc_default = "Welcome to {1}!"
 
 functions = {
@@ -61,7 +52,6 @@ def config_init():
         except ValueError:
             return 0
 
-    global main_chat_id, minimum_vote, debug, vote_mode, wait_timer, abuse_mode, private_mode, rules
     global VERSION
 
     try:
@@ -101,20 +91,23 @@ def config_init():
         utils.global_timer_ban = config["Chat"]["bantimer"]
         utils.votes_need = config["Chat"]["votes"]
         utils.votes_need_ban = config["Chat"]["banvotes"]
-        vote_mode = int(config["Chat"]["votes-mode"])
-        wait_timer = int(config["Chat"]["wait-timer"])
-        abuse_mode = int(config["Chat"]["abuse-mode"])
+        utils.vote_mode = int(config["Chat"]["votes-mode"])
+        utils.wait_timer = int(config["Chat"]["wait-timer"])
+        utils.abuse_mode = int(config["Chat"]["abuse-mode"])
         str_private_mode = config["Chat"]["private-mode"]
         str_rules = config["Chat"]["rules"]
+        str_rate = config["Chat"]["rate"]
         if config["Chat"]["chatid"] != "init":
-            main_chat_id = int(config["Chat"]["chatid"])
+            utils.main_chat_id = int(config["Chat"]["chatid"])
         else:
-            debug = True
-            main_chat_id = -1
+            utils.debug = True
+            utils.main_chat_id = -1
         if str_private_mode.lower() == "false":
-            private_mode = False
+            utils.private_mode = False
         if str_rules.lower() == "true":
-            rules = True
+            utils.rules = True
+        if str_rate.lower() == "false":
+            utils.rate = False
     except Exception as e:
         logging.error((str(e)))
         logging.error(traceback.format_exc())
@@ -134,17 +127,17 @@ def config_init():
     try:
         str_debug = config["Chat"]["debug"]
         if str_debug.lower() == "true":
-            debug = True
+            utils.debug = True
     except KeyError:
         pass
 
-    if debug:
+    if utils.debug:
         utils.global_timer = 20
         utils.global_timer_ban = 10
         utils.votes_need = 2
         utils.votes_need_ban = 2
-        minimum_vote = 0
-        wait_timer = 0
+        utils.minimum_vote = 0
+        utils.wait_timer = 0
         return token
 
     utils.global_timer = var_init(utils.global_timer)
@@ -180,15 +173,15 @@ def vote_result(unique_id, message_vote):
         logging.error(traceback.format_exc())
 
     sql_worker.rem_rec(message_vote.id, unique_id)
-    utils.auto_thresholds_init(main_chat_id)
+    utils.auto_thresholds_init()
     votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-    if records[0][3] > records[0][4] and records[0][3] > minimum_vote:
+    if records[0][3] > records[0][4] and records[0][3] > utils.minimum_vote:
         accept = True
-    elif records[0][3] + records[0][4] > minimum_vote:
+    elif records[0][3] + records[0][4] > utils.minimum_vote:
         accept = False
     else:
         accept = False
-        votes_counter = "\nНедостаточно голосов (требуется как минимум " + str(minimum_vote + 1) + ")"
+        votes_counter = "\nНедостаточно голосов (требуется как минимум " + str(utils.minimum_vote + 1) + ")"
 
     try:
         functions[records[0][2]][0](records, message_vote, votes_counter, accept)
@@ -200,7 +193,7 @@ def vote_result(unique_id, message_vote):
         return
 
     try:
-        utils.bot.unpin_chat_message(main_chat_id, message_vote.message_id)
+        utils.bot.unpin_chat_message(utils.main_chat_id, message_vote.message_id)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
 
@@ -209,12 +202,12 @@ def vote_result(unique_id, message_vote):
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
 
-    utils.update_conf(debug)
+    utils.update_conf()
 
 
 def vote_timer(current_timer, unique_id, message_vote):
     time.sleep(current_timer)
-    vote_abuse.clear()
+    utils.vote_abuse.clear()
     vote_result(unique_id, message_vote)
 
 
@@ -251,7 +244,7 @@ def init():
                     logging.info('Removed deprecated poll "' + record[0] + '"')
             time.sleep(3600)
 
-    utils.auto_thresholds_init(main_chat_id)
+    utils.auto_thresholds_init()
 
     try:
         os.remove(utils.PATH + "tmp_img")
@@ -261,7 +254,7 @@ def init():
     auto_restart_pools()
     threading.Thread(target=auto_clear).start()
 
-    if main_chat_id == -1:
+    if utils.main_chat_id == -1:
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
@@ -270,11 +263,11 @@ def init():
                                                  f"Текущая версия: {VERSION}\n" \
                                                  f"Предыдущая версия: {get_version}"
 
-    if debug:
+    if utils.debug:
         logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
-        utils.bot.send_message(main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
+        utils.bot.send_message(utils.main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
     else:
-        utils.bot.send_message(main_chat_id, f"Бот перезапущен." + update_text)
+        utils.bot.send_message(utils.main_chat_id, f"Бот перезапущен." + update_text)
 
 
 utils.bot_init(config_init())
@@ -295,13 +288,13 @@ def make_keyboard(counter_yes, counter_no):
 
 def vote_make(text, message, adduser, silent):
     if adduser:
-        vote_message = utils.bot.send_message(main_chat_id, text,
+        vote_message = utils.bot.send_message(utils.main_chat_id, text,
                                               reply_markup=make_keyboard("0", "0"), parse_mode="html")
     else:
         vote_message = utils.bot.reply_to(message, text, reply_markup=make_keyboard("0", "0"), parse_mode="html")
     if not silent:
         try:
-            utils.bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
+            utils.bot.pin_chat_message(utils.main_chat_id, vote_message.message_id, disable_notification=True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
     return vote_message
@@ -316,10 +309,10 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
     cmd_text = message.text.split()[0]
 
-    if main_chat_id != -1 and getchat:
+    if utils.main_chat_id != -1 and getchat:
         return False
 
-    if main_chat_id == -1 and not getchat:
+    if utils.main_chat_id == -1 and not getchat:
         return False
 
     if ("@" in cmd_text and "@" + utils.bot.get_me().username in cmd_text) or not ("@" in cmd_text):
@@ -329,7 +322,7 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 
 def private_checker(message):
-    if not private_mode:
+    if not utils.private_mode:
         return utils.username_parser(message)
     else:
         return "none"
@@ -350,7 +343,7 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
     vote_text = "{}\nГолосование будет закрыто через {}, " \
                 "для досрочного завершения требуется голосов за один из пунктов: {}.\n" \
                 "Минимальный порог голосов для принятия решения: {}." \
-        .format(vote_text, utils.formatted_timer(current_timer), str(current_votes), str(minimum_vote + 1))
+        .format(vote_text, utils.formatted_timer(current_timer), str(current_votes), str(utils.minimum_vote + 1))
 
     message_vote = vote_make(vote_text, message, adduser, silent)
     sql_worker.addpool(unique_id, message_vote, vote_type,
@@ -376,8 +369,9 @@ def add_usr(message):
     if not botname_checker(message):
         return
 
-    if not utils.bot.get_chat_member(main_chat_id, message.from_user.id).status in ("left", "kicked", "restricted") \
-            or utils.bot.get_chat_member(main_chat_id, message.from_user.id).is_member:
+    if not utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status in ("left", "kicked",
+                                                                                          "restricted") \
+            or utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).is_member:
         # Fuuuuuuuck my brain
         utils.bot.reply_to(message, "Вы уже есть в нужном вам чате.")
         return
@@ -396,7 +390,7 @@ def add_usr(message):
     if sql_worker.whitelist(message.from_user.id):
         sql_worker.abuse_remove(message.from_user.id)
         sql_worker.abuse_update(message.from_user.id)
-        invite = utils.bot.create_chat_invite_link(main_chat_id, expire_date=int(time.time()) + 86400)
+        invite = utils.bot.create_chat_invite_link(utils.main_chat_id, expire_date=int(time.time()) + 86400)
         utils.bot.reply_to(message, f"Вы получили личную ссылку для вступления в чат, так как находитесь в вайтлисте.\n"
                                     "Ссылка истечёт через 1 сутки.\n"
                            + invite.invite_link)
@@ -419,9 +413,9 @@ def add_usr(message):
                      [message.chat.id, utils.username_parser(message)], message.from_user.id, adduser=True)
 
     warn = ""
-    if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "kicked":
+    if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status == "kicked":
         warn = "\nВнимание! Вы были заблокированы в чате ранее, поэтому вероятность инвайта минимальная!"
-    if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "restricted":
+    if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status == "restricted":
         warn = "\nВнимание! Сейчас на вас распространяются ограничения прав в чате, выданные командой /mute!"
     utils.bot.reply_to(message, "Голосование о вступлении отправлено в чат. Голосование завершится через "
                        + utils.formatted_timer(utils.global_timer) + " или ранее." + warn)
@@ -429,7 +423,7 @@ def add_usr(message):
 
 @utils.bot.message_handler(commands=['answer'])
 def add_answer(message):
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -467,7 +461,7 @@ def ban_usr(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -493,11 +487,11 @@ def ban_usr(message):
 
     kickuser = True if restrict_timer != 0 else False
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "left" and kickuser:
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "left" and kickuser:
         utils.bot.reply_to(message, "Пользователя нет в чате, чтобы можно было кикнуть его.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
@@ -515,12 +509,12 @@ def ban_usr(message):
     vote_type = 1 if kickuser else 2
 
     vote_theme = "блокировка пользователя"
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "kicked":
         vote_theme = "изменение срока блокировки пользователя"
 
     date_unban = ""
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
-        until_date = utils.bot.get_chat_member(main_chat_id, user_id).until_date
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "kicked":
+        until_date = utils.bot.get_chat_member(utils.main_chat_id, user_id).until_date
         if until_date == 0 or until_date is None:
             date_unban = "\nПользователь был ранее заблокирован перманентно"
         else:
@@ -540,7 +534,7 @@ def mute_usr(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -550,11 +544,11 @@ def mute_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "kicked":
         utils.bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "creator":
         utils.bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
@@ -585,12 +579,12 @@ def mute_usr(message):
         f"\nПредложенный срок ограничений: {utils.formatted_timer(restrict_timer)}"
 
     vote_theme = "ограничение сообщений пользователя"
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "restricted":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "restricted":
         vote_theme = "изменение срока ограничения сообщений пользователя"
 
     date_unban = ""
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "restricted":
-        until_date = utils.bot.get_chat_member(main_chat_id, user_id).until_date
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "restricted":
+        until_date = utils.bot.get_chat_member(utils.main_chat_id, user_id).until_date
         if until_date == 0 or until_date is None:
             date_unban = "\nПользователь был ранее заблокирован перманентно"
         else:
@@ -611,7 +605,7 @@ def unban_usr(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -625,8 +619,8 @@ def unban_usr(message):
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status != "restricted" and \
-            utils.bot.get_chat_member(main_chat_id, user_id).status != "kicked":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status != "restricted" and \
+            utils.bot.get_chat_member(utils.main_chat_id, user_id).status != "kicked":
         utils.bot.reply_to(message, "Данный пользователь не ограничен.")
         return
 
@@ -647,7 +641,7 @@ def thresholds(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -655,11 +649,11 @@ def thresholds(message):
     if mode is None:
         auto_thresholds_mode = "" if not utils.auto_thresholds else " (автоматический режим)"
         auto_thresholds_ban_mode = "" if not utils.auto_thresholds_ban else " (автоматический режим)"
-        utils.auto_thresholds_init(main_chat_id)
+        utils.auto_thresholds_init()
         utils.bot.reply_to(message, "Текущие пороги:\nГолосов для обычного решения требуется: " + str(utils.votes_need)
                            + auto_thresholds_mode + "\n"
                            + "Голосов для бана требуется: " + str(utils.votes_need_ban) + auto_thresholds_ban_mode
-                           + "\n" + "Минимальный порог голосов для принятия решения: " + str(minimum_vote + 1))
+                           + "\n" + "Минимальный порог голосов для принятия решения: " + str(utils.minimum_vote + 1))
         return
     unique_id = "threshold"
     bantext = "стандартных голосований"
@@ -676,16 +670,17 @@ def thresholds(message):
             mode = int(mode)
         except (TypeError, ValueError):
             utils.bot.reply_to(message, "Неверный аргумент (должно быть целое число от 2 до "
-                               + str(utils.bot.get_chat_members_count(main_chat_id)) + " или \"auto\").")
+                               + str(utils.bot.get_chat_members_count(utils.main_chat_id)) + " или \"auto\").")
             return
 
-        if mode > utils.bot.get_chat_members_count(main_chat_id):
+        if mode > utils.bot.get_chat_members_count(utils.main_chat_id):
             utils.bot.reply_to(message,
                                "Количество необходимых голосов не может быть больше количества участников в чате.")
             return
 
-        if mode <= minimum_vote:
-            utils.bot.reply_to(message, "Количество необходимых голосов не может быть меньше " + str(minimum_vote + 1))
+        if mode <= utils.minimum_vote:
+            utils.bot.reply_to(message, "Количество необходимых голосов не может быть меньше "
+                               + str(utils.minimum_vote + 1))
             return
 
         vote_text = (f"Тема голосования: установка порога голосов {bantext} на значение {str(mode)}"
@@ -711,7 +706,7 @@ def timer(message):
     timer_arg = utils.extract_arg(message.text, 1)
     if timer_arg is None:
         timer_text = ""
-        if message.chat.id == main_chat_id:
+        if message.chat.id == utils.main_chat_id:
             timer_text = utils.formatted_timer(utils.global_timer) + " для обычного голосования.\n" \
                          + utils.formatted_timer(utils.global_timer_ban) + " для голосования за бан.\n"
         if sql_worker.abuse_random(message.chat.id) == -1:
@@ -790,7 +785,6 @@ def timer(message):
 
 
 def rate_top(message):
-
     whitelist_msg = utils.bot.reply_to(message, "Сборка рейтинга, ожидайте...")
     rates = sql_worker.get_all_rates()
     if rates is None:
@@ -806,11 +800,11 @@ def rate_top(message):
     user_counter = 1
 
     for user_rate in rates:
-        if utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "kicked" \
-                or utils.bot.get_chat_member(main_chat_id, user_rate[0]).status == "left":
+        if utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]).status == "kicked" \
+                or utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]).status == "left":
             sql_worker.clear_rate(user_rate[0])
             continue
-        username = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, user_rate[0]), True)
+        username = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]), True)
         rate_text = rate_text + f'\n{user_counter}. ' \
                                 f'<a href="tg://user?id={user_rate[0]}">{username}</a>: {str(user_rate[1])}'
         user_counter += 1
@@ -821,11 +815,10 @@ def rate_top(message):
 
 @utils.bot.message_handler(commands=['rate'])
 def rating(message):
-
-    if not botname_checker(message):
+    if not botname_checker(message) or not utils.rate:
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -839,8 +832,9 @@ def rating(message):
                 utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 return
 
-            if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
-                    or utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left":
+            user_status = utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status
+
+            if user_status == "kicked" or user_status == "left":
                 sql_worker.clear_rate(message.reply_to_message.from_user.id)
                 utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
                 return
@@ -850,8 +844,8 @@ def rating(message):
                 utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
                 return
 
-        rate = sql_worker.get_rate(user_id)
-        utils.bot.reply_to(message, f"Социальный рейтинг пользователя {username}: {rate}")
+        user_rate = sql_worker.get_rate(user_id)
+        utils.bot.reply_to(message, f"Социальный рейтинг пользователя {username}: {user_rate}")
         return
 
     if mode == "top":
@@ -879,8 +873,8 @@ def rating(message):
             utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
             return
 
-        if utils.bot.get_chat_member(main_chat_id, user_id).status == "kicked" \
-                or utils.bot.get_chat_member(main_chat_id, user_id).status == "left":
+        if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "kicked" \
+                or utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "left":
             sql_worker.clear_rate(user_id)
             utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
             return
@@ -909,7 +903,7 @@ def status(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -934,26 +928,26 @@ def status(message):
         whitelist_status = "нет"
 
     until_date = ""
-    if utils.bot.get_chat_member(main_chat_id, user_id).status in ("kicked", "restricted"):
-        if utils.bot.get_chat_member(main_chat_id, user_id).until_date == 0:
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status in ("kicked", "restricted"):
+        if utils.bot.get_chat_member(utils.main_chat_id, user_id).until_date == 0:
             until_date = "\nОсталось до снятия ограничений: ограничен бессрочно"
         else:
             until_date = "\nОсталось до снятия ограничений: " + \
-                         str(utils.formatted_timer(utils.bot.get_chat_member(main_chat_id, user_id)
+                         str(utils.formatted_timer(utils.bot.get_chat_member(utils.main_chat_id, user_id)
                                                    .until_date - int(time.time())))
 
     utils.bot.reply_to(message, f"Текущий статус пользователя {username}"
-                                f" - {statuses.get(utils.bot.get_chat_member(main_chat_id, user_id).status)}"
+                                f" - {statuses.get(utils.bot.get_chat_member(utils.main_chat_id, user_id).status)}"
                                 f"\nНаличие в вайтлисте: {whitelist_status}{until_date}")
 
 
 def whitelist_building(message, whitelist):
-
     whitelist_msg = utils.bot.reply_to(message, "Сборка вайтлиста, ожидайте...")
     user_list, counter = "Список пользователей, входящих в вайтлист:\n", 1
     for user in whitelist:
         try:
-            username = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, user[0]), html=True)
+            username = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id,
+                                                                                   user[0]), html=True)
             if username == "":
                 sql_worker.whitelist(user[0], remove=True)
                 continue
@@ -974,7 +968,7 @@ def status(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -1007,7 +1001,8 @@ def status(message):
                 return
 
             try:
-                who_name = utils.username_parser_chat_member(utils.bot.get_chat_member(main_chat_id, who_id), html=True)
+                who_name = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id, who_id),
+                                                             html=True)
                 if who_name == "":
                     sql_worker.whitelist(who_id, remove=True)
                     utils.bot.reply_to(message, "Удалена некорректная запись!")
@@ -1068,7 +1063,7 @@ def msg_remover(message, clearmsg):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1116,7 +1111,7 @@ def op(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1125,20 +1120,20 @@ def op(message):
     else:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status == "administrator":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "administrator":
         utils.bot.reply_to(message, "Пользователь уже администратор.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status == "creator":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "creator":
         utils.bot.reply_to(message, "Пользователь является создателем чата.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status == "left" or \
-            utils.bot.get_chat_member(main_chat_id, who_id).status == "kicked":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "left" or \
+            utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "kicked":
         utils.bot.reply_to(message, "Пользователь не состоит в чате.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status == "restricted":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "restricted":
         utils.bot.reply_to(message, "Ограниченный пользователь не может стать админом.")
         return
 
@@ -1161,7 +1156,7 @@ def rank(message):
         return
 
     if message.reply_to_message is None or message.reply_to_message.from_user.id == message.from_user.id:
-        if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "administrator":
+        if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status == "administrator":
 
             if utils.extract_arg(message.text, 1) is None:
                 utils.bot.reply_to(message, "Звание не может быть пустым.")
@@ -1174,7 +1169,7 @@ def rank(message):
                 return
 
             try:
-                utils.bot.set_chat_administrator_custom_title(main_chat_id, message.from_user.id, rank_text)
+                utils.bot.set_chat_administrator_custom_title(utils.main_chat_id, message.from_user.id, rank_text)
                 utils.bot.reply_to(message, "Звание \"" + rank_text + "\" успешно установлено пользователю "
                                    + utils.username_parser(message, True) + ".")
             except telebot.apihelper.ApiTelegramException as e:
@@ -1184,7 +1179,7 @@ def rank(message):
                 logging.error(traceback.format_exc())
                 utils.bot.reply_to(message, "Не удалось сменить звание.")
             return
-        elif utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "creator":
+        elif utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status == "creator":
             utils.bot.reply_to(message, "Я не могу изменить звание создателя чата.")
             return
         else:
@@ -1199,7 +1194,7 @@ def rank(message):
         utils.bot.reply_to(message, "Вы не можете менять звание других пользователей (кроме ботов).")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status != "administrator":
+    if utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status != "administrator":
         utils.bot.reply_to(message, "Данный бот не является администратором.")
         return
 
@@ -1236,7 +1231,7 @@ def deop(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1250,16 +1245,16 @@ def deop(message):
             me = True
 
     if me:
-        if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status == "creator":
+        if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status == "creator":
             utils.bot.reply_to(message, "Вы являетесь создателем чата, я не могу снять ваши права.")
             return
-        if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "administrator":
+        if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status != "administrator":
             utils.bot.reply_to(message, "Вы не являетесь администратором!")
             return
         try:
-            utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
+            utils.bot.restrict_chat_member(utils.main_chat_id, message.from_user.id,
                                            None, can_send_messages=True)
-            utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
+            utils.bot.restrict_chat_member(utils.main_chat_id, message.from_user.id,
                                            None, True, True, True, True, True, True, True, True)
             utils.bot.reply_to(message,
                                "Пользователь " + utils.username_parser(message) + " добровольно ушёл в отставку."
@@ -1272,11 +1267,11 @@ def deop(message):
 
     who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status == "creator":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status == "creator":
         utils.bot.reply_to(message, f"Пользователь {who_name} является создателем чата, я не могу снять его права.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, who_id).status != "administrator":
+    if utils.bot.get_chat_member(utils.main_chat_id, who_id).status != "administrator":
         utils.bot.reply_to(message, f"Пользователь {who_name} не является администратором!")
         return
 
@@ -1301,7 +1296,7 @@ def title(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1313,7 +1308,7 @@ def title(message):
         utils.bot.reply_to(message, "Название не должно быть длиннее 255 символов!")
         return
 
-    if utils.bot.get_chat(main_chat_id).title == message.text.split(maxsplit=1)[1]:
+    if utils.bot.get_chat(utils.main_chat_id).title == message.text.split(maxsplit=1)[1]:
         utils.bot.reply_to(message, "Название чата не может совпадать с существующим названием!")
         return
 
@@ -1336,7 +1331,7 @@ def description(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1353,7 +1348,7 @@ def description(message):
     else:
         description_text = ""
 
-    if utils.bot.get_chat(main_chat_id).description == description_text:
+    if utils.bot.get_chat(utils.main_chat_id).description == description_text:
         utils.bot.reply_to(message, "Описание чата не может совпадать с существующим описанием!")
         return
 
@@ -1376,7 +1371,7 @@ def chat_pic(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
@@ -1424,7 +1419,7 @@ def random_msg(message):
         return
 
     try:
-        abuse_vote_timer = int(vote_abuse.get("random"))
+        abuse_vote_timer = int(utils.vote_abuse.get("random"))
     except TypeError:
         abuse_vote_timer = 0
 
@@ -1433,7 +1428,7 @@ def random_msg(message):
     if abuse_vote_timer + abuse_random > int(time.time()) or abuse_random < 0:
         return
 
-    vote_abuse.update({"random": int(time.time())})
+    utils.vote_abuse.update({"random": int(time.time())})
 
     msg_id = ""
     for i in range(5):
@@ -1453,7 +1448,7 @@ def reset(message):
     if not botname_checker(message):
         return
 
-    if debug:
+    if utils.debug:
         sql_worker.abuse_remove(message.chat.id)
         utils.bot.reply_to(message, "Абуз инвайта и союзников сброшен.")
 
@@ -1463,7 +1458,7 @@ def get_id(message):
     if not botname_checker(message, getchat=True):
         return
 
-    if debug:
+    if utils.debug:
         print(message.chat.id)
         utils.bot.reply_to(message, "ID чата сохранён")
 
@@ -1473,8 +1468,7 @@ def get_usr(message):
     if not botname_checker(message):
         return
 
-    if debug and message.reply_to_message is not None:
-
+    if utils.debug and message.reply_to_message is not None:
         user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
         utils.bot.reply_to(message, f"ID пользователя {username} - {user_id}")
 
@@ -1484,7 +1478,7 @@ def help_msg(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -1502,10 +1496,10 @@ def help_msg(message):
 
 @utils.bot.message_handler(commands=['rules'])
 def rules_msg(message):
-    if not botname_checker(message) or not rules:
+    if not botname_checker(message) or not utils.rules:
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -1527,7 +1521,7 @@ def votes_msg(message):
     if not botname_checker(message):
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
@@ -1535,10 +1529,10 @@ def votes_msg(message):
     pool_list = ""
     number = 1
 
-    if utils.bot.get_chat(main_chat_id).username is not None:
-        format_chat_id = utils.bot.get_chat(main_chat_id).username
+    if utils.bot.get_chat(utils.main_chat_id).username is not None:
+        format_chat_id = utils.bot.get_chat(utils.main_chat_id).username
     else:
-        format_chat_id = "c/" + str(main_chat_id)[4:]
+        format_chat_id = "c/" + str(utils.main_chat_id)[4:]
 
     for record in records:
         pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
@@ -1559,17 +1553,17 @@ def mute_user(message):
     if not botname_checker(message):
         return
 
-    if abuse_mode == 0:
+    if utils.abuse_mode == 0:
         utils.bot.reply_to(message, "Команда /abyss отключена в файле конфигурации бота.")
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
     if message.reply_to_message is None:
 
-        if abuse_mode == 2:
+        if utils.abuse_mode == 2:
             only_for_admins = "\nВ текущем режиме команду могут применять только администраторы чата."
         else:
             only_for_admins = ""
@@ -1585,18 +1579,18 @@ def mute_user(message):
         utils.bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
-    if message.from_user.id != message.reply_to_message.from_user.id and abuse_mode == 2:
-        if utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "administrator" and \
-                utils.bot.get_chat_member(main_chat_id, message.from_user.id).status != "creator":
+    if message.from_user.id != message.reply_to_message.from_user.id and utils.abuse_mode == 2:
+        if utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status != "administrator" and \
+                utils.bot.get_chat_member(utils.main_chat_id, message.from_user.id).status != "creator":
             utils.bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
             return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "restricted":
+    if utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status == "restricted":
         utils.bot.reply_to(message, "Он и так в муте, не увеличивайте его страдания.")
         return
 
-    if utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
-            or utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).status == "left":
+    if utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
+            or utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status == "left":
         utils.bot.reply_to(message, "Данный пользователь не состоит в чате.")
         return
 
@@ -1612,27 +1606,31 @@ def mute_user(message):
         return
 
     try:
-        abuse_vote_timer = int(vote_abuse.get("abuse" + str(message.from_user.id)))
+        abuse_vote_timer = int(utils.vote_abuse.get("abuse" + str(message.from_user.id)))
     except TypeError:
         abuse_vote_timer = 0
 
     if abuse_vote_timer + 10 > int(time.time()):
         return
 
-    vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
-
-    if message.from_user.id == message.reply_to_message.from_user.id:
-        sql_worker.update_rate(message.reply_to_message.from_user.id, -3)
-        utils.bot.reply_to(message, "Пользователь " + utils.username_parser(message)
-                           + " решил отдохнуть от чата на " + utils.formatted_timer(timer_mute)
-                           + " и снизить себе рейтинг на 3 пункта.")
-        return
+    utils.vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
 
     try:
-        utils.bot.restrict_chat_member(main_chat_id, message.reply_to_message.from_user.id,
+        utils.bot.restrict_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id,
                                        until_date=int(time.time()) + timer_mute, can_send_messages=False,
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
+        if message.from_user.id == message.reply_to_message.from_user.id:
+            if utils.rate:
+                sql_worker.update_rate(message.from_user.id, -3)
+                utils.bot.reply_to(message, f"Пользователь {utils.username_parser(message)}"
+                                   + f" решил отдохнуть от чата на {utils.formatted_timer(timer_mute)}"
+                                   + " и снизить себе рейтинг на 3 пункта.")
+            else:
+                utils.bot.reply_to(message, f"Пользователь {utils.username_parser(message)}"
+                                   + f" решил отдохнуть от чата на {utils.formatted_timer(timer_mute)}")
+            return
+        if not utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
+                and utils.rate:
             sql_worker.update_rate(message.reply_to_message.from_user.id, -5)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
@@ -1640,10 +1638,11 @@ def mute_user(message):
         return
 
     try:
-        utils.bot.restrict_chat_member(main_chat_id, message.from_user.id,
+        utils.bot.restrict_chat_member(utils.main_chat_id, message.from_user.id,
                                        until_date=int(time.time()) + timer_mute, can_send_messages=False,
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
+        if not utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
+                and utils.rate:
             sql_worker.update_rate(message.from_user.id, -5)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
@@ -1651,13 +1650,14 @@ def mute_user(message):
                            + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
 
-    rate = ""
-    if not utils.bot.get_chat_member(main_chat_id, message.reply_to_message.from_user.id).user.is_bot:
-        rate = "\nРейтинг обоих пользователей снижен на 5 пунктов."
+    user_rate = ""
+    if not utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
+            and utils.rate:
+        user_rate = "\nРейтинг обоих пользователей снижен на 5 пунктов."
 
     utils.bot.reply_to(message, f"<b>Обоюдоострый Меч сработал</b>.\nТеперь {utils.username_parser(message, True)} "
                                 f"и {utils.username_parser(message.reply_to_message, True)} "
-                                f"будут дружно молчать в течении " + utils.formatted_timer(timer_mute) + rate,
+                                f"будут дружно молчать в течении " + utils.formatted_timer(timer_mute) + user_rate,
                        parse_mode="html")
 
 
@@ -1682,13 +1682,13 @@ def whitelist_checker(message):
 
     user_id = message.json.get("new_chat_participant").get("id")
 
-    if utils.bot.get_chat_member(main_chat_id, user_id).status == "creator":
+    if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "creator":
         utils.bot.reply_to(message, "Приветствую вас, Владыка.")
         return
 
     if not (sql_worker.whitelist(user_id) or message.json.get("new_chat_participant").get("is_bot")):
         # Fuck you Durov
-        if message.chat.id != main_chat_id:
+        if message.chat.id != utils.main_chat_id:
             return
 
         allies = sql_worker.get_allies()
@@ -1700,20 +1700,20 @@ def whitelist_checker(message):
                     utils.bot.reply_to(message, welc_msg_get())
                     return
         try:
-            utils.bot.ban_chat_member(main_chat_id, user_id, until_date=int(time.time()) + 86400)
+            utils.bot.ban_chat_member(utils.main_chat_id, user_id, until_date=int(time.time()) + 86400)
             utils.bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             utils.bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
-    elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == main_chat_id:
+    elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == utils.main_chat_id:
         utils.bot.reply_to(message, welc_msg_get())
-    elif message.chat.id == main_chat_id:
+    elif message.chat.id == utils.main_chat_id:
         unique_id = str(user_id) + "_new_usr"
         records = sql_worker.msg_chk(unique_id=unique_id)
         if is_voting_exists(records, message, unique_id):
             return
         try:
-            utils.bot.restrict_chat_member(main_chat_id, user_id, can_send_messages=False, can_change_info=False,
+            utils.bot.restrict_chat_member(utils.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
                                            can_invite_users=False, can_pin_messages=False,
                                            until_date=int(time.time()) + 60)
         except telebot.apihelper.ApiTelegramException:
@@ -1741,7 +1741,7 @@ def allies_list(message):
 
     if mode == "add" or mode == "remove":
 
-        if message.chat.id == main_chat_id:
+        if message.chat.id == utils.main_chat_id:
             utils.bot.reply_to(message, "Данную команду нельзя запустить в основном чате!")
             return
 
@@ -1785,7 +1785,7 @@ def allies_list(message):
         mode_text = "создании" if mode == "add" else "разрыве"
 
         utils.bot.reply_to(message, f"Голосование о {mode_text} союза отправлено в чат "
-                                    f"<b>{utils.html_fix(utils.bot.get_chat(main_chat_id).title)}</b>.\n"
+                                    f"<b>{utils.html_fix(utils.bot.get_chat(utils.main_chat_id).title)}</b>.\n"
                                     f"Оно завершится через 24 часа или ранее в зависимости от количества голосов.",
                            parse_mode="html")
         return
@@ -1795,11 +1795,12 @@ def allies_list(message):
         return
 
     if sql_worker.get_ally(message.chat.id) is not None:
-        utils.bot.reply_to(message, "Данный чат является союзным чатом для " + utils.bot.get_chat(main_chat_id).title
-                           + ", ссылка для инвайта - " + utils.bot.get_chat(main_chat_id).invite_link)
+        utils.bot.reply_to(message, "Данный чат является союзным чатом для "
+                           + utils.bot.get_chat(utils.main_chat_id).title + ", ссылка для инвайта - "
+                           + utils.bot.get_chat(utils.main_chat_id).invite_link)
         return
 
-    if message.chat.id != main_chat_id:
+    if message.chat.id != utils.main_chat_id:
         utils.bot.reply_to(message, "Данную команду без аргументов можно запустить "
                                     "только в основном чате или в союзных чатах.")
         return
@@ -1829,12 +1830,12 @@ def revoke(message):
 
     is_allies = False if sql_worker.get_ally(message.chat.id) is None else True
 
-    if message.chat.id != main_chat_id and not is_allies:
+    if message.chat.id != utils.main_chat_id and not is_allies:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
         return
 
     try:
-        utils.bot.revoke_chat_invite_link(main_chat_id, utils.bot.get_chat(main_chat_id).invite_link)
+        utils.bot.revoke_chat_invite_link(utils.main_chat_id, utils.bot.get_chat(utils.main_chat_id).invite_link)
         utils.bot.reply_to(message, "Пригласительная ссылка на основной чат успешно сброшена.")
     except telebot.apihelper.ApiTelegramException:
         utils.bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
@@ -1869,9 +1870,9 @@ def call_msg_chk(call_msg):
         sql_worker.rem_rec(call_msg.message.id)
         utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
                                     + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
-                                    main_chat_id, call_msg.message.id, parse_mode='html')
+                                    utils.main_chat_id, call_msg.message.id, parse_mode='html')
         try:
-            utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
+            utils.bot.unpin_chat_message(utils.main_chat_id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
@@ -1887,7 +1888,7 @@ def cancel_vote(call_msg):
         utils.bot.answer_callback_query(callback_query_id=call_msg.id,
                                         text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
-    vote_abuse.clear()
+    utils.vote_abuse.clear()
     sql_worker.rem_rec(call_msg.message.id, pool[0][0])
     try:
         os.remove(utils.PATH + pool[0][0])
@@ -1895,11 +1896,11 @@ def cancel_vote(call_msg):
         pass
     utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
                                 + "\n\n<b>Голосование было отменено автором голосования.</b>",
-                                main_chat_id, call_msg.message.id, parse_mode="html")
+                                utils.main_chat_id, call_msg.message.id, parse_mode="html")
     utils.bot.reply_to(call_msg.message, "Голосование было отменено.")
 
     try:
-        utils.bot.unpin_chat_message(main_chat_id, call_msg.message.id)
+        utils.bot.unpin_chat_message(utils.main_chat_id, call_msg.message.id)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
 
@@ -1924,31 +1925,30 @@ def my_vote(call_msg):
 
 @utils.bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call_msg):
-    global vote_abuse, wait_timer
     if call_msg.data != "yes" and call_msg.data != "no":
         return
 
     try:
-        abuse_vote_timer = int(vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
+        abuse_vote_timer = int(utils.vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
     except TypeError:
         abuse_vote_timer = None
 
     if abuse_vote_timer is not None:
-        if abuse_vote_timer + wait_timer > int(time.time()):
-            please_wait = wait_timer - int(time.time()) + abuse_vote_timer
+        if abuse_vote_timer + utils.wait_timer > int(time.time()):
+            please_wait = utils.wait_timer - int(time.time()) + abuse_vote_timer
             utils.bot.answer_callback_query(callback_query_id=call_msg.id,
                                             text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
                                                  + str(please_wait) + " секунд", show_alert=True)
             return
         else:
-            vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+            utils.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
 
     records = call_msg_chk(call_msg)
     if not records:
         return
 
     if records[0][5] <= int(time.time()):
-        vote_abuse.clear()
+        utils.vote_abuse.clear()
         vote_result(records[0][0], call_msg.message)
         return
 
@@ -1959,7 +1959,7 @@ def callback_inline(call_msg):
 
     user_ch = sql_worker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
-        if vote_mode == 1:
+        if utils.vote_mode == 1:
             if user_ch == "yes":
                 option = "да"
             elif user_ch == "no":
@@ -1969,7 +1969,7 @@ def callback_inline(call_msg):
             utils.bot.answer_callback_query(callback_query_id=call_msg.id,
                                             text="Вы уже голосовали за вариант \"" + option
                                                  + "\". Смена голоса запрещена.", show_alert=True)
-        elif vote_mode == 2:
+        elif utils.vote_mode == 2:
             if call_msg.data != user_ch:
                 if call_msg.data == "yes":
                     counter_yes = counter_yes + 1
@@ -2012,11 +2012,11 @@ def callback_inline(call_msg):
         vote_update(counter_yes, counter_no, call_msg.message)
 
     if counter_yes >= votes_need_current or counter_no >= votes_need_current:
-        vote_abuse.clear()
+        utils.vote_abuse.clear()
         vote_result(unique_id, call_msg.message)
         return
 
-    vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
+    utils.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
 utils.bot.infinity_polling()

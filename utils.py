@@ -14,6 +14,16 @@ votes_need = 0
 votes_need_ban = 0
 auto_thresholds = False
 auto_thresholds_ban = False
+main_chat_id = ""
+debug = False
+minimum_vote = 1
+vote_mode = 3
+vote_abuse = {}
+wait_timer = 30
+abuse_mode = 2
+private_mode = True
+rules = False
+rate = True
 PATH = ""
 
 
@@ -22,7 +32,7 @@ def bot_init(token):
     bot = telebot.TeleBot(token)
 
 
-def auto_thresholds_init(main_chat_id):
+def auto_thresholds_init():
     global votes_need, votes_need_ban
 
     if auto_thresholds:
@@ -150,6 +160,7 @@ def remake_conf():
     config.set("Chat", "abuse-mode", "2")
     config.set("Chat", "private-mode", "true")
     config.set("Chat", "rules", "false")
+    config.set("Chat", "rate", "true")
     try:
         config.write(open(PATH + "config.ini", "w"))
         print("New config file was created successful")
@@ -159,7 +170,7 @@ def remake_conf():
         sys.exit(1)
 
 
-def update_conf(debug):
+def update_conf():
     if debug:
         return
 

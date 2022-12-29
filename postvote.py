@@ -48,7 +48,8 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
         utils.bot.send_message(datalist[0], f"Дано добро на вступление в чат {message_vote.chat.title}!\n"
                                             "Ссылка истечёт через 1 сутки.\n"
                                + invite.invite_link)
-        sql_worker.update_rate(datalist[0], 0)
+        if utils.rate:
+            sql_worker.update_rate(datalist[0], 0)
     else:
         sql_worker.abuse_update(datalist[0])
         utils.bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention + " отклонён."
@@ -80,7 +81,8 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
                 rate = ""
                 if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
-                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "kicked":
+                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "kicked" \
+                        and utils.rate:
                     sql_worker.update_rate(datalist[0], -10)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
 
@@ -94,7 +96,8 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                                                can_invite_users=False, can_pin_messages=False, until_date=until_date)
                 rate = ""
                 if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
-                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "restricted":
+                        and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "restricted"\
+                        and utils.rate:
                     sql_worker.update_rate(datalist[0], -5)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
 
@@ -126,7 +129,7 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
                                            can_add_web_page_previews=True)
 
             rate = ""
-            if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+            if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
                 sql_worker.update_rate(datalist[0], 2)
                 rate = "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
 
@@ -148,7 +151,7 @@ def vote_result_treshold(records, message_vote, votes_counter, accept):
     if accept:
         if datalist[0] == "auto":
             utils.auto_thresholds = True
-            utils.auto_thresholds_init(message_vote.chat.id)
+            utils.auto_thresholds_init()
             utils.bot.edit_message_text("Установлен автоматический порог голосования для стандартных вопросов.\n"
                                         + "Теперь требуется " + str(utils.votes_need)
                                         + " голосов для решения." + votes_counter,
@@ -183,7 +186,7 @@ def vote_result_treshold_ban(records, message_vote, votes_counter, accept):
     if accept:
         if datalist[0] == "auto":
             utils.auto_thresholds_ban = True
-            utils.auto_thresholds_init(message_vote.chat.id)
+            utils.auto_thresholds_init()
             utils.bot.edit_message_text("Установлен автоматический порог голосования для бана.\n"
                                         + "Теперь требуется " + str(utils.votes_need_ban)
                                         + " голосов для решения." + votes_counter,
@@ -267,7 +270,7 @@ def vote_result_op(records, message_vote, votes_counter, accept):
             return
 
         rate = ""
-        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
             sql_worker.update_rate(datalist[0], 3)
             rate = "\nРейтинг " + datalist[1] + " повышен на 3 пункта."
 
@@ -325,7 +328,7 @@ def vote_result_deop(records, message_vote, votes_counter, accept):
             return
 
         rate = ""
-        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot:
+        if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
             sql_worker.update_rate(datalist[0], -3)
             rate = "\nРейтинг " + datalist[1] + " снижен на 3 пункта."
 
