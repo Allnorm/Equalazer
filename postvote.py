@@ -5,8 +5,9 @@ import traceback
 
 import telebot
 
-import sql_worker
 import utils
+
+sqlWorker = utils.sqlWorker
 
 
 def vote_result_useradd(records, message_vote, votes_counter, accept):
@@ -14,9 +15,9 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
     # mention = "[" + datalist[1] + "](tg://user?id=" + str(datalist[0]) + ")"
     mention = "<a href=\"tg://user?id=" + str(datalist[0]) + "\">" + utils.html_fix(datalist[1]) + "</a>"
     if accept:
-        sql_worker.abuse_remove(records[0][8])
-        sql_worker.abuse_update(records[0][8])
-        sql_worker.whitelist(records[0][8], add=True)
+        sqlWorker.abuse_remove(records[0][8])
+        sqlWorker.abuse_update(records[0][8])
+        sqlWorker.whitelist(records[0][8], add=True)
         if utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "left" \
                 and utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "kicked" \
                 and utils.bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "restricted" \
@@ -49,9 +50,9 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
                                             "Ссылка истечёт через 1 сутки.\n"
                                + invite.invite_link)
         if utils.rate:
-            sql_worker.update_rate(datalist[0], 0)
+            sqlWorker.update_rate(datalist[0], 0)
     else:
-        sql_worker.abuse_update(datalist[0])
+        sqlWorker.abuse_update(datalist[0])
         utils.bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention + " отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
 
@@ -70,20 +71,20 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
             if utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
                 utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0], None, can_send_messages=True)
             if datalist[3] == 2:
-                sql_worker.whitelist(datalist[0], remove=True)
+                sqlWorker.whitelist(datalist[0], remove=True)
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0])
                 utils.bot.edit_message_text("Пользователь " + datalist[1] + " перманентно заблокирован "
                                             + "по милости пользователя " + datalist[2]
                                             + " и не сможет войти в чат до разблокировки." + votes_counter,
                                             message_vote.chat.id, message_vote.message_id)
-                sql_worker.clear_rate(datalist[0])
+                sqlWorker.clear_rate(datalist[0])
             elif datalist[3] == 1:
                 utils.bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
                 rate = ""
                 if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
                         and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "kicked" \
                         and utils.rate:
-                    sql_worker.update_rate(datalist[0], -10)
+                    sqlWorker.update_rate(datalist[0], -10)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
 
                 utils.bot.edit_message_text("Пользователь " + datalist[1] + " заблокирован в чате "
@@ -98,7 +99,7 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
                 if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
                         and not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "restricted"\
                         and utils.rate:
-                    sql_worker.update_rate(datalist[0], -5)
+                    sqlWorker.update_rate(datalist[0], -5)
                     rate = "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
 
                 utils.bot.edit_message_text("Пользователь " + datalist[1]
@@ -120,7 +121,7 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         try:
-            sql_worker.whitelist(datalist[0], add=True)
+            sqlWorker.whitelist(datalist[0], add=True)
             utils.bot.unban_chat_member(message_vote.chat.id, datalist[0], True)
             utils.bot.restrict_chat_member(message_vote.chat.id, datalist[0], can_send_messages=True,
                                            can_change_info=True, can_invite_users=True, can_pin_messages=True,
@@ -130,7 +131,7 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
 
             rate = ""
             if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
-                sql_worker.update_rate(datalist[0], 2)
+                sqlWorker.update_rate(datalist[0], 2)
                 rate = "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
 
             utils.bot.edit_message_text("Пользователю " + datalist[1] + " восстановлено право переписки в чате "
@@ -271,7 +272,7 @@ def vote_result_op(records, message_vote, votes_counter, accept):
 
         rate = ""
         if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
-            sql_worker.update_rate(datalist[0], 3)
+            sqlWorker.update_rate(datalist[0], 3)
             rate = "\nРейтинг " + datalist[1] + " повышен на 3 пункта."
 
         utils.bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате."
@@ -329,7 +330,7 @@ def vote_result_deop(records, message_vote, votes_counter, accept):
 
         rate = ""
         if not utils.bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and utils.rate:
-            sql_worker.update_rate(datalist[0], -3)
+            sqlWorker.update_rate(datalist[0], -3)
             rate = "\nРейтинг " + datalist[1] + " снижен на 3 пункта."
 
         utils.bot.edit_message_text("Пользователь " + datalist[1] + " разжалован из админов."
@@ -405,10 +406,10 @@ def vote_result_change_rate(records, message_vote, votes_counter, accept):
     if accept:
         if datalist[2] == "up":
             chrate = "увеличил на " + str(records[0][3] - records[0][4])
-            sql_worker.update_rate(datalist[1], records[0][3] - records[0][4])
+            sqlWorker.update_rate(datalist[1], records[0][3] - records[0][4])
         else:
             chrate = "уменьшил на " + str(records[0][3] - records[0][4])
-            sql_worker.update_rate(datalist[1], records[0][4] - records[0][3])
+            sqlWorker.update_rate(datalist[1], records[0][4] - records[0][3])
         utils.bot.edit_message_text(f"Пользователь {datalist[3]} "
                                     f"{chrate} социальный рейтинг пользователя {datalist[0]}."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
@@ -420,9 +421,9 @@ def vote_result_change_rate(records, message_vote, votes_counter, accept):
 def vote_result_add_allies(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        sql_worker.abuse_remove(datalist[0])
-        sql_worker.abuse_update(datalist[0])
-        sql_worker.add_ally(datalist[0])
+        sqlWorker.abuse_remove(datalist[0])
+        sqlWorker.abuse_update(datalist[0])
+        sqlWorker.add_ally(datalist[0])
         try:
             ally_title = utils.bot.get_chat(datalist[0]).title
             invite = utils.bot.get_chat(datalist[0]).invite_link
@@ -445,7 +446,7 @@ def vote_result_add_allies(records, message_vote, votes_counter, accept):
                                     f"<b>{utils.html_fix(ally_title)}!</b>\n{invite}"
                                     + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
     else:
-        sql_worker.abuse_update(datalist[0])
+        sqlWorker.abuse_update(datalist[0])
         try:
             utils.bot.edit_message_text(f"Вопрос установки союзных отношения с чатом "
                                         f"{utils.bot.get_chat(datalist[0]).title} отклонён."
@@ -460,8 +461,8 @@ def vote_result_add_allies(records, message_vote, votes_counter, accept):
 def vote_result_remove_allies(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        sql_worker.abuse_remove(datalist[0])
-        sql_worker.remove_ally(datalist[0])
+        sqlWorker.abuse_remove(datalist[0])
+        sqlWorker.remove_ally(datalist[0])
         try:
             ally_title = f" <b>{utils.html_fix(utils.bot.get_chat(datalist[0]).title)}</b> "
             utils.bot.send_message(datalist[0], f"Cоюз с чатом <b>{utils.html_fix(message_vote.chat.title)}</b> "
@@ -485,7 +486,7 @@ def vote_result_remove_allies(records, message_vote, votes_counter, accept):
 def vote_result_random_cooldown(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        sql_worker.abuse_random(message_vote.chat.id, datalist[0])
+        sqlWorker.abuse_random(message_vote.chat.id, datalist[0])
         if datalist[0] == -1:
             utils.bot.edit_message_text("Команда /random отключена." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
@@ -509,11 +510,11 @@ def vote_result_whitelist(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         if datalist[2] == "add":
-            sql_worker.whitelist(datalist[0], add=True)
+            sqlWorker.whitelist(datalist[0], add=True)
             utils.bot.edit_message_text(f"Пользователь {datalist[1]} добавлен в вайтлист."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
         else:
-            sql_worker.whitelist(datalist[0], remove=True)
+            sqlWorker.whitelist(datalist[0], remove=True)
             utils.bot.edit_message_text(f"Пользователь {datalist[1]} удалён из вайтлиста."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:

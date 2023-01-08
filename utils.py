@@ -33,10 +33,11 @@ private_mode = True
 rules = False
 rate = True
 PATH = ""
-VERSION = "1.4.14"
-BUILD_DATE = "29.12.2022"
+VERSION = "1.4.15"
+BUILD_DATE = "08.01.2023"
 welc_default = "Welcome to {1}!"
 
+sqlWorker = sql_worker.SqlWorker()
 
 def config_init():
 
@@ -131,7 +132,6 @@ def init():
         print("ERROR: Failed to create working directory! Bot will be closed!")
         sys.exit(1)
 
-    sql_worker.dbname = PATH + "database.db"
     reload(logging)
     logging.basicConfig(
         handlers=[
@@ -147,7 +147,7 @@ def init():
         remake_conf()
 
     config_init()
-    sql_worker.table_init()
+    sqlWorker.table_init(PATH + "database.db")
     auto_thresholds_init()
 
     try:
@@ -161,7 +161,7 @@ def init():
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
-    get_version = sql_worker.params("version", VERSION)
+    get_version = sqlWorker.params("version", VERSION)
     update_text = "" if get_version == VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
                                                  f"Текущая версия: {VERSION}\n" \
                                                  f"Предыдущая версия: {get_version}"
@@ -177,10 +177,10 @@ def init():
 
 def auto_clear():
     while True:
-        records = sql_worker.get_all_pools()
+        records = sqlWorker.get_all_pools()
         for record in records:
             if record[5] + 600 < int(time.time()):
-                sql_worker.rem_rec(record[1], record[0])
+                sqlWorker.rem_rec(record[1], record[0])
                 try:
                     os.remove(PATH + record[0])
                 except IOError:
@@ -423,8 +423,8 @@ def is_voting_exists(records, message, unique_id):
     if not records:
         return False
     if records[0][5] <= int(time.time()):
-        sql_worker.rem_rec("", unique_id=unique_id)
-        sql_worker.rem_rec(records[0][1])
+        sqlWorker.rem_rec("", unique_id=unique_id)
+        sqlWorker.rem_rec(records[0][1])
         return False
     else:
         bot.reply_to(message, "Голосование о данном вопросе уже идёт.")

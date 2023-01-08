@@ -6,11 +6,9 @@ import threading
 import time
 import traceback
 
-
 import telebot
 
 import utils
-import sql_worker
 import postvote
 
 functions = {
@@ -39,7 +37,7 @@ functions = {
 
 def vote_result(unique_id, message_vote):
     global functions
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if not records:
         return
 
@@ -52,7 +50,7 @@ def vote_result(unique_id, message_vote):
         logging.error("Failed to clear a pool file!")
         logging.error(traceback.format_exc())
 
-    sql_worker.rem_rec(message_vote.id, unique_id)
+    sqlWorker.rem_rec(message_vote.id, unique_id)
     utils.auto_thresholds_init()
     votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
     if records[0][3] > records[0][4] and records[0][3] > utils.minimum_vote:
@@ -87,7 +85,7 @@ def vote_result(unique_id, message_vote):
 
 def auto_restart_pools():
     time_now = int(time.time())
-    records = sql_worker.get_all_pools()
+    records = sqlWorker.get_all_pools()
     for record in records:
         try:
             pool = open(utils.PATH + record[0], 'rb')
@@ -110,6 +108,7 @@ def vote_timer(current_timer, unique_id, message_vote):
     vote_result(unique_id, message_vote)
 
 
+sqlWorker = utils.sqlWorker
 utils.init()
 auto_restart_pools()
 
@@ -122,7 +121,7 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
         .format(vote_text, utils.formatted_timer(current_timer), str(current_votes), str(utils.minimum_vote + 1))
 
     message_vote = utils.vote_make(vote_text, message, adduser, silent)
-    sql_worker.addpool(unique_id, message_vote, vote_type,
+    sqlWorker.addpool(unique_id, message_vote, vote_type,
                        int(time.time()) + current_timer, str(vote_args), current_votes, user_id)
     utils.pool_saver(unique_id, message_vote)
     threading.Thread(target=vote_timer, args=(current_timer, unique_id, message_vote)).start()
@@ -141,19 +140,19 @@ def add_usr(message):
         return
 
     unique_id = str(message.from_user.id) + "_useradd"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
-    abuse_chk = sql_worker.abuse_check(message.from_user.id)
+    abuse_chk = sqlWorker.abuse_check(message.from_user.id)
     if abuse_chk > 0:
         utils.bot.reply_to(message, "Сработала защита от абуза инвайта! Вам следует подождать ещё "
                            + utils.formatted_timer(abuse_chk - int(time.time())))
         return
 
-    if sql_worker.whitelist(message.from_user.id):
-        sql_worker.abuse_remove(message.from_user.id)
-        sql_worker.abuse_update(message.from_user.id)
+    if sqlWorker.whitelist(message.from_user.id):
+        sqlWorker.abuse_remove(message.from_user.id)
+        sqlWorker.abuse_update(message.from_user.id)
         invite = utils.bot.create_chat_invite_link(utils.main_chat_id, expire_date=int(time.time()) + 86400)
         utils.bot.reply_to(message, f"Вы получили личную ссылку для вступления в чат, так как находитесь в вайтлисте.\n"
                                     "Ссылка истечёт через 1 сутки.\n"
@@ -195,7 +194,7 @@ def add_answer(message):
         utils.bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на заявку на вступление")
         return
 
-    pool = sql_worker.msg_chk(message_vote=message.reply_to_message)
+    pool = sqlWorker.msg_chk(message_vote=message.reply_to_message)
     if pool:
         if pool[0][2] != "invite":
             utils.bot.reply_to(message, "Данное голосование не является голосованием о вступлении.")
@@ -264,7 +263,7 @@ def ban_usr(message):
         return
 
     unique_id = str(user_id) + "_userban"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -335,7 +334,7 @@ def mute_usr(message):
         restrict_timer = 31535990
 
     unique_id = str(user_id) + "_userban"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -389,7 +388,7 @@ def unban_usr(message):
         return
 
     unique_id = str(user_id) + "_unban"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -425,7 +424,7 @@ def thresholds(message):
         unique_id = "threshold for ban votes"
         bantext = "бан-голосований"
 
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -473,12 +472,12 @@ def timer(message):
         if message.chat.id == utils.main_chat_id:
             timer_text = utils.formatted_timer(utils.global_timer) + " для обычного голосования.\n" \
                          + utils.formatted_timer(utils.global_timer_ban) + " для голосования за бан.\n"
-        if sql_worker.abuse_random(message.chat.id) == -1:
+        if sqlWorker.abuse_random(message.chat.id) == -1:
             timer_random_text = "Команда /random отключена."
-        elif sql_worker.abuse_random(message.chat.id) == 0:
+        elif sqlWorker.abuse_random(message.chat.id) == 0:
             timer_random_text = "Кулдаун команды /random отключён."
         else:
-            timer_random_text = utils.formatted_timer(sql_worker.abuse_random(message.chat.id)) \
+            timer_random_text = utils.formatted_timer(sqlWorker.abuse_random(message.chat.id)) \
                                 + " - кулдаун команды /random."
         utils.bot.reply_to(message, "Текущие пороги таймера:\n" + timer_text + timer_random_text)
         return
@@ -521,14 +520,14 @@ def timer(message):
         elif timer_arg < -1 or timer_arg > 3600:
             utils.bot.reply_to(message, "Количество времени не может быть меньше 0 секунд и больше 1 часа.")
             return
-        elif timer_arg == sql_worker.abuse_random(message.chat.id):
+        elif timer_arg == sqlWorker.abuse_random(message.chat.id):
             utils.bot.reply_to(message, "Это значение установлено сейчас!")
             return
     else:
         utils.bot.reply_to(message, "Неверный второй аргумент (должен быть ban, random или пустой).")
         return
 
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -550,7 +549,7 @@ def timer(message):
 
 def rate_top(message):
     whitelist_msg = utils.bot.reply_to(message, "Сборка рейтинга, ожидайте...")
-    rates = sql_worker.get_all_rates()
+    rates = sqlWorker.get_all_rates()
     if rates is None:
         utils.bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
         return
@@ -566,7 +565,7 @@ def rate_top(message):
     for user_rate in rates:
         if utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]).status == "kicked" \
                 or utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]).status == "left":
-            sql_worker.clear_rate(user_rate[0])
+            sqlWorker.clear_rate(user_rate[0])
             continue
         username = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id, user_rate[0]), True)
         rate_text = rate_text + f'\n{user_counter}. ' \
@@ -599,7 +598,7 @@ def rating(message):
             user_status = utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).status
 
             if user_status == "kicked" or user_status == "left":
-                sql_worker.clear_rate(message.reply_to_message.from_user.id)
+                sqlWorker.clear_rate(message.reply_to_message.from_user.id)
                 utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
                 return
 
@@ -608,7 +607,7 @@ def rating(message):
                 utils.bot.reply_to(message, "У ботов нет социального рейтинга!")
                 return
 
-        user_rate = sql_worker.get_rate(user_id)
+        user_rate = sqlWorker.get_rate(user_id)
         utils.bot.reply_to(message, f"Социальный рейтинг пользователя {username}: {user_rate}")
         return
 
@@ -639,12 +638,12 @@ def rating(message):
 
         if utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "kicked" \
                 or utils.bot.get_chat_member(utils.main_chat_id, user_id).status == "left":
-            sql_worker.clear_rate(user_id)
+            sqlWorker.clear_rate(user_id)
             utils.bot.reply_to(message, "Этот пользователь не является участником чата.")
             return
 
         unique_id = str(user_id) + "_rating_" + mode
-        records = sql_worker.msg_chk(unique_id=unique_id)
+        records = sqlWorker.msg_chk(unique_id=unique_id)
         if utils.is_voting_exists(records, message, unique_id):
             return
 
@@ -686,7 +685,7 @@ def status(message):
 
     if is_bot:
         whitelist_status = "является ботом"
-    elif sql_worker.whitelist(target_msg.from_user.id):
+    elif sqlWorker.whitelist(target_msg.from_user.id):
         whitelist_status = "да"
     else:
         whitelist_status = "нет"
@@ -713,11 +712,11 @@ def whitelist_building(message, whitelist):
             username = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id,
                                                                                    user[0]), html=True)
             if username == "":
-                sql_worker.whitelist(user[0], remove=True)
+                sqlWorker.whitelist(user[0], remove=True)
                 continue
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            sql_worker.whitelist(user[0], remove=True)
+            sqlWorker.whitelist(user[0], remove=True)
             continue
         user_list = user_list + f'{counter}. <a href="tg://user?id={user[0]}">{username}</a>\n'
         counter = counter + 1
@@ -745,7 +744,7 @@ def status(message):
 
         if utils.extract_arg(message.text, 2) is not None and utils.extract_arg(message.text, 1) == "remove":
 
-            whitelist = sql_worker.whitelist_get_all()
+            whitelist = sqlWorker.whitelist_get_all()
             if not whitelist:
                 utils.bot.reply_to(message, "Вайтлист данного чата пуст!")
                 return
@@ -768,12 +767,12 @@ def status(message):
                 who_name = utils.username_parser_chat_member(utils.bot.get_chat_member(utils.main_chat_id, who_id),
                                                              html=True)
                 if who_name == "":
-                    sql_worker.whitelist(who_id, remove=True)
+                    sqlWorker.whitelist(who_id, remove=True)
                     utils.bot.reply_to(message, "Удалена некорректная запись!")
                     return
             except telebot.apihelper.ApiTelegramException:
                 logging.error(traceback.format_exc())
-                sql_worker.whitelist(who_id, remove=True)
+                sqlWorker.whitelist(who_id, remove=True)
                 utils.bot.reply_to(message, "Удалена некорректная запись!")
                 return
 
@@ -787,10 +786,10 @@ def status(message):
             utils.bot.reply_to(message, f"Вайтлист не работает для ботов!")
             return
 
-        is_whitelist = sql_worker.whitelist(who_id)
+        is_whitelist = sqlWorker.whitelist(who_id)
 
         unique_id = str(who_id) + "_whitelist"
-        records = sql_worker.msg_chk(unique_id=unique_id)
+        records = sqlWorker.msg_chk(unique_id=unique_id)
         if utils.is_voting_exists(records, message, unique_id):
             return
 
@@ -815,7 +814,7 @@ def status(message):
 
         return
 
-    whitelist = sql_worker.whitelist_get_all()
+    whitelist = sqlWorker.whitelist_get_all()
     if not whitelist:
         utils.bot.reply_to(message, "Вайтлист данного чата пуст!")
         return
@@ -835,13 +834,13 @@ def msg_remover(message, clearmsg):
         utils.bot.reply_to(message, "Ответьте на сообщение пользователя, которое требуется удалить.")
         return
 
-    if utils.bot.get_me().id == message.reply_to_message.from_user.id and sql_worker.msg_chk(message.reply_to_message):
+    if utils.bot.get_me().id == message.reply_to_message.from_user.id and sqlWorker.msg_chk(message.reply_to_message):
         utils.bot.reply_to(message, "Вы не можете удалить голосование до его завершения!")
         return
 
     unique_id = str(message.reply_to_message.message_id) + "_delmsg"
 
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -902,7 +901,7 @@ def op(message):
         return
 
     unique_id = str(who_id) + "_op"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -967,7 +966,7 @@ def rank(message):
         return
 
     unique_id = str(message.reply_to_message.from_user.id) + "_rank"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -1044,7 +1043,7 @@ def deop(message):
         return
 
     unique_id = str(who_id) + "_deop"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -1077,7 +1076,7 @@ def title(message):
         return
 
     unique_id = "title"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -1122,7 +1121,7 @@ def description(message):
                  f"Инициатор голосования: {utils.username_parser(message, True)}.")
 
     unique_id = "desc"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -1144,7 +1143,7 @@ def chat_pic(message):
         return
 
     unique_id = "chatpic"
-    records = sql_worker.msg_chk(unique_id=unique_id)
+    records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
@@ -1187,7 +1186,7 @@ def random_msg(message):
     except TypeError:
         abuse_vote_timer = 0
 
-    abuse_random = sql_worker.abuse_random(message.chat.id)
+    abuse_random = sqlWorker.abuse_random(message.chat.id)
 
     if abuse_vote_timer + abuse_random > int(time.time()) or abuse_random < 0:
         return
@@ -1213,7 +1212,7 @@ def reset(message):
         return
 
     if utils.debug:
-        sql_worker.abuse_remove(message.chat.id)
+        sqlWorker.abuse_remove(message.chat.id)
         utils.bot.reply_to(message, "Абуз инвайта и союзников сброшен.")
 
 
@@ -1289,7 +1288,7 @@ def votes_msg(message):
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
-    records = sql_worker.get_all_pools()
+    records = sqlWorker.get_all_pools()
     pool_list = ""
     number = 1
 
@@ -1385,7 +1384,7 @@ def mute_user(message):
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
         if message.from_user.id == message.reply_to_message.from_user.id:
             if utils.rate:
-                sql_worker.update_rate(message.from_user.id, -3)
+                sqlWorker.update_rate(message.from_user.id, -3)
                 utils.bot.reply_to(message, f"Пользователь {utils.username_parser(message)}"
                                    + f" решил отдохнуть от чата на {utils.formatted_timer(timer_mute)}"
                                    + " и снизить себе рейтинг на 3 пункта.")
@@ -1395,7 +1394,7 @@ def mute_user(message):
             return
         if not utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
                 and utils.rate:
-            sql_worker.update_rate(message.reply_to_message.from_user.id, -5)
+            sqlWorker.update_rate(message.reply_to_message.from_user.id, -5)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
         utils.bot.reply_to(message, "Я не смог снять права данного пользователя. Не имею права.")
@@ -1407,7 +1406,7 @@ def mute_user(message):
                                        can_change_info=False, can_invite_users=False, can_pin_messages=False)
         if not utils.bot.get_chat_member(utils.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
                 and utils.rate:
-            sql_worker.update_rate(message.from_user.id, -5)
+            sqlWorker.update_rate(message.from_user.id, -5)
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
         utils.bot.reply_to(message, "Я смог снять права данного пользователя на "
@@ -1450,17 +1449,17 @@ def whitelist_checker(message):
         utils.bot.reply_to(message, "Приветствую вас, Владыка.")
         return
 
-    if not (sql_worker.whitelist(user_id) or message.json.get("new_chat_participant").get("is_bot")):
+    if not (sqlWorker.whitelist(user_id) or message.json.get("new_chat_participant").get("is_bot")):
         # Fuck you Durov
         if message.chat.id != utils.main_chat_id:
             return
 
-        allies = sql_worker.get_allies()
+        allies = sqlWorker.get_allies()
         if allies is not None:
             for i in allies:
                 if utils.bot.get_chat_member(i[0], user_id).status != "left" \
                         and utils.bot.get_chat_member(i[0], user_id).status != "kicked":
-                    sql_worker.whitelist(user_id, add=True)
+                    sqlWorker.whitelist(user_id, add=True)
                     utils.bot.reply_to(message, welc_msg_get())
                     return
         try:
@@ -1473,7 +1472,7 @@ def whitelist_checker(message):
         utils.bot.reply_to(message, welc_msg_get())
     elif message.chat.id == utils.main_chat_id:
         unique_id = str(user_id) + "_new_usr"
-        records = sql_worker.msg_chk(unique_id=unique_id)
+        records = sqlWorker.msg_chk(unique_id=unique_id)
         if utils.is_voting_exists(records, message, unique_id):
             return
         try:
@@ -1509,22 +1508,22 @@ def allies_list(message):
             utils.bot.reply_to(message, "Данную команду нельзя запустить в основном чате!")
             return
 
-        if sql_worker.get_ally(message.chat.id) is not None and mode == "add":
+        if sqlWorker.get_ally(message.chat.id) is not None and mode == "add":
             utils.bot.reply_to(message, "Данный чат уже входит в список союзников!")
             return
 
-        if sql_worker.get_ally(message.chat.id) is None and mode == "remove":
+        if sqlWorker.get_ally(message.chat.id) is None and mode == "remove":
             utils.bot.reply_to(message, "Данный чат не входит в список союзников!")
             return
 
-        abuse_chk = sql_worker.abuse_check(message.chat.id)
+        abuse_chk = sqlWorker.abuse_check(message.chat.id)
         if abuse_chk > 0 and mode == "add":
             utils.bot.reply_to(message, "Сработала защита от абуза добавления в союзники! Вам следует подождать ещё "
                                + utils.formatted_timer(abuse_chk - int(time.time())))
             return
 
         unique_id = str(message.chat.id) + "_allies"
-        records = sql_worker.msg_chk(unique_id=unique_id)
+        records = sqlWorker.msg_chk(unique_id=unique_id)
         if utils.is_voting_exists(records, message, unique_id):
             return
 
@@ -1558,7 +1557,7 @@ def allies_list(message):
         utils.bot.reply_to(message, "Неправильный аргумент (поддерживаются add и remove).")
         return
 
-    if sql_worker.get_ally(message.chat.id) is not None:
+    if sqlWorker.get_ally(message.chat.id) is not None:
         utils.bot.reply_to(message, "Данный чат является союзным чатом для "
                            + utils.bot.get_chat(utils.main_chat_id).title + ", ссылка для инвайта - "
                            + utils.bot.get_chat(utils.main_chat_id).invite_link)
@@ -1570,7 +1569,7 @@ def allies_list(message):
         return
 
     allies_text = "Список союзных чатов: \n"
-    allies = sql_worker.get_allies()
+    allies = sqlWorker.get_allies()
     if allies is None:
         utils.bot.reply_to(message, "В настоящее время у вас нет союзников.")
         return
@@ -1592,7 +1591,7 @@ def revoke(message):
     if not utils.botname_checker(message):
         return
 
-    is_allies = False if sql_worker.get_ally(message.chat.id) is None else True
+    is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
 
     if message.chat.id != utils.main_chat_id and not is_allies:
         utils.bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
@@ -1629,9 +1628,9 @@ def niko(message):
 
 
 def call_msg_chk(call_msg):
-    records = sql_worker.msg_chk(message_vote=call_msg.message)
+    records = sqlWorker.msg_chk(message_vote=call_msg.message)
     if not records:
-        sql_worker.rem_rec(call_msg.message.id)
+        sqlWorker.rem_rec(call_msg.message.id)
         utils.bot.edit_message_text(utils.html_fix(call_msg.message.text)
                                     + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
                                     utils.main_chat_id, call_msg.message.id, parse_mode='html')
@@ -1653,7 +1652,7 @@ def cancel_vote(call_msg):
                                         text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
     utils.vote_abuse.clear()
-    sql_worker.rem_rec(call_msg.message.id, pool[0][0])
+    sqlWorker.rem_rec(call_msg.message.id, pool[0][0])
     try:
         os.remove(utils.PATH + pool[0][0])
     except IOError:
@@ -1674,7 +1673,7 @@ def my_vote(call_msg):
     if not call_msg_chk(call_msg):
         return
 
-    user_ch = sql_worker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
+    user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
         if user_ch == "yes":
             utils.bot.answer_callback_query(callback_query_id=call_msg.id,
@@ -1723,7 +1722,7 @@ def callback_inline(call_msg):
     counter_no = records[0][4]
     votes_need_current = records[0][7]
 
-    user_ch = sql_worker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
+    user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
         if utils.vote_mode == 1:
             option = {"yes": "да", "no": "нет"}
@@ -1740,8 +1739,8 @@ def callback_inline(call_msg):
                 if call_msg.data == "no":
                     counter_no = counter_no + 1
                     counter_yes = counter_yes - 1
-                sql_worker.pool_update(counter_yes, counter_no, unique_id)
-                sql_worker.user_vote_update(call_msg, utils.private_checker(call_msg))
+                sqlWorker.pool_update(counter_yes, counter_no, unique_id)
+                sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
                 utils.vote_update(counter_yes, counter_no, call_msg.message)
             else:
                 utils.bot.answer_callback_query(callback_query_id=call_msg.id,
@@ -1757,14 +1756,14 @@ def callback_inline(call_msg):
                 if call_msg.data == "no":
                     counter_no = counter_no + 1
                     counter_yes = counter_yes - 1
-                sql_worker.user_vote_update(call_msg, utils.private_checker(call_msg))
+                sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
             else:
                 if call_msg.data == "yes":
                     counter_yes = counter_yes - 1
                 else:
                     counter_no = counter_no - 1
-                sql_worker.user_vote_remove(call_msg)
-            sql_worker.pool_update(counter_yes, counter_no, unique_id)
+                sqlWorker.user_vote_remove(call_msg)
+            sqlWorker.pool_update(counter_yes, counter_no, unique_id)
             utils.vote_update(counter_yes, counter_no, call_msg.message)
     else:
         if call_msg.data == "yes":
@@ -1772,8 +1771,8 @@ def callback_inline(call_msg):
         if call_msg.data == "no":
             counter_no = counter_no + 1
 
-        sql_worker.pool_update(counter_yes, counter_no, unique_id)
-        sql_worker.user_vote_update(call_msg, utils.private_checker(call_msg))
+        sqlWorker.pool_update(counter_yes, counter_no, unique_id)
+        sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
         utils.vote_update(counter_yes, counter_no, call_msg.message)
 
     if counter_yes >= votes_need_current or counter_no >= votes_need_current:
