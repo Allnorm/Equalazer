@@ -37,8 +37,12 @@ def table_init():
                                     abuse_random INTEGER);""")
     cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
-    cursor.execute("""CREATE TABLE if not exists version (
-                                    version TEXT PRIMARY KEY);""")
+    cursor.execute("""CREATE TABLE if not exists params (
+                                    version TEXT,
+                                    votes INTEGER,
+                                    votes_ban INTEGER,
+                                    timer INTEGER,
+                                    timer_ban INTEGER);""")
     sqlite_connection.commit()
     cursor.close()
     sqlite_connection.close()
@@ -248,14 +252,13 @@ def abuse_random(cursor, chat_id, change=None):
 
 
 @open_close_db
-def get_version(cursor, version):
-    cursor.execute("""SELECT * FROM version""")
+def params(cursor, key, value=None):
+    cursor.execute(f"""SELECT {key} FROM params""")
     record = cursor.fetchall()
     if not record:
-        cursor.execute("""INSERT INTO version VALUES (?)""", (version,))
-        return None
-    if record[0][0] != version:
-        cursor.execute("""UPDATE version SET version = ? where version = ?""", (version, record[0][0]))
-        return record[0][0]
-    else:
-        return None
+        cursor.execute("""INSERT INTO params VALUES (0, 0, 0, 0, 0)""")
+    if value is not None:
+        cursor.execute(f"""UPDATE params SET {key} = ?""", (value,))
+    if not record:
+        return value
+    return record[0][0]

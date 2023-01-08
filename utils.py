@@ -33,7 +33,7 @@ private_mode = True
 rules = False
 rate = True
 PATH = ""
-VERSION = "1.4.13"
+VERSION = "1.4.14"
 BUILD_DATE = "29.12.2022"
 welc_default = "Welcome to {1}!"
 
@@ -161,8 +161,8 @@ def init():
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
-    get_version = sql_worker.get_version(VERSION)
-    update_text = "" if get_version is None else "\nВнимание! Обнаружено изменение версии.\n" \
+    get_version = sql_worker.params("version", VERSION)
+    update_text = "" if get_version == VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
                                                  f"Текущая версия: {VERSION}\n" \
                                                  f"Предыдущая версия: {get_version}"
 
