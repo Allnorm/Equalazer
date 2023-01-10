@@ -153,15 +153,13 @@ def vote_result_treshold(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         if datalist[0] == "auto":
-            data.auto_thresholds = True
-            data.auto_thresholds_init()
+            data.thresholds_set(0)
             bot.edit_message_text("Установлен автоматический порог голосования для стандартных вопросов.\n"
-                                        + "Теперь требуется " + str(data.votes_need)
+                                        + "Теперь требуется " + str(data.thresholds_get())
                                         + " голосов для решения." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            data.auto_thresholds = False
-            data.votes_need = datalist[0]
+            data.thresholds_set(datalist[0])
             bot.edit_message_text("Установлен порог голосования для стандартных вопросов: "
                                         + str(datalist[0]) + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
@@ -188,15 +186,13 @@ def vote_result_treshold_ban(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         if datalist[0] == "auto":
-            data.auto_thresholds_ban = True
-            data.auto_thresholds_init()
+            data.thresholds_set(0, True)
             bot.edit_message_text("Установлен автоматический порог голосования для бана.\n"
-                                        + "Теперь требуется " + str(data.votes_need_ban)
+                                        + "Теперь требуется " + str(data.thresholds_get(True))
                                         + " голосов для решения." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            data.auto_thresholds_ban = False
-            data.votes_need_ban = datalist[0]
+            data.thresholds_set(datalist[0], True)
             bot.edit_message_text("Установлен порог голосования для бана: " + str(datalist[0])
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
@@ -208,17 +204,17 @@ def vote_result_timer(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         if datalist[1] == "timer":
-            data.global_timer = datalist[0]
+            data.timer_set(datalist[0])
             bot.edit_message_text("Установлен таймер основного голосования на "
                                         + utils.formatted_timer(datalist[0]) + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         elif datalist[1] == "timer for ban votes":
-            data.global_timer_ban = datalist[0]
+            data.timer_set(datalist[0], True)
             bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(datalist[0])
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
-        ban = "" if datalist[1] == "timer" else "для бана "
-        bot.edit_message_text("Вопрос смены таймера " + ban + "отклонён." + votes_counter,
+        bot.edit_message_text("Вопрос смены таймера "
+                              + "" if datalist[1] == "timer" else "для бана " + "отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
 
 
@@ -386,7 +382,7 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         try:
-            bot.set_chat_photo(message_vote.chat.id, open(data.PATH + 'tmp_img', 'rb'))
+            bot.set_chat_photo(message_vote.chat.id, open(data.path + 'tmp_img', 'rb'))
             bot.edit_message_text("Фотография чата успешно изменена пользователем " + datalist[0]
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
         except Exception as e:
@@ -398,7 +394,7 @@ def vote_result_chat_pic(records, message_vote, votes_counter, accept):
         bot.edit_message_text("Вопрос смены фотографии чата отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
     try:
-        os.remove(data.PATH + "tmp_img")
+        os.remove(data.path + "tmp_img")
     except IOError:
         pass
 

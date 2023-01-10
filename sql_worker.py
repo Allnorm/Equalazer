@@ -245,7 +245,7 @@ class SqlWorker:
         cursor.execute(f"""SELECT {key} FROM params""")
         record = cursor.fetchall()
         if not record:
-            cursor.execute("""INSERT INTO params VALUES (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)""")
+            cursor.execute("""INSERT INTO params VALUES (0, 2, 2, 3600, 600, 1, 3, 30, 2, 1, 0, 0)""")
         if value is not None:
             cursor.execute(f"""UPDATE params SET {key} = ?""", (value,))
         if not record:

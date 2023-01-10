@@ -14,18 +14,16 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5"
-BUILD_DATE = "08.01.2023"
+VERSION = "1.5.1"
+BUILD_DATE = "10.01.2023"
 welcome_default = "Welcome to {1}!"
 
 class ConfigData:
 
     global_timer = 3600
     global_timer_ban = 300
-    votes_need = 0
-    votes_need_ban = 0
-    auto_thresholds = False
-    auto_thresholds_ban = False
+    __votes_need = 0
+    __votes_need_ban = 0
     main_chat_id = "" # Outside param
     debug = False
     minimum_vote = 1
@@ -72,14 +70,9 @@ class ConfigData:
             try:
                 config.read(self.path + "config.ini")
                 self.token = config["Chat"]["token"]
-                self.global_timer = int(config["Chat"]["timer"])
-                self.global_timer_ban = int(config["Chat"]["bantimer"])
-                self.votes_need = int(config["Chat"]["votes"])
-                self.votes_need_ban = int(config["Chat"]["banvotes"])
                 self.vote_mode = int(config["Chat"]["votes-mode"])
                 self.wait_timer = int(config["Chat"]["wait-timer"])
                 self.abuse_mode = int(config["Chat"]["abuse-mode"])
-                self.secret_ballot = self.bool_init(config["Chat"]["private-mode"])
                 self.rules = self.bool_init(config["Chat"]["rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 break
@@ -103,28 +96,36 @@ class ConfigData:
             self.debug = True
             self.main_chat_id = -1
 
+        self.__votes_need = int(config["Chat"]["votes"])
+        self.__votes_need_ban = int(config["Chat"]["banvotes"])
+
         try:
             self.debug = self.bool_init(config["Chat"]["debug"])
+            self.secret_ballot = self.bool_init(config["Chat"]["secret-ballots"])
         except (KeyError, TypeError):
             pass
 
         if self.debug:
+            self.wait_timer = 0
+
+        try:
+            os.remove(self.path + "tmp_img")
+        except IOError:
+            pass
+
+    def sql_worker_get(self, sql_worker_):
+        self.__votes_need = sql_worker_.params("votes")
+        self.__votes_need_ban = sql_worker_.params("votes_ban")
+        self.global_timer = sql_worker_.params("timer")
+        self.global_timer_ban = sql_worker_.params("timer_ban")
+
+        if self.debug:
             self.global_timer = 20
             self.global_timer_ban = 10
-            self.votes_need = 2
-            self.votes_need_ban = 2
+            self.__votes_need = 2
+            self.__votes_need_ban = 2
             self.minimum_vote = 0
-            self.wait_timer = 0
-            return
 
-        if self.global_timer < 5 or self.global_timer > 86400:
-            self.global_timer = 3600
-        if self.global_timer_ban < 5 or self.global_timer > 86400:
-            self.global_timer_ban = 300
-        if self.votes_need <= 1:
-            self.auto_thresholds = True
-        if self.votes_need_ban <= 1:
-            self.auto_thresholds_ban = True
 
     @staticmethod
     def bool_init(var):
@@ -136,22 +137,71 @@ class ConfigData:
             raise TypeError
 
 
-    def auto_thresholds_init(self):
+    def auto_thresholds_get(self, ban=False):
 
-        if self.auto_thresholds:
-            self.votes_need = int(bot.get_chat_members_count(self.main_chat_id) / 2)
-            if self.votes_need > 7:
-                self.votes_need = 7
-            if self.votes_need <= 1:
-                self.votes_need = 2
+        member_count = bot.get_chat_members_count(self.main_chat_id)
 
-        if self.auto_thresholds_ban:
-            if bot.get_chat_members_count(self.main_chat_id) > 15:
-                self.votes_need_ban = 5
-            elif bot.get_chat_members_count(self.main_chat_id) > 5:
-                self.votes_need_ban = 3
+        if ban:
+            if member_count > 15:
+                return 5
+            elif member_count > 5:
+                return 3
             else:
-                self.votes_need_ban = 2
+                return 2
+        else:
+            votes_need = member_count // 2
+            if votes_need > 7:
+                return 7
+            if votes_need <= 1:
+                return 2
+            return votes_need
+
+
+    def thresholds_get(self, ban=False):
+        if ban:
+            if self.__votes_need_ban != 0:
+                return self.__votes_need_ban
+            else:
+                return self.auto_thresholds_get(ban)
+        else:
+            if self.__votes_need != 0:
+                return self.__votes_need
+            else:
+                return self.auto_thresholds_get()
+
+
+    def is_thresholds_auto(self, ban=False):
+        if ban:
+            if not self.__votes_need_ban:
+                return True
+            return False
+        else:
+            if not self.__votes_need:
+                return True
+            return False
+
+
+    def thresholds_set(self, value, ban=False):
+        if ban:
+            self.__votes_need_ban = value
+            if not self.debug:
+                sqlWorker.params("votes_ban", value)
+        else:
+            self.__votes_need = value
+            if not self.debug:
+                sqlWorker.params("votes", value)
+
+
+    def timer_set(self, value, ban=False):
+        if ban:
+            self.global_timer_ban = value
+            if not self.debug:
+                sqlWorker.params("timer_ban", value)
+        else:
+            self.global_timer = value
+            if not self.debug:
+                sqlWorker.params("timer", value)
+
 
     def remake_conf(self):
         token, chat_id = "", ""
@@ -163,15 +213,10 @@ class ConfigData:
         config.add_section("Chat")
         config.set("Chat", "token", token)
         config.set("Chat", "chatid", chat_id)
-        config.set("Chat", "timer", "0")
-        config.set("Chat", "bantimer", "0")
-        config.set("Chat", "votes", "0")
-        config.set("Chat", "banvotes", "0")
         config.set("Chat", "votes-mode", "3")
         config.set("Chat", "abuse-random", "0")
         config.set("Chat", "wait-timer", "30")
         config.set("Chat", "abuse-mode", "2")
-        config.set("Chat", "private-mode", "true")
         config.set("Chat", "rules", "false")
         config.set("Chat", "rate", "true")
         try:
@@ -183,29 +228,6 @@ class ConfigData:
             sys.exit(1)
 
 
-    def update_conf(self):
-        if self.debug:
-            return
-
-        config = configparser.ConfigParser()
-        try:
-            config.read(self.path + "config.ini")
-            if self.auto_thresholds:
-                config.set("Chat", "votes", "0")
-            else:
-                config.set("Chat", "votes", str(self.votes_need))
-            if self.auto_thresholds_ban:
-                config.set("Chat", "banvotes", "0")
-            else:
-                config.set("Chat", "banvotes", str(self.votes_need_ban))
-            config.set("Chat", "timer", str(self.global_timer))
-            config.set("Chat", "bantimer", str(self.global_timer_ban))
-            config.write(open(self.path + "config.ini", "w"))
-        except Exception as e:
-            print(e)
-            logging.error(traceback.format_exc())
-            return
-
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
 sqlWorker = sql_worker.SqlWorker(data.path + "database.db")
@@ -213,12 +235,7 @@ sqlWorker = sql_worker.SqlWorker(data.path + "database.db")
 
 def init():
 
-    data.auto_thresholds_init()
-
-    try:
-        os.remove(data.path + "tmp_img")
-    except IOError:
-        pass
+    data.sql_worker_get(sqlWorker)
 
     threading.Thread(target=auto_clear).start()
 

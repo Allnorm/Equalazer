@@ -54,7 +54,6 @@ def vote_result(unique_id, message_vote):
         logging.error(traceback.format_exc())
 
     sqlWorker.rem_rec(message_vote.id, unique_id)
-    data.auto_thresholds_init()
     votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
     if records[0][3] > records[0][4] and records[0][3] > data.minimum_vote:
         accept = True
@@ -82,8 +81,6 @@ def vote_result(unique_id, message_vote):
         bot.reply_to(message_vote, "Оповещение о закрытии голосования.")
     except telebot.apihelper.ApiTelegramException:
         logging.error(traceback.format_exc())
-
-    data.update_conf()
     
 
 def auto_restart_pools():
@@ -175,7 +172,7 @@ def add_usr(message):
     # + "](tg://user?id=" + str(message.from_user.id) + ")" + " хочет в чат.\n"
     # + "Сообщение от пользователя: " + msg_from_usr + ".")
 
-    pool_constructor(unique_id, vote_text, message, "invite", data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, "invite", data.global_timer, data.thresholds_get(),
                      [message.chat.id, utils.username_parser(message)], message.from_user.id, adduser=True)
 
     warn = ""
@@ -290,7 +287,7 @@ def ban_usr(message):
     vote_text = (f"Тема голосования: {vote_theme} {username}" + date_unban + ban_timer_text +
                  f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, "ban", data.global_timer_ban, data.votes_need_ban,
+    pool_constructor(unique_id, vote_text, message, "ban", data.global_timer_ban, data.thresholds_get(True),
                      [user_id, username, utils.username_parser(message), vote_type, restrict_timer],
                      message.from_user.id)
 
@@ -361,7 +358,7 @@ def mute_usr(message):
                  + f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     vote_type = 0
-    pool_constructor(unique_id, vote_text, message, "ban", data.global_timer_ban, data.votes_need_ban,
+    pool_constructor(unique_id, vote_text, message, "ban", data.global_timer_ban, data.thresholds_get(True),
                      [user_id, username, utils.username_parser(message), vote_type, restrict_timer],
                      message.from_user.id)
 
@@ -398,7 +395,7 @@ def unban_usr(message):
     vote_text = ("Тема голосования: снятие ограничений с пользователя " + username
                  + f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, "unban", data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, "unban", data.global_timer, data.thresholds_get(),
                      [user_id, username, utils.username_parser(message)], message.from_user.id)
 
 
@@ -413,12 +410,11 @@ def thresholds(message):
 
     mode = utils.extract_arg(message.text, 1)
     if mode is None:
-        auto_thresholds_mode = "" if not data.auto_thresholds else " (автоматический режим)"
-        auto_thresholds_ban_mode = "" if not data.auto_thresholds_ban else " (автоматический режим)"
-        data.auto_thresholds_init()
-        bot.reply_to(message, "Текущие пороги:\nГолосов для обычного решения требуется: " + str(data.votes_need)
+        auto_thresholds_mode = "" if not data.is_thresholds_auto() else " (автоматический режим)"
+        auto_thresholds_ban_mode = "" if not data.is_thresholds_auto(True) else " (автоматический режим)"
+        bot.reply_to(message, "Текущие пороги:\nГолосов для обычного решения требуется: " + str(data.thresholds_get())
                            + auto_thresholds_mode + "\n"
-                           + "Голосов для бана требуется: " + str(data.votes_need_ban) + auto_thresholds_ban_mode
+                           + "Голосов для бана требуется: " + str(data.thresholds_get(True)) + auto_thresholds_ban_mode
                            + "\n" + "Минимальный порог голосов для принятия решения: " + str(data.minimum_vote + 1))
         return
     unique_id = "threshold"
@@ -456,7 +452,7 @@ def thresholds(message):
         vote_text = (f"Тема голосования: установка порога голосов {bantext} на автоматически выставляемое значение"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
                      [mode], message.from_user.id)
 
 
@@ -546,7 +542,7 @@ def timer(message):
                      + utils.formatted_timer(timer_arg) +
                      f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
                      [timer_arg, unique_id], message.from_user.id)
 
 
@@ -656,7 +652,7 @@ def rating(message):
                      f"социального рейтинга пользователя {username}"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-        pool_constructor(unique_id, vote_text, message, "change rate", data.global_timer, data.votes_need,
+        pool_constructor(unique_id, vote_text, message, "change rate", data.global_timer, data.thresholds_get(),
                          [username, message.reply_to_message.from_user.id,
                           mode, utils.username_parser(message)], message.from_user.id)
         return
@@ -812,7 +808,7 @@ def status(message):
         vote_text = (f"Тема голосования: {whitelist_text}.\n"
                      f"Инициатор голосования: {utils.username_parser(message, True)}.")
 
-        pool_constructor(unique_id, vote_text, message, "whitelist", data.global_timer, data.votes_need,
+        pool_constructor(unique_id, vote_text, message, "whitelist", data.global_timer, data.thresholds_get(),
                          [who_id, who_name, utils.extract_arg(message.text, 1)], message.from_user.id)
 
         return
@@ -847,9 +843,9 @@ def msg_remover(message, clearmsg):
     if utils.is_voting_exists(records, message, unique_id):
         return
 
-    silent_del, votes, timer_del, clear, warn = False, data.votes_need_ban, data.global_timer_ban, "", ""
+    silent_del, votes, timer_del, clear, warn = False, data.thresholds_get(True), data.global_timer_ban, "", ""
     if clearmsg:
-        silent_del, votes, timer_del, clear = True, data.votes_need, data.global_timer, "бесследно "
+        silent_del, votes, timer_del, clear = True, data.thresholds_get(), data.global_timer, "бесследно "
         warn = "\n\n<b>Внимание, голосования для бесследной очистки не закрепляются автоматически. Пожалуйста, " \
                "закрепите их самостоятельно при необходимости.</b>\n"
 
@@ -912,7 +908,7 @@ def op(message):
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}."
                  "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>")
 
-    pool_constructor(unique_id, vote_text, message, "op", data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, "op", data.global_timer, data.thresholds_get(),
                      [who_id, who_name], message.from_user.id)
 
 
@@ -987,7 +983,7 @@ def rank(message):
                  + f"на \"{utils.html_fix(rank_text)}\""
                    f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, "rank", data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, "rank", data.global_timer, data.thresholds_get(),
                      [message.reply_to_message.from_user.id, utils.username_parser(message.reply_to_message),
                       rank_text, utils.username_parser(message)], message.from_user.id)
 
@@ -1053,7 +1049,7 @@ def deop(message):
     vote_text = (f"Тема голосования: снятие прав администратора с пользователя {utils.html_fix(who_name)}"
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, "deop", data.global_timer, data.votes_need, [who_id, who_name],
+    pool_constructor(unique_id, vote_text, message, "deop", data.global_timer, data.thresholds_get(), [who_id, who_name],
                      message.from_user.id)
 
 
@@ -1087,7 +1083,7 @@ def title(message):
                  + " поступило предложение сменить название чата на \""
                  + utils.html_fix(message.text.split(maxsplit=1)[1]) + "\".")
 
-    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
                      [message.text.split(maxsplit=1)[1], utils.username_parser(message)],
                      message.from_user.id)
 
@@ -1128,7 +1124,7 @@ def description(message):
     if utils.is_voting_exists(records, message, unique_id):
         return
 
-    pool_constructor(unique_id, vote_text, message, "description", data.global_timer, data.votes_need,
+    pool_constructor(unique_id, vote_text, message, "description", data.global_timer, data.thresholds_get(),
                      [description_text, utils.username_parser(message)], message.from_user.id)
 
 
@@ -1176,7 +1172,7 @@ def chat_pic(message):
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "chat picture", data.global_timer,
-                     data.votes_need, [utils.username_parser(message)], message.from_user.id)
+                     data.thresholds_get(), [utils.username_parser(message)], message.from_user.id)
 
 
 @bot.message_handler(commands=['random', 'redrum'])
@@ -1490,7 +1486,7 @@ def whitelist_checker(message):
         vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем "
                      + utils.username_parser(message, True) + ", в противном случае он будет кикнут")
 
-        pool_constructor(unique_id, vote_text, message, "captcha", 60, data.votes_need,
+        pool_constructor(unique_id, vote_text, message, "captcha", 60, data.thresholds_get(),
                          [utils.username_parser_invite(message), user_id, "бота"], bot.get_me().id)
 
 
@@ -1545,7 +1541,7 @@ def allies_list(message):
                      f"<b>{utils.html_fix(bot.get_chat(message.chat.id).title)}</b>{invite}"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-        pool_constructor(unique_id, vote_text, message, vote_type, 86400, data.votes_need,
+        pool_constructor(unique_id, vote_text, message, vote_type, 86400, data.thresholds_get(),
                          [message.chat.id], message.from_user.id, adduser=True)
 
         mode_text = "создании" if mode == "add" else "разрыве"
