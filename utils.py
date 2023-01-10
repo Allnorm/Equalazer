@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5.3"
+VERSION = "1.5.4"
 BUILD_DATE = "10.01.2023"
 welcome_default = "Welcome to {1}!"
 
@@ -95,9 +95,6 @@ class ConfigData:
         else:
             self.debug = True
             self.main_chat_id = -1
-
-        self.__votes_need = int(config["Chat"]["votes"])
-        self.__votes_need_ban = int(config["Chat"]["banvotes"])
 
         try:
             self.debug = self.bool_init(config["Chat"]["debug"])
