@@ -14,33 +14,119 @@ import sql_worker
 
 import telebot
 
-bot: telebot.TeleBot
-
-global_timer = 3600
-global_timer_ban = 300
-votes_need = 0
-votes_need_ban = 0
-auto_thresholds = False
-auto_thresholds_ban = False
-main_chat_id = ""
-debug = False
-minimum_vote = 1
-vote_mode = 3
-vote_abuse = {}
-wait_timer = 30
-abuse_mode = 2
-private_mode = True
-rules = False
-rate = True
-PATH = ""
-VERSION = "1.4.15"
+VERSION = "1.5"
 BUILD_DATE = "08.01.2023"
-welc_default = "Welcome to {1}!"
+welcome_default = "Welcome to {1}!"
 
-sqlWorker = sql_worker.SqlWorker()
+class ConfigData:
 
-def config_init():
+    global_timer = 3600
+    global_timer_ban = 300
+    votes_need = 0
+    votes_need_ban = 0
+    auto_thresholds = False
+    auto_thresholds_ban = False
+    main_chat_id = "" # Outside param
+    debug = False
+    minimum_vote = 1
+    vote_mode = 3
+    wait_timer = 30
+    abuse_mode = 2
+    secret_ballot = True # Outside param
+    rules = False
+    rate = True
+    path = "" # Outside param
+    token = "" # Outside param
 
+
+    def __init__(self):
+
+        try:
+            self.path = sys.argv[1] + "/"
+            if not os.path.isdir(sys.argv[1]):
+                print("WARNING: working path IS NOT EXIST. Remake.")
+                os.mkdir(sys.argv[1])
+        except IndexError:
+            pass
+        except IOError:
+            traceback.print_exc()
+            print("ERROR: Failed to create working directory! Bot will be closed!")
+            sys.exit(1)
+
+        reload(logging)
+        logging.basicConfig(
+            handlers=[
+                logging.FileHandler(self.path + "logging.log", 'w', 'utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ],
+            level=logging.INFO,
+            format='%(asctime)s %(levelname)s: %(message)s',
+            datefmt="%d-%m-%Y %H:%M:%S")
+
+        if not os.path.isfile(self.path + "config.ini"):
+            print("Config file isn't found! Trying to remake!")
+            self.remake_conf()
+
+        config = configparser.ConfigParser()
+        while True:
+            try:
+                config.read(self.path + "config.ini")
+                self.token = config["Chat"]["token"]
+                self.global_timer = int(config["Chat"]["timer"])
+                self.global_timer_ban = int(config["Chat"]["bantimer"])
+                self.votes_need = int(config["Chat"]["votes"])
+                self.votes_need_ban = int(config["Chat"]["banvotes"])
+                self.vote_mode = int(config["Chat"]["votes-mode"])
+                self.wait_timer = int(config["Chat"]["wait-timer"])
+                self.abuse_mode = int(config["Chat"]["abuse-mode"])
+                self.secret_ballot = self.bool_init(config["Chat"]["private-mode"])
+                self.rules = self.bool_init(config["Chat"]["rules"])
+                self.rate = self.bool_init(config["Chat"]["rate"])
+                break
+            except Exception as e:
+                logging.error((str(e)))
+                logging.error(traceback.format_exc())
+                time.sleep(1)
+                print("\nInvalid config file! Trying to remake!")
+                agreement = "-1"
+                while agreement != "y" and agreement != "n" and agreement != "":
+                    agreement = input("Do you want to reset your broken config file on defaults? (Y/n): ")
+                    agreement = agreement.lower()
+                if agreement == "" or agreement == "y":
+                    self.remake_conf()
+                else:
+                    sys.exit(0)
+
+        if config["Chat"]["chatid"] != "init":
+            self.main_chat_id = int(config["Chat"]["chatid"])
+        else:
+            self.debug = True
+            self.main_chat_id = -1
+
+        try:
+            self.debug = self.bool_init(config["Chat"]["debug"])
+        except (KeyError, TypeError):
+            pass
+
+        if self.debug:
+            self.global_timer = 20
+            self.global_timer_ban = 10
+            self.votes_need = 2
+            self.votes_need_ban = 2
+            self.minimum_vote = 0
+            self.wait_timer = 0
+            return
+
+        if self.global_timer < 5 or self.global_timer > 86400:
+            self.global_timer = 3600
+        if self.global_timer_ban < 5 or self.global_timer > 86400:
+            self.global_timer_ban = 300
+        if self.votes_need <= 1:
+            self.auto_thresholds = True
+        if self.votes_need_ban <= 1:
+            self.auto_thresholds_ban = True
+
+    @staticmethod
     def bool_init(var):
         if var.lower() in ("false", "0"):
             return False
@@ -49,115 +135,94 @@ def config_init():
         else:
             raise TypeError
 
-    global PATH, global_timer, global_timer_ban, votes_need, votes_need_ban, vote_mode, wait_timer, abuse_mode
-    global debug, main_chat_id, private_mode, rules, rate, minimum_vote, auto_thresholds, auto_thresholds_ban, bot
 
-    config = configparser.ConfigParser()
-    while True:
-        try:
-            config.read(PATH + "config.ini")
-            token = config["Chat"]["token"]
-            global_timer = int(config["Chat"]["timer"])
-            global_timer_ban = int(config["Chat"]["bantimer"])
-            votes_need = int(config["Chat"]["votes"])
-            votes_need_ban = int(config["Chat"]["banvotes"])
-            vote_mode = int(config["Chat"]["votes-mode"])
-            wait_timer = int(config["Chat"]["wait-timer"])
-            abuse_mode = int(config["Chat"]["abuse-mode"])
-            private_mode = bool_init(config["Chat"]["private-mode"])
-            rules = bool_init(config["Chat"]["rules"])
-            rate = bool_init(config["Chat"]["rate"])
-            break
-        except Exception as e:
-            logging.error((str(e)))
-            logging.error(traceback.format_exc())
-            time.sleep(1)
-            print("\nInvalid config file! Trying to remake!")
-            agreement = "-1"
-            while agreement != "y" and agreement != "n" and agreement != "":
-                agreement = input("Do you want to reset your broken config file on defaults? (Y/n): ")
-                agreement = agreement.lower()
-            if agreement == "" or agreement == "y":
-                remake_conf()
+    def auto_thresholds_init(self):
+
+        if self.auto_thresholds:
+            self.votes_need = int(bot.get_chat_members_count(self.main_chat_id) / 2)
+            if self.votes_need > 7:
+                self.votes_need = 7
+            if self.votes_need <= 1:
+                self.votes_need = 2
+
+        if self.auto_thresholds_ban:
+            if bot.get_chat_members_count(self.main_chat_id) > 15:
+                self.votes_need_ban = 5
+            elif bot.get_chat_members_count(self.main_chat_id) > 5:
+                self.votes_need_ban = 3
             else:
-                sys.exit(0)
+                self.votes_need_ban = 2
 
-    bot = telebot.TeleBot(token)
+    def remake_conf(self):
+        token, chat_id = "", ""
+        while token == "":
+            token = input("Please, write your bot token: ")
+        while chat_id == "":
+            chat_id = input("Please, write your main chat ID: ")
+        config = configparser.ConfigParser()
+        config.add_section("Chat")
+        config.set("Chat", "token", token)
+        config.set("Chat", "chatid", chat_id)
+        config.set("Chat", "timer", "0")
+        config.set("Chat", "bantimer", "0")
+        config.set("Chat", "votes", "0")
+        config.set("Chat", "banvotes", "0")
+        config.set("Chat", "votes-mode", "3")
+        config.set("Chat", "abuse-random", "0")
+        config.set("Chat", "wait-timer", "30")
+        config.set("Chat", "abuse-mode", "2")
+        config.set("Chat", "private-mode", "true")
+        config.set("Chat", "rules", "false")
+        config.set("Chat", "rate", "true")
+        try:
+            config.write(open(self.path + "config.ini", "w"))
+            print("New config file was created successful")
+        except IOError:
+            print("ERR: Bot cannot write new config file and will close")
+            logging.error(traceback.format_exc())
+            sys.exit(1)
 
-    if config["Chat"]["chatid"] != "init":
-        main_chat_id = int(config["Chat"]["chatid"])
-    else:
-        debug = True
-        main_chat_id = -1
 
-    try:
-        debug = bool_init(config["Chat"]["debug"])
-    except (KeyError, TypeError):
-        pass
+    def update_conf(self):
+        if self.debug:
+            return
 
-    if debug:
-        global_timer = 20
-        global_timer_ban = 10
-        votes_need = 2
-        votes_need_ban = 2
-        minimum_vote = 0
-        wait_timer = 0
-        return
+        config = configparser.ConfigParser()
+        try:
+            config.read(self.path + "config.ini")
+            if self.auto_thresholds:
+                config.set("Chat", "votes", "0")
+            else:
+                config.set("Chat", "votes", str(self.votes_need))
+            if self.auto_thresholds_ban:
+                config.set("Chat", "banvotes", "0")
+            else:
+                config.set("Chat", "banvotes", str(self.votes_need_ban))
+            config.set("Chat", "timer", str(self.global_timer))
+            config.set("Chat", "bantimer", str(self.global_timer_ban))
+            config.write(open(self.path + "config.ini", "w"))
+        except Exception as e:
+            print(e)
+            logging.error(traceback.format_exc())
+            return
 
-    if global_timer < 5 or global_timer > 86400:
-        global_timer = 3600
-    if global_timer_ban < 5 or global_timer > 86400:
-        global_timer_ban = 300
-    if votes_need <= 1:
-        auto_thresholds = True
-    if votes_need_ban <= 1:
-        auto_thresholds_ban = True
-
-    return
+data = ConfigData()
+bot = telebot.TeleBot(data.token)
+sqlWorker = sql_worker.SqlWorker(data.path + "database.db")
 
 
 def init():
 
-    global PATH
+    data.auto_thresholds_init()
 
     try:
-        PATH = sys.argv[1] + "/"
-        if not os.path.isdir(sys.argv[1]):
-            print("WARNING: working path IS NOT EXIST. Remake.")
-            os.mkdir(sys.argv[1])
-    except IndexError:
-        pass
-    except IOError:
-        traceback.print_exc()
-        print("ERROR: Failed to create working directory! Bot will be closed!")
-        sys.exit(1)
-
-    reload(logging)
-    logging.basicConfig(
-        handlers=[
-            logging.FileHandler(PATH + "logging.log", 'w', 'utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ],
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s: %(message)s',
-        datefmt="%d-%m-%Y %H:%M:%S")
-
-    if not os.path.isfile(PATH + "config.ini"):
-        print("Config file isn't found! Trying to remake!")
-        remake_conf()
-
-    config_init()
-    sqlWorker.table_init(PATH + "database.db")
-    auto_thresholds_init()
-
-    try:
-        os.remove(PATH + "tmp_img")
+        os.remove(data.path + "tmp_img")
     except IOError:
         pass
 
     threading.Thread(target=auto_clear).start()
 
-    if main_chat_id == -1:
+    if data.main_chat_id == -1:
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
@@ -166,11 +231,11 @@ def init():
                                                  f"Текущая версия: {VERSION}\n" \
                                                  f"Предыдущая версия: {get_version}"
 
-    if debug:
+    if data.debug:
         logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
-        bot.send_message(main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
+        bot.send_message(data.main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
     else:
-        bot.send_message(main_chat_id, f"Бот перезапущен." + update_text)
+        bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text)
 
     logging.info(f"###ANK REMOTE CONTROL {VERSION} BUILD DATE {BUILD_DATE} HAS BEEN STARTED!###")
 
@@ -182,30 +247,11 @@ def auto_clear():
             if record[5] + 600 < int(time.time()):
                 sqlWorker.rem_rec(record[1], record[0])
                 try:
-                    os.remove(PATH + record[0])
+                    os.remove(data.path + record[0])
                 except IOError:
                     pass
                 logging.info('Removed deprecated poll "' + record[0] + '"')
         time.sleep(3600)
-
-
-def auto_thresholds_init():
-    global votes_need, votes_need_ban
-
-    if auto_thresholds:
-        votes_need = int(bot.get_chat_members_count(main_chat_id) / 2)
-        if votes_need > 7:
-            votes_need = 7
-        if votes_need <= 1:
-            votes_need = 2
-
-    if auto_thresholds_ban:
-        if bot.get_chat_members_count(main_chat_id) > 15:
-            votes_need_ban = 5
-        elif bot.get_chat_members_count(main_chat_id) > 5:
-            votes_need_ban = 3
-        else:
-            votes_need_ban = 2
 
 
 def extract_arg(text, num):
@@ -295,60 +341,6 @@ def reply_msg_target(message):
     return user_id, username, is_bot
 
 
-def remake_conf():
-    token, chat_id = "", ""
-    while token == "":
-        token = input("Please, write your bot token: ")
-    while chat_id == "":
-        chat_id = input("Please, write your main chat ID: ")
-    config = configparser.ConfigParser()
-    config.add_section("Chat")
-    config.set("Chat", "token", token)
-    config.set("Chat", "chatid", chat_id)
-    config.set("Chat", "timer", "0")
-    config.set("Chat", "bantimer", "0")
-    config.set("Chat", "votes", "0")
-    config.set("Chat", "banvotes", "0")
-    config.set("Chat", "votes-mode", "3")
-    config.set("Chat", "abuse-random", "0")
-    config.set("Chat", "wait-timer", "30")
-    config.set("Chat", "abuse-mode", "2")
-    config.set("Chat", "private-mode", "true")
-    config.set("Chat", "rules", "false")
-    config.set("Chat", "rate", "true")
-    try:
-        config.write(open(PATH + "config.ini", "w"))
-        print("New config file was created successful")
-    except IOError:
-        print("ERR: Bot cannot write new config file and will close")
-        logging.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def update_conf():
-    if debug:
-        return
-
-    config = configparser.ConfigParser()
-    try:
-        config.read(PATH + "config.ini")
-        if auto_thresholds:
-            config.set("Chat", "votes", "0")
-        else:
-            config.set("Chat", "votes", str(votes_need))
-        if auto_thresholds_ban:
-            config.set("Chat", "banvotes", "0")
-        else:
-            config.set("Chat", "banvotes", str(votes_need_ban))
-        config.set("Chat", "timer", str(global_timer))
-        config.set("Chat", "bantimer", str(global_timer_ban))
-        config.write(open(PATH + "config.ini", "w"))
-    except Exception as e:
-        print(e)
-        logging.error(traceback.format_exc())
-        return
-
-
 def time_parser(instr: str):
     tf = {
         "s": lambda x: x,
@@ -402,12 +394,13 @@ def make_keyboard(counter_yes, counter_no):
 
 def vote_make(text, message, adduser, silent):
     if adduser:
-        vote_message = bot.send_message(main_chat_id, text, reply_markup=make_keyboard("0", "0"), parse_mode="html")
+        vote_message = bot.send_message(data.main_chat_id, text,
+                                        reply_markup=make_keyboard("0", "0"), parse_mode="html")
     else:
         vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0"), parse_mode="html")
     if not silent:
         try:
-            bot.pin_chat_message(main_chat_id, vote_message.message_id, disable_notification=True)
+            bot.pin_chat_message(data.main_chat_id, vote_message.message_id, disable_notification=True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
@@ -435,10 +428,10 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
     cmd_text = message.text.split()[0]
 
-    if main_chat_id != -1 and getchat:
+    if data.main_chat_id != -1 and getchat:
         return False
 
-    if main_chat_id == -1 and not getchat:
+    if data.main_chat_id == -1 and not getchat:
         return False
 
     if ("@" in cmd_text and "@" + bot.get_me().username in cmd_text) or not ("@" in cmd_text):
@@ -448,7 +441,7 @@ def botname_checker(message, getchat=False):  # Crutch to prevent the bot from r
 
 
 def private_checker(message):  # Проверка на то, можно ли сохранять имя пользователя в БД SQLite в данных о голосовании
-    if not private_mode:
+    if not data.secret_ballot:
         return username_parser(message)
     else:
         return "none"
@@ -456,7 +449,7 @@ def private_checker(message):  # Проверка на то, можно ли с�
 
 def pool_saver(unique_id, message_vote):
     try:
-        pool = open(PATH + unique_id, 'wb')
+        pool = open(data.path + unique_id, 'wb')
         pickle.dump(message_vote, pool, protocol=4)
         pool.close()
     except (IOError, pickle.PicklingError):
