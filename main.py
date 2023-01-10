@@ -16,7 +16,6 @@ functions = {
     "ban": (postvote.vote_result_userkick, "блокировка пользователя"),
     "unban": (postvote.vote_result_unban, "снятие ограничений с пользователя"),
     "threshold": (postvote.vote_result_treshold, "смена порога голосов для стандартных опросов"),
-    "threshold for ban votes": (postvote.vote_result_treshold_ban, "смена порога голосов для бан-опросов"),
     "timer": (postvote.vote_result_timer, "смена таймера для стандартных опросов"),
     "timer for ban votes": (postvote.vote_result_timer, "смена таймера для бан-опросов"),
     "delete message": (postvote.vote_result_delmsg, "удаление сообщения"),
@@ -427,33 +426,34 @@ def thresholds(message):
     if utils.is_voting_exists(records, message, unique_id):
         return
 
+    thr_value = 0
     if mode != "auto":
         try:
-            mode = int(mode)
+            thr_value = int(mode)
         except (TypeError, ValueError):
             bot.reply_to(message, "Неверный аргумент (должно быть целое число от 2 до "
                                + str(bot.get_chat_members_count(data.main_chat_id)) + " или \"auto\").")
             return
 
-        if mode > bot.get_chat_members_count(data.main_chat_id):
+        if thr_value > bot.get_chat_members_count(data.main_chat_id):
             bot.reply_to(message,
                                "Количество необходимых голосов не может быть больше количества участников в чате.")
             return
 
-        if mode <= data.minimum_vote:
+        if thr_value <= data.minimum_vote:
             bot.reply_to(message, "Количество необходимых голосов не может быть меньше "
                                + str(data.minimum_vote + 1))
             return
 
-        vote_text = (f"Тема голосования: установка порога голосов {bantext} на значение {str(mode)}"
+        vote_text = (f"Тема голосования: установка порога голосов {bantext} на значение {thr_value}"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     else:
         vote_text = (f"Тема голосования: установка порога голосов {bantext} на автоматически выставляемое значение"
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
-    pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
-                     [mode], message.from_user.id)
+    pool_constructor(unique_id, vote_text, message, "threshold", data.global_timer, data.thresholds_get(),
+                     [thr_value, unique_id], message.from_user.id)
 
 
 @bot.message_handler(commands=['timer'])

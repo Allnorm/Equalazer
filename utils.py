@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 BUILD_DATE = "10.01.2023"
 welcome_default = "Welcome to {1}!"
 

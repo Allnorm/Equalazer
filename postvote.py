@@ -149,25 +149,6 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
-def vote_result_treshold(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if datalist[0] == "auto":
-            data.thresholds_set(0)
-            bot.edit_message_text("Установлен автоматический порог голосования для стандартных вопросов.\n"
-                                        + "Теперь требуется " + str(data.thresholds_get())
-                                        + " голосов для решения." + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id)
-        else:
-            data.thresholds_set(datalist[0])
-            bot.edit_message_text("Установлен порог голосования для стандартных вопросов: "
-                                        + str(datalist[0]) + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос смены порога голосования для стандартных вопросов отклонён."
-                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
-
-
 def vote_result_new_usr(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
@@ -182,22 +163,25 @@ def vote_result_new_usr(records, message_vote, votes_counter, accept):
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
-def vote_result_treshold_ban(records, message_vote, votes_counter, accept):
+def vote_result_treshold(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
+    ban = True if datalist[1] == "threshold for ban votes" else False
+    ban_text = "бана" if ban else "стандартных вопросов"
     if accept:
-        if datalist[0] == "auto":
-            data.thresholds_set(0, True)
-            bot.edit_message_text("Установлен автоматический порог голосования для бана.\n"
-                                        + "Теперь требуется " + str(data.thresholds_get(True))
+        if datalist[0] == 0:
+            data.thresholds_set(0, ban)
+            bot.edit_message_text(f"Установлен автоматический порог голосования для {ban_text}.\n"
+                                        + "Теперь требуется " + str(data.thresholds_get(ban))
                                         + " голосов для решения." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            data.thresholds_set(datalist[0], True)
-            bot.edit_message_text("Установлен порог голосования для бана: " + str(datalist[0])
-                                        + votes_counter, message_vote.chat.id, message_vote.message_id)
+            data.thresholds_set(datalist[0], ban)
+            bot.edit_message_text(f"Установлен порог голосования для {ban_text}: "
+                                        + str(datalist[0]) + votes_counter,
+                                        message_vote.chat.id, message_vote.message_id)
     else:
-        bot.edit_message_text("Вопрос смены порога голосования для бана отклонён." + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text(f"Вопрос смены порога голосования для {ban_text} отклонён."
+                                    + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
 def vote_result_timer(records, message_vote, votes_counter, accept):
