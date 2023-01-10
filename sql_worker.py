@@ -18,7 +18,7 @@ class SqlWorker:
 
     dbname = ""
     
-    def __init__(self, dbname):
+    def __init__(self, dbname, version):
 
         sqlite_connection = sqlite3.connect(dbname)
         cursor = sqlite_connection.cursor()
@@ -64,6 +64,9 @@ class SqlWorker:
                                     rate INTEGER,
                                     public_mode INTEGER,
                                     allowed_admins INTEGER);""")
+        cursor.execute(f"""SELECT * FROM params""")
+        if not cursor.fetchall():
+            cursor.execute("""INSERT INTO params VALUES (?, 2, 2, 3600, 600, 1, 3, 30, 2, 1, 0, 0)""", (version,))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
@@ -244,10 +247,6 @@ class SqlWorker:
     def params(self, cursor, key, value=None):
         cursor.execute(f"""SELECT {key} FROM params""")
         record = cursor.fetchall()
-        if not record:
-            cursor.execute("""INSERT INTO params VALUES (0, 2, 2, 3600, 600, 1, 3, 30, 2, 1, 0, 0)""")
         if value is not None:
             cursor.execute(f"""UPDATE params SET {key} = ?""", (value,))
-        if not record:
-            return value
         return record[0][0]

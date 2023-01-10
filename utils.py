@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 BUILD_DATE = "10.01.2023"
 welcome_default = "Welcome to {1}!"
 
@@ -230,7 +230,7 @@ class ConfigData:
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
-sqlWorker = sql_worker.SqlWorker(data.path + "database.db")
+sqlWorker = sql_worker.SqlWorker(data.path + "database.db", VERSION)
 
 
 def init():
