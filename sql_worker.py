@@ -66,7 +66,7 @@ class SqlWorker:
                                     allowed_admins INTEGER);""")
         cursor.execute(f"""SELECT * FROM params""")
         if not cursor.fetchall():
-            cursor.execute("""INSERT INTO params VALUES (?, 0, 0, 3600, 600, 1, 3, 30, 2, 1, 0, 0)""", (version,))
+            cursor.execute("""INSERT INTO params VALUES (?, 0, 0, 3600, 600, 2, 3, 30, 2, 1, 0, 0)""", (version,))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()

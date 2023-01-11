@@ -165,22 +165,30 @@ def vote_result_new_usr(records, message_vote, votes_counter, accept):
 
 def vote_result_treshold(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
-    ban = True if datalist[1] == "threshold for ban votes" else False
-    ban_text = "бана" if ban else "стандартных вопросов"
-    if accept:
+    ban = True if datalist[1] == "threshold_ban" else False
+    minimum = True if datalist[1] == "threshold_min" else False
+    if ban:
+        ban_text = "голосований по вопросам бана"
+    elif minimum:
+        ban_text = "минимального количества голосов"
+    else:
+        ban_text = "голосований по стандартным вопросам"
+    if datalist[1] == "threshold_min":
+        votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
+    if accept or records[0][3] > records[0][4] and datalist[1] == "threshold_min":
         if datalist[0] == 0:
-            data.thresholds_set(0, ban)
-            bot.edit_message_text(f"Установлен автоматический порог голосования для {ban_text}.\n"
+            data.thresholds_set(0, ban, minimum)
+            bot.edit_message_text(f"Установлен автоматический порог {ban_text}.\n"
                                         + "Теперь требуется " + str(data.thresholds_get(ban))
                                         + " голосов для решения." + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
         else:
-            data.thresholds_set(datalist[0], ban)
-            bot.edit_message_text(f"Установлен порог голосования для {ban_text}: "
+            data.thresholds_set(datalist[0], ban, minimum)
+            bot.edit_message_text(f"Установлен порог {ban_text}: "
                                         + str(datalist[0]) + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
     else:
-        bot.edit_message_text(f"Вопрос смены порога голосования для {ban_text} отклонён."
+        bot.edit_message_text(f"Вопрос смены порога {ban_text} отклонён."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
 
@@ -197,8 +205,8 @@ def vote_result_timer(records, message_vote, votes_counter, accept):
             bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(datalist[0])
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
     else:
-        bot.edit_message_text("Вопрос смены таймера "
-                              + "" if datalist[1] == "timer" else "для бана " + "отклонён." + votes_counter,
+        timer_text = "" if datalist[1] == "timer" else "для бана "
+        bot.edit_message_text("Вопрос смены таймера " + timer_text + "отклонён." + votes_counter,
                                     message_vote.chat.id, message_vote.message_id)
 
 

@@ -14,8 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5.4"
-BUILD_DATE = "10.01.2023"
+VERSION = "1.5.5"
+BUILD_DATE = "11.01.2023"
 welcome_default = "Welcome to {1}!"
 
 class ConfigData:
@@ -24,9 +24,9 @@ class ConfigData:
     global_timer_ban = 300
     __votes_need = 0
     __votes_need_ban = 0
+    __votes_need_min = 1
     main_chat_id = "" # Outside param
     debug = False
-    minimum_vote = 1
     vote_mode = 3
     wait_timer = 30
     abuse_mode = 2
@@ -113,6 +113,7 @@ class ConfigData:
     def sql_worker_get(self, sql_worker_):
         self.__votes_need = sql_worker_.params("votes")
         self.__votes_need_ban = sql_worker_.params("votes_ban")
+        self.__votes_need_min = sql_worker_.params("min_vote")
         self.global_timer = sql_worker_.params("timer")
         self.global_timer_ban = sql_worker_.params("timer_ban")
 
@@ -121,7 +122,7 @@ class ConfigData:
             self.global_timer_ban = 10
             self.__votes_need = 2
             self.__votes_need_ban = 2
-            self.minimum_vote = 0
+            self.__votes_need_min = 1
 
 
     @staticmethod
@@ -134,7 +135,7 @@ class ConfigData:
             raise TypeError
 
 
-    def auto_thresholds_get(self, ban=False):
+    def auto_thresholds_get(self, ban=False, minimum=False):
 
         member_count = bot.get_chat_members_count(self.main_chat_id)
 
@@ -145,8 +146,17 @@ class ConfigData:
                 return 3
             else:
                 return 2
+        elif minimum:
+            if member_count > 30:
+                return 5
+            elif member_count > 15:
+                return 3
+            else:
+                return 2
         else:
             votes_need = member_count // 2
+            if votes_need < self.__votes_need_min:
+                return self.__votes_need_min
             if votes_need > 7:
                 return 7
             if votes_need <= 1:
@@ -154,12 +164,17 @@ class ConfigData:
             return votes_need
 
 
-    def thresholds_get(self, ban=False):
+    def thresholds_get(self, ban=False, minimum=False):
         if ban:
             if self.__votes_need_ban != 0:
                 return self.__votes_need_ban
             else:
                 return self.auto_thresholds_get(ban)
+        elif minimum:
+            if self.__votes_need_min != 0:
+                return self.__votes_need_min
+            else:
+                return self.auto_thresholds_get(False, minimum)
         else:
             if self.__votes_need != 0:
                 return self.__votes_need
@@ -167,9 +182,13 @@ class ConfigData:
                 return self.auto_thresholds_get()
 
 
-    def is_thresholds_auto(self, ban=False):
+    def is_thresholds_auto(self, ban=False, minimum=False):
         if ban:
             if not self.__votes_need_ban:
+                return True
+            return False
+        elif minimum:
+            if not self.__votes_need_min:
                 return True
             return False
         else:
@@ -178,11 +197,19 @@ class ConfigData:
             return False
 
 
-    def thresholds_set(self, value, ban=False):
+    def thresholds_set(self, value, ban=False, minimum=False):
         if ban:
             self.__votes_need_ban = value
             if not self.debug:
                 sqlWorker.params("votes_ban", value)
+        elif minimum:
+            self.__votes_need_min = value
+            if self.__votes_need_ban < value and self.__votes_need_ban:
+                self.__votes_need_ban = value
+            if self.__votes_need < value and self.__votes_need:
+                self.__votes_need = value
+            if not self.debug:
+                sqlWorker.params("min_vote", value)
         else:
             self.__votes_need = value
             if not self.debug:

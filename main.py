@@ -15,7 +15,7 @@ functions = {
     "invite": (postvote.vote_result_useradd, "инвайт пользователя"),
     "ban": (postvote.vote_result_userkick, "блокировка пользователя"),
     "unban": (postvote.vote_result_unban, "снятие ограничений с пользователя"),
-    "threshold": (postvote.vote_result_treshold, "смена порога голосов для стандартных опросов"),
+    "threshold": (postvote.vote_result_treshold, "смена порога голосов"),
     "timer": (postvote.vote_result_timer, "смена таймера для стандартных опросов"),
     "timer for ban votes": (postvote.vote_result_timer, "смена таймера для бан-опросов"),
     "delete message": (postvote.vote_result_delmsg, "удаление сообщения"),
@@ -54,13 +54,13 @@ def vote_result(unique_id, message_vote):
 
     sqlWorker.rem_rec(message_vote.id, unique_id)
     votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-    if records[0][3] > records[0][4] and records[0][3] > data.minimum_vote:
+    if records[0][3] > records[0][4] and records[0][3] >= data.thresholds_get(minimum=True):
         accept = True
-    elif records[0][3] + records[0][4] > data.minimum_vote:
+    elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
         accept = False
     else:
         accept = False
-        votes_counter = "\nНедостаточно голосов (требуется как минимум " + str(data.minimum_vote + 1) + ")"
+        votes_counter = f"\nНедостаточно голосов (требуется как минимум {data.thresholds_get(minimum=True)})"
 
     try:
         functions[records[0][2]][0](records, message_vote, votes_counter, accept)
@@ -114,11 +114,9 @@ auto_restart_pools()
 
 def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, current_timer: int, current_votes: int,
                      vote_args: list, user_id: int, adduser=False, silent=False):
-    vote_text = "{}\nГолосование будет закрыто через {}, " \
-                "для досрочного завершения требуется голосов за один из пунктов: {}.\n" \
-                "Минимальный порог голосов для принятия решения: {}." \
-        .format(vote_text, utils.formatted_timer(current_timer), str(current_votes), str(data.minimum_vote + 1))
-
+    vote_text = f"{vote_text}\nГолосование будет закрыто через {utils.formatted_timer(current_timer)}, " \
+                f"для досрочного завершения требуется голосов за один из пунктов: {str(current_votes)}.\n" \
+                f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
     message_vote = utils.vote_make(vote_text, message, adduser, silent)
     sqlWorker.addpool(unique_id, message_vote, vote_type,
                        int(time.time()) + current_timer, str(vote_args), current_votes, user_id)
@@ -411,22 +409,43 @@ def thresholds(message):
     if mode is None:
         auto_thresholds_mode = "" if not data.is_thresholds_auto() else " (автоматический режим)"
         auto_thresholds_ban_mode = "" if not data.is_thresholds_auto(True) else " (автоматический режим)"
+        auto_thresholds_min_mode = "" if not data.is_thresholds_auto(minimum=True) else " (автоматический режим)"
         bot.reply_to(message, "Текущие пороги:\nГолосов для обычного решения требуется: " + str(data.thresholds_get())
                            + auto_thresholds_mode + "\n"
                            + "Голосов для бана требуется: " + str(data.thresholds_get(True)) + auto_thresholds_ban_mode
-                           + "\n" + "Минимальный порог голосов для принятия решения: " + str(data.minimum_vote + 1))
+                           + "\n" + "Минимальный порог голосов для принятия решения: "
+                           + str(data.thresholds_get(minimum=True)) + auto_thresholds_min_mode)
         return
     unique_id = "threshold"
-    bantext = "стандартных голосований"
+    bantext = " стандартных голосований "
+    mintext = " "
+    warn = ""
+    ban, minimum = False, False
+    thr_timer = data.global_timer
     if utils.extract_arg(message.text, 2) == "ban":
-        unique_id = "threshold for ban votes"
-        bantext = "бан-голосований"
+        unique_id = "threshold_ban"
+        bantext = " бан-голосований "
+        ban = True
+    elif utils.extract_arg(message.text, 2) == "min":
+        unique_id = "threshold_min"
+        bantext = " "
+        mintext = " нижнего "
+        warn = "\n<b>Внимание! Результаты голосования за минимальный порог " \
+               "принимаются вне зависимости от минимального порога!" \
+               "\nВремя завершения голосования за минимальный порог - 24 часа!</b>"
+        minimum = True
+        if not data.debug:
+            thr_timer = 86400
 
     records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
     thr_value = 0
+    if data.is_thresholds_auto(ban, minimum) and mode == "auto":
+        bot.reply_to(message, "Значения порога уже вычисляются автоматически!")
+        return
+
     if mode != "auto":
         try:
             thr_value = int(mode)
@@ -436,23 +455,32 @@ def thresholds(message):
             return
 
         if thr_value > bot.get_chat_members_count(data.main_chat_id):
-            bot.reply_to(message,
-                               "Количество необходимых голосов не может быть больше количества участников в чате.")
+            bot.reply_to(message, "Количество голосов не может быть больше количества участников в чате.")
             return
 
-        if thr_value <= data.minimum_vote:
-            bot.reply_to(message, "Количество необходимых голосов не может быть меньше "
-                               + str(data.minimum_vote + 1))
+        if thr_value == data.thresholds_get(ban, minimum):
+            bot.reply_to(message, "Это значение установлено сейчас!")
             return
 
-        vote_text = (f"Тема голосования: установка порога голосов {bantext} на значение {thr_value}"
-                     f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+        if thr_value < data.thresholds_get(minimum=True) and unique_id != "threshold_min":
+            bot.reply_to(message, "Количество голосов не может быть меньше " + str(data.thresholds_get(minimum=True)))
+            return
+        elif thr_value < 2 and not data.debug:
+            bot.reply_to(message, "Минимальное количество голосов не может быть меньше 2")
+            return
+        elif thr_value < 1:
+            bot.reply_to(message, "Минимальное количество голосов не может быть меньше 1")
+            return
+
+        vote_text = (f"Тема голосования: установка{mintext}порога голосов{bantext}на значение {thr_value}"
+                     f".\nИнициатор голосования: {utils.username_parser(message, True)}." + warn)
 
     else:
-        vote_text = (f"Тема голосования: установка порога голосов {bantext} на автоматически выставляемое значение"
-                     f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+        vote_text = (f"Тема голосования: установка{mintext}порога голосов{bantext}"
+                     f"на автоматически выставляемое значение"
+                     f".\nИнициатор голосования: {utils.username_parser(message, True)}." + warn)
 
-    pool_constructor(unique_id, vote_text, message, "threshold", data.global_timer, data.thresholds_get(),
+    pool_constructor(unique_id, vote_text, message, "threshold", thr_timer, data.thresholds_get(),
                      [thr_value, unique_id], message.from_user.id)
 
 
