@@ -30,7 +30,8 @@ functions = {
     "add allies": (postvote.vote_result_add_allies, "добавление союзного чата"),
     "remove allies": (postvote.vote_result_remove_allies, "удаление союзного чата"),
     "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random"),
-    "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста")
+    "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста"),
+    "global admin permissons": (postvote.vote_result_op_global, "изменение разрешённых прав для выдачи")
 }
 
 vote_abuse = {}
@@ -902,17 +903,55 @@ def op(message):
         return
 
     if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+        return
+
+    if utils.extract_arg(message.text, 1) == "help":
+        help_txt = "В АнкаБоте используется система записи прав администратора в виде строки из единиц и нулей. " \
+                   "Для получения и выдачи нужных прав необходимо использовать запись вида /op 0010101 и т. п. " \
+                   "Если не использовать данную запись, будут выданы права по умолчанию для чата.\n" \
+                   "Глобальные права администраторов для чата можно изменить с помощью команды вида " \
+                   "/op global 0010101, если хостер бота не запретил это.\n<b>Текущие права для чата:</b>\n" \
+                   f"Изменения заблокированы хостером - {data.admin_fixed}" \
+                   f"{utils.allowed_list(data.admin_allowed)}" \
+                   f"\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
+        bot.reply_to(message, help_txt, parse_mode="html")
+        return
+
+    elif utils.extract_arg(message.text, 1) == "global":
+        if data.admin_fixed:
+            bot.reply_to(message, "Изменение глобальных прав администраторов для чата заблокировано хостером.")
+            return
+
+        if utils.extract_arg(message.text, 2) is None:
+            bot.reply_to(message, "В сообщении не указан бинарный аргумент.")
+            return
+
+        try:
+            binary_rules = int("1" + utils.extract_arg(message.text, 2)[::-1], 2)
+            if not 0b10000000 <= binary_rules <= 0b11111111:
+                raise ValueError
+        except ValueError:
+            bot.reply_to(message, "Неверное значение бинарного аргумента!")
+            return
+
+        unique_id = "global admin permissons"
+        records = sqlWorker.msg_chk(unique_id=unique_id)
+        if utils.is_voting_exists(records, message, unique_id):
+            return
+
+        vote_text = (f"Тема голосования: изменение разрешённых прав для администраторов на следующие:"
+                     f"{utils.allowed_list(binary_rules)}"
+                     f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
+
+        pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
+                         [binary_rules], message.from_user.id)
         return
 
     if message.reply_to_message is None:
         who_id, who_name, _ = utils.reply_msg_target(message)
     else:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
-
-    if bot.get_chat_member(data.main_chat_id, who_id).status == "administrator":
-        bot.reply_to(message, "Пользователь уже администратор.")
-        return
 
     if bot.get_chat_member(data.main_chat_id, who_id).status == "creator":
         bot.reply_to(message, "Пользователь является создателем чата.")
@@ -927,17 +966,34 @@ def op(message):
         bot.reply_to(message, "Ограниченный пользователь не может стать админом.")
         return
 
+    if utils.extract_arg(message.text, 1) is not None:
+        try:
+            binary_rule = int("1" + utils.extract_arg(message.text, 1)[::-1], 2)
+            if not 0b10000000 <= binary_rule <= 0b11111111:
+                raise ValueError
+        except ValueError:
+            bot.reply_to(message, "Неверное значение бинарного аргумента!")
+            return
+        if not utils.is_current_perm_allowed(binary_rule, data.admin_allowed):
+            bot.reply_to(message, "Есть правила, не разрешённые на уровне чата (см. /op help).")
+            return
+        chosen_rights = utils.allowed_list(binary_rule)
+    else:
+        binary_rule = data.admin_allowed
+        chosen_rights = " дефолтные (см. /op help)"
+
     unique_id = str(who_id) + "_op"
     records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
         return
 
-    vote_text = (f"Тема голосования: выдача прав администратора пользователю {utils.html_fix(who_name)}"
+    vote_text = (f"Тема голосования: выдача/изменение прав администратора пользователю {utils.html_fix(who_name)}"
+                 f"\nПрава, выбранные пользователем для выдачи:{chosen_rights}"
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}."
                  "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>")
 
     pool_constructor(unique_id, vote_text, message, "op", data.global_timer, data.thresholds_get(),
-                     [who_id, who_name], message.from_user.id)
+                     [who_id, who_name, binary_rule], message.from_user.id)
 
 
 @bot.message_handler(commands=['rank'])

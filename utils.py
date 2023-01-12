@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.5.5"
+VERSION = "1.6"
 BUILD_DATE = "11.01.2023"
 welcome_default = "Welcome to {1}!"
 
@@ -33,6 +33,8 @@ class ConfigData:
     secret_ballot = True # Outside param
     rules = False
     rate = True
+    admin_fixed = False # Outside param
+    admin_allowed = 0b11010100 # Ведущий бит всегда 1, запись сделана задом наперёд
     path = "" # Outside param
     token = "" # Outside param
 
@@ -75,6 +77,7 @@ class ConfigData:
                 self.abuse_mode = int(config["Chat"]["abuse-mode"])
                 self.rules = self.bool_init(config["Chat"]["rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
+                self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
                 break
             except Exception as e:
                 logging.error((str(e)))
@@ -102,6 +105,16 @@ class ConfigData:
         except (KeyError, TypeError):
             pass
 
+        try:
+            if self.admin_fixed:
+                self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
+            if not 0b10000000 <=  self.admin_allowed <= 0b11111111:
+                 raise ValueError
+        except (KeyError, TypeError, ValueError):
+            self.admin_allowed = 0b11010100 # recommended value for private chats
+            logging.warning(f"Incorrect admin-allowed value, reset to default ("
+                            + f"{self.admin_allowed:b}"[:0:-1] + ")!")
+
         if self.debug:
             self.wait_timer = 0
 
@@ -116,6 +129,8 @@ class ConfigData:
         self.__votes_need_min = sql_worker_.params("min_vote")
         self.global_timer = sql_worker_.params("timer")
         self.global_timer_ban = sql_worker_.params("timer_ban")
+        if not self.admin_fixed:
+            self.admin_allowed = sql_worker_.params("allowed_admins")
 
         if self.debug:
             self.global_timer = 20
@@ -243,6 +258,8 @@ class ConfigData:
         config.set("Chat", "abuse-mode", "2")
         config.set("Chat", "rules", "false")
         config.set("Chat", "rate", "true")
+        config.set("Chat", "admin-fixed", "false")
+        config.set("Chat", "admin-allowed", "0010101")
         try:
             config.write(open(self.path + "config.ini", "w"))
             print("New config file was created successful")
@@ -496,3 +513,44 @@ def pool_saver(unique_id, message_vote):
     except (IOError, pickle.PicklingError):
         logging.error("Failed to picking a pool! You will not be able to resume the timer after restarting the bot!")
         logging.error(traceback.format_exc())
+
+
+def allowed_list(admin_int):
+    rules = ["Изменение профиля группы", "Удаление сообщений", "Пригласительные ссылки", "Блокировка участников",
+             "Закрепление сообщений", "Добавление администраторов", "Управление видеочатами"]
+    admin_str = ""
+    binary = "\nВ бинарном виде - " + f"{admin_int:b}"[:0:-1]
+    for i in rules:
+        allowed_rule = "разрешено" if admin_int % 2 == 1 else "запрещено"
+        admin_str = admin_str + "\n" + i + " - " + allowed_rule
+        admin_int = admin_int >> 1
+    return admin_str + binary
+
+
+def is_current_perm_allowed(local_list, global_list):
+    def current_perm_counter():
+        nonlocal local_list, global_list
+        while local_list != 1 or global_list != 1:
+            if local_list % 2 == 1 and global_list % 2 == 0:
+                yield False
+            else:
+                yield True
+            local_list, global_list = local_list >> 1, global_list >> 1
+    for i in current_perm_counter():
+        if not i:
+            return False
+    return True
+
+def get_promote_args(promote_list):
+    kwargs_list = {"can_change_info": False,
+                   "can_delete_messages": False,
+                   "can_invite_users": False,
+                   "can_restrict_members": False,
+                   "can_pin_messages": False,
+                   "can_promote_members": False,
+                   "can_manage_video_chats": False}
+    for key in kwargs_list:
+        if promote_list % 2 == 1:
+            kwargs_list[key] = True
+        promote_list = promote_list >> 1
+    return kwargs_list

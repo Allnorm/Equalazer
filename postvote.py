@@ -238,30 +238,43 @@ def vote_result_delmsg(records, message_vote, votes_counter, accept):
                                     message_vote.chat.id, message_vote.message_id)
 
 
-def vote_result_op(records, message_vote, votes_counter, accept):
+def vote_result_op_global(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        if bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
-            bot.edit_message_text("Пользователь " + datalist[1]
-                                        + " уже является администратором." + votes_counter,
-                                        message_vote.chat.id, message_vote.message_id)
-            return
-        if bot.get_chat_member(message_vote.chat.id, datalist[0]).status != "member":
+        data.admin_allowed = datalist[0]
+        if not data.admin_fixed:
+            sqlWorker.params("allowed_admins", datalist[0])
+        bot.edit_message_text("Разрешённые для администраторов права успешно изменены на следующие:"
+                              + utils.allowed_list(datalist[0]) + votes_counter,
+                              message_vote.chat.id, message_vote.message_id)
+        return
+    else:
+        bot.edit_message_text("Вопрос изменения разрешённых для администраторов прав отклонён" + votes_counter,
+                                    message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_op(records, message_vote, votes_counter, accept):
+    # Проверка на наличие админки, чтобы не менялся рейтинг, и на соответствие глобалкам В ТЕКУЩИЙ МОМЕНТ!!!!
+    datalist = eval(records[0][6])
+    if accept:
+        status = bot.get_chat_member(message_vote.chat.id, datalist[0]).status
+        if status != "member" and status != "administrator":
             bot.edit_message_text("Пользователь " + datalist[1]
                                         + " имеет статус, не позволяющий назначить его администратором."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
             return
         try:
-            bot.promote_chat_member(message_vote.chat.id, datalist[0], can_manage_chat=True,
-                                          can_pin_messages=True, can_manage_voice_chats=True, can_invite_users=True)
+            bot.promote_chat_member(message_vote.chat.id, datalist[0], **utils.get_promote_args(datalist[2]))
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Ошибка назначения администратора " + datalist[1] + votes_counter,
+            bot.edit_message_text(f"Ошибка назначения администратора {datalist[1]}. Недостаточно прав?" + votes_counter,
                                         message_vote.chat.id, message_vote.message_id)
             return
 
         rate = ""
-        if not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and data.rate:
+        if all([not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot,
+                data.rate,
+                not status == "administrator"]):
             sqlWorker.update_rate(datalist[0], 3)
             rate = "\nРейтинг " + datalist[1] + " повышен на 3 пункта."
 
