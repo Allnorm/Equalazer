@@ -14,8 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.6"
-BUILD_DATE = "11.01.2023"
+VERSION = "1.6.2"
+BUILD_DATE = "12.01.2023"
 welcome_default = "Welcome to {1}!"
 
 class ConfigData:
@@ -101,6 +101,10 @@ class ConfigData:
 
         try:
             self.debug = self.bool_init(config["Chat"]["debug"])
+        except (KeyError, TypeError):
+            pass
+
+        try:
             self.secret_ballot = self.bool_init(config["Chat"]["secret-ballots"])
         except (KeyError, TypeError):
             pass
@@ -163,11 +167,16 @@ class ConfigData:
                 return 2
         elif minimum:
             if member_count > 30:
-                return 5
+                min_value = 5
             elif member_count > 15:
-                return 3
+                min_value = 3
             else:
-                return 2
+                min_value = 2
+            if self.__votes_need < min_value:
+                self.__votes_need = min_value
+            if self.__votes_need_ban < min_value:
+                self.__votes_need_ban = min_value
+            return min_value
         else:
             votes_need = member_count // 2
             if votes_need < self.__votes_need_min:
@@ -219,9 +228,9 @@ class ConfigData:
                 sqlWorker.params("votes_ban", value)
         elif minimum:
             self.__votes_need_min = value
-            if self.__votes_need_ban < value and self.__votes_need_ban:
+            if self.__votes_need_ban < self.thresholds_get(False, True) and self.__votes_need_ban:
                 self.__votes_need_ban = value
-            if self.__votes_need < value and self.__votes_need:
+            if self.__votes_need < self.thresholds_get(False, True) and self.__votes_need:
                 self.__votes_need = value
             if not self.debug:
                 sqlWorker.params("min_vote", value)

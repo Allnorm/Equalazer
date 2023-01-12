@@ -582,11 +582,7 @@ def rate_top(message):
         bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
         return
 
-    for k in range(0, len(rates)):
-        for j in range(0, len(rates) - 1):
-            if rates[j][1] < rates[j + 1][1]:
-                rates[j], rates[j + 1] = rates[j + 1], rates[j]
-
+    rates = sorted(rates, key=lambda rate: rate[1], reverse=True)
     rate_text = "Список пользователей по социальному рейтингу:"
     user_counter = 1
 
