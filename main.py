@@ -1536,11 +1536,17 @@ def whitelist_checker(message):
         allies = sqlWorker.get_allies()
         if allies is not None:
             for i in allies:
-                if bot.get_chat_member(i[0], user_id).status != "left" \
-                        and bot.get_chat_member(i[0], user_id).status != "kicked":
-                    sqlWorker.whitelist(user_id, add=True)
-                    bot.reply_to(message, welcome_msg_get())
-                    return
+                try:
+                    usr_status = bot.get_chat_member(i[0], user_id).status
+                    if usr_status != "left" and usr_status != "kicked":
+                        sqlWorker.whitelist(user_id, add=True)
+                        break
+                except telebot.apihelper.ApiTelegramException:
+                    sqlWorker.remove_ally(i[0])
+            if sqlWorker.whitelist(user_id):
+                bot.reply_to(message, welcome_msg_get())
+                return
+
         try:
             bot.ban_chat_member(data.main_chat_id, user_id, until_date=int(time.time()) + 86400)
             bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
@@ -1649,18 +1655,25 @@ def allies_list(message):
 
     allies_text = "Список союзных чатов: \n"
     allies = sqlWorker.get_allies()
+    if allies is not None:
+        for i in allies:
+            try:
+                bot.get_chat_member(i[0], bot.get_me().id).status
+            except telebot.apihelper.ApiTelegramException:
+                sqlWorker.remove_ally(i[0])
+                allies.remove(i)
+                continue
+            try:
+                invite = bot.get_chat(i[0]).invite_link
+                if invite is None:
+                    invite = "инвайт-ссылка отсутствует"
+                allies_text = allies_text + bot.get_chat(i[0]).title + " - " + invite + "\n"
+            except telebot.apihelper.ApiTelegramException:
+                logging.error(traceback.format_exc())
+
     if allies is None:
         bot.reply_to(message, "В настоящее время у вас нет союзников.")
         return
-
-    for i in allies:
-        try:
-            invite = bot.get_chat(i[0]).invite_link
-            if invite is None:
-                invite = "инвайт-ссылка отсутствует"
-            allies_text = allies_text + bot.get_chat(i[0]).title + " - " + invite + "\n"
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
 
     bot.reply_to(message, allies_text)
 

@@ -264,7 +264,8 @@ def vote_result_op(records, message_vote, votes_counter, accept):
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
             return
         try:
-            bot.promote_chat_member(message_vote.chat.id, datalist[0], **utils.get_promote_args(datalist[2]))
+            bot.promote_chat_member(message_vote.chat.id, datalist[0],
+                                    can_manage_chat=True, **utils.get_promote_args(datalist[2]))
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.edit_message_text(f"Ошибка назначения администратора {datalist[1]}. Недостаточно прав?" + votes_counter,
