@@ -14,7 +14,6 @@ bot = utils.bot
 
 def vote_result_useradd(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
-    # mention = "[" + datalist[1] + "](tg://user?id=" + str(datalist[0]) + ")"
     mention = "<a href=\"tg://user?id=" + str(datalist[0]) + "\">" + utils.html_fix(datalist[1]) + "</a>"
     if accept:
         sqlWorker.abuse_remove(records[0][8])
@@ -73,7 +72,8 @@ def vote_result_userkick(records, message_vote, votes_counter, accept):
             if bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
                 bot.restrict_chat_member(message_vote.chat.id, datalist[0], None, can_send_messages=True)
             if datalist[3] == 2:
-                sqlWorker.whitelist(datalist[0], remove=True)
+                if data.binary_chat_mode == 0:
+                    sqlWorker.whitelist(datalist[0], remove=True)
                 bot.ban_chat_member(message_vote.chat.id, datalist[0])
                 bot.edit_message_text("Пользователь " + datalist[1] + " перманентно заблокирован "
                                             + "по милости пользователя " + datalist[2]
@@ -123,7 +123,8 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
         try:
-            sqlWorker.whitelist(datalist[0], add=True)
+            if data.binary_chat_mode == 0:
+                sqlWorker.whitelist(datalist[0], add=True)
             bot.unban_chat_member(message_vote.chat.id, datalist[0], True)
             bot.restrict_chat_member(message_vote.chat.id, datalist[0], can_send_messages=True,
                                            can_change_info=True, can_invite_users=True, can_pin_messages=True,
@@ -152,13 +153,23 @@ def vote_result_unban(records, message_vote, votes_counter, accept):
 def vote_result_new_usr(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
-        bot.restrict_chat_member(message_vote.chat.id, datalist[1],
+        try:
+            bot.restrict_chat_member(message_vote.chat.id, datalist[1],
                                        None, True, True, True, True, True, True, True, True)
+        except telebot.apihelper.ApiTelegramException:
+            bot.edit_message_text(f"Я не смог снять ограничения с {datalist[2]} {datalist[0]}! Недостаточно прав?",
+                                  message_vote.chat.id, message_vote.message_id)
+            return
         bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} одобрено!" + votes_counter,
-                                    message_vote.chat.id, message_vote.message_id)
+                              message_vote.chat.id, message_vote.message_id)
 
     else:
-        bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time()) + 60)
+        try:
+            bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time()) + 60)
+        except telebot.apihelper.ApiTelegramException:
+            bot.edit_message_text(f"Я не смог заблокировать {datalist[2]} {datalist[0]}! Недостаточно прав?",
+                                  message_vote.chat.id, message_vote.message_id)
+            return
         bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} отклонено."
                                     + votes_counter, message_vote.chat.id, message_vote.message_id)
 
@@ -241,6 +252,12 @@ def vote_result_delmsg(records, message_vote, votes_counter, accept):
 def vote_result_op_global(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     if accept:
+        if data.admin_fixed:
+            bot.edit_message_text("Настройки выдачи прав администратора не могут быть перезаписаны "
+                                  "(запрещено хостером бота!)"
+                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            return
+
         data.admin_allowed = datalist[0]
         if not data.admin_fixed:
             sqlWorker.params("allowed_admins", datalist[0])
@@ -254,7 +271,6 @@ def vote_result_op_global(records, message_vote, votes_counter, accept):
 
 
 def vote_result_op(records, message_vote, votes_counter, accept):
-    # Проверка на наличие админки, чтобы не менялся рейтинг, и на соответствие глобалкам В ТЕКУЩИЙ МОМЕНТ!!!!
     datalist = eval(records[0][6])
     if accept:
         status = bot.get_chat_member(message_vote.chat.id, datalist[0]).status
@@ -528,3 +544,19 @@ def vote_result_whitelist(records, message_vote, votes_counter, accept):
         else:
             bot.edit_message_text(f"Вопрос удаления пользователя {datalist[1]} из вайтлиста отклонён."
                                         + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_private_mode(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        if data.chat_mode != "mixed":
+            bot.edit_message_text("Настройки приватности не могут быть перезаписаны (запрещено хостером бота!)"
+                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            return
+        data.binary_chat_mode = datalist[0]
+        sqlWorker.params("public_mode", datalist[0])
+        bot.edit_message_text(f"Пользователь {datalist[1]} изменил режим приватности чата на {datalist[2]}."
+                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+    else:
+        bot.edit_message_text(f"Вопрос изменения настроек приватности чата отклонён."
+                              + votes_counter, message_vote.chat.id, message_vote.message_id)

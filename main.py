@@ -7,6 +7,7 @@ import time
 import traceback
 
 import telebot
+from telebot import types
 
 import utils
 import postvote
@@ -31,7 +32,8 @@ functions = {
     "remove allies": (postvote.vote_result_remove_allies, "удаление союзного чата"),
     "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random"),
     "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста"),
-    "global admin permissons": (postvote.vote_result_op_global, "изменение разрешённых прав для выдачи")
+    "global admin permissons": (postvote.vote_result_op_global, "изменение разрешённых прав для выдачи"),
+    "private mode": (postvote.vote_result_private_mode, "изменение настроек приватности чата")
 }
 
 vote_abuse = {}
@@ -118,7 +120,8 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
     vote_text = f"{vote_text}\nГолосование будет закрыто через {utils.formatted_timer(current_timer)}, " \
                 f"для досрочного завершения требуется голосов за один из пунктов: {str(current_votes)}.\n" \
                 f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
-    message_vote = utils.vote_make(vote_text, message, adduser, silent)
+    cancel = True if data.bot_id != user_id else False
+    message_vote = utils.vote_make(vote_text, message, adduser, silent, cancel)
     sqlWorker.addpool(unique_id, message_vote, vote_type,
                        int(time.time()) + current_timer, str(vote_args), current_votes, user_id)
     utils.pool_saver(unique_id, message_vote)
@@ -137,6 +140,14 @@ def add_usr(message):
         bot.reply_to(message, "Вы уже есть в нужном вам чате.")
         return
 
+    if data.binary_chat_mode != 0:
+        try:
+            invite = bot.export_chat_invite_link(data.main_chat_id)
+            bot.reply_to(message, f"Ссылка на администрируемый мной чат:\n" + invite)
+        except telebot.apihelper.ApiTelegramException:
+            bot.reply_to(message, "Ошибка получения ссылки на чат. Недостаточно прав?")
+        return
+
     unique_id = str(message.from_user.id) + "_useradd"
     records = sqlWorker.msg_chk(unique_id=unique_id)
     if utils.is_voting_exists(records, message, unique_id):
@@ -153,8 +164,7 @@ def add_usr(message):
         sqlWorker.abuse_update(message.from_user.id)
         invite = bot.create_chat_invite_link(data.main_chat_id, expire_date=int(time.time()) + 86400)
         bot.reply_to(message, f"Вы получили личную ссылку для вступления в чат, так как находитесь в вайтлисте.\n"
-                                    "Ссылка истечёт через 1 сутки.\n"
-                           + invite.invite_link)
+                                    "Ссылка истечёт через 1 сутки.\n" + invite.invite_link)
         return
 
     try:
@@ -256,7 +266,7 @@ def ban_usr(message):
         bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if bot.get_me().id == user_id:
+    if data.bot_id == user_id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -313,7 +323,7 @@ def mute_usr(message):
         bot.reply_to(message, "Я думаю, ты сам должен понимать тщетность своих попыток.")
         return
 
-    if bot.get_me().id == user_id:
+    if data.bot_id == user_id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -376,7 +386,7 @@ def unban_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if bot.get_me().id == user_id:
+    if data.bot_id == user_id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -576,7 +586,7 @@ def timer(message):
 
 
 def rate_top(message):
-    whitelist_msg = bot.reply_to(message, "Сборка рейтинга, ожидайте...")
+    rate_msg = bot.reply_to(message, "Сборка рейтинга, ожидайте...")
     rates = sqlWorker.get_all_rates()
     if rates is None:
         bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
@@ -596,8 +606,8 @@ def rate_top(message):
                                 f'<a href="tg://user?id={user_rate[0]}">{username}</a>: {str(user_rate[1])}'
         user_counter += 1
 
-    bot.edit_message_text(rate_text, chat_id=whitelist_msg.chat.id,
-                                message_id=whitelist_msg.id, parse_mode='html')
+    bot.edit_message_text(rate_text, chat_id=rate_msg.chat.id,
+                                message_id=rate_msg.id, parse_mode='html')
 
 
 @bot.message_handler(commands=['rate'])
@@ -615,7 +625,7 @@ def rating(message):
         if message.reply_to_message is None:
             user_id, username, _ = utils.reply_msg_target(message)
         else:
-            if bot.get_me().id == message.reply_to_message.from_user.id:
+            if data.bot_id == message.reply_to_message.from_user.id:
                 bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 return
 
@@ -652,7 +662,7 @@ def rating(message):
             bot.reply_to(message, "Вы не можете менять свой собственный рейтинг!")
             return
 
-        if user_id == bot.get_me().id:
+        if user_id == data.bot_id:
             bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             return
 
@@ -707,7 +717,9 @@ def status(message):
 
     user_id, username, is_bot = utils.reply_msg_target(target_msg)
 
-    if is_bot:
+    if data.binary_chat_mode != 0:
+        whitelist_status = "вайтлист отключён"
+    elif is_bot:
         whitelist_status = "является ботом"
     elif sqlWorker.whitelist(target_msg.from_user.id):
         whitelist_status = "да"
@@ -752,7 +764,7 @@ def whitelist_building(message, whitelist):
 
 @bot.message_handler(commands=['whitelist'])
 def status(message):
-    if not utils.botname_checker(message):
+    if not utils.botname_checker(message) or data.binary_chat_mode != 0:
         return
 
     if message.chat.id != data.main_chat_id:
@@ -802,7 +814,7 @@ def status(message):
 
             is_bot = False
 
-        if bot.get_me().id == who_id:
+        if data.bot_id == who_id:
             bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             return
 
@@ -858,7 +870,7 @@ def msg_remover(message, clearmsg):
         bot.reply_to(message, "Ответьте на сообщение пользователя, которое требуется удалить.")
         return
 
-    if bot.get_me().id == message.reply_to_message.from_user.id and sqlWorker.msg_chk(message.reply_to_message):
+    if data.bot_id == message.reply_to_message.from_user.id and sqlWorker.msg_chk(message.reply_to_message):
         bot.reply_to(message, "Вы не можете удалить голосование до его завершения!")
         return
 
@@ -893,6 +905,78 @@ def clear_msg(message):
     msg_remover(message, True)
 
 
+@bot.message_handler(commands=['private'])
+def private_mode(message):
+    if not utils.botname_checker(message):
+        return
+
+    if message.chat.id != data.main_chat_id:
+        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+        return
+
+    if utils.extract_arg(message.text, 1) is not None:
+
+        if data.chat_mode != "mixed":
+            bot.reply_to(message, "Хостер бота заблокировал возможность сменить режим работы бота.")
+            return
+
+        unique_id = "private mode"
+        records = sqlWorker.msg_chk(unique_id=unique_id)
+        if utils.is_voting_exists(records, message, unique_id):
+            return
+
+        try:
+            chosen_mode = int(utils.extract_arg(message.text, 1))
+            if not 1 <= chosen_mode <= 3:
+                raise ValueError
+        except ValueError:
+            bot.reply_to(message, "Неверный аргумент (должно быть число от 1 до 3).")
+            return
+
+        if chosen_mode - 1 == data.binary_chat_mode:
+            bot.reply_to(message, "Данный режим уже используется сейчас!")
+            return
+
+        if chosen_mode == 1:
+            chat_mode = "приватный"
+        elif chosen_mode == 2:
+            chat_mode = "публичный (с голосованием)"
+        else:
+            chat_mode = "публичный (с капчёй)"
+
+        vote_text = (f"Тема голосования: изменение режима приватности чата на {chat_mode}."
+                     f"\nИнициатор голосования: {utils.username_parser(message, True)}.")
+
+        pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
+                         [chosen_mode - 1, utils.username_parser(message, True), chat_mode], message.from_user.id)
+        return
+
+
+    if data.binary_chat_mode == 0:
+        chat_mode = "приватный"
+    elif data.binary_chat_mode == 1:
+        chat_mode = "публичный (с голосованием)"
+    else:
+        chat_mode = "публичный (с капчёй)"
+
+    chat_mode_locked = "да" if data.chat_mode != "mixed" else "нет"
+
+    bot.reply_to(message, "Существуют три режима работы антиспам-фильтра АнкаБота.\n"
+                          "1. Использование вайтлиста и системы инвайтов. Участник, не найденный в вайтлисте или в "
+                          "одном из союзных чатов, блокируется. Классическая схема, применяемая для приватных чатов.\n"
+                          "2. Использование голосования при вступлении участника. При вступлении участника в чат "
+                          "отправка от него сообщений ограничивается, выставляется голосование за возможность "
+                          "его вступления в чат. По завершению голосования участник блокируется или ему позволяется "
+                          "вступить в чат. Новая схема, созданная для публичных чатов.\n"
+                          "3. Использование классической капчи при вступлении участника.\n"
+                          "Если хостер бота выставил режим \"mixed\" в конфиге бота, можно сменить режим на другой "
+                          "(команда /private 1/2/3), в противном случае хостер бота устанавливает режим работы "
+                          "самостоятельно.\n<b>Текущие настройки чата:</b>"
+                          f"\nНастройки заблокированы хостером: {chat_mode_locked}"
+                          f"\nТекущий режим чата: {chat_mode}", parse_mode="html")
+    return
+
+
 @bot.message_handler(commands=['op'])
 def op(message):
     if not utils.botname_checker(message):
@@ -919,6 +1003,11 @@ def op(message):
             bot.reply_to(message, "Изменение глобальных прав администраторов для чата заблокировано хостером.")
             return
 
+        unique_id = "global admin permissons"
+        records = sqlWorker.msg_chk(unique_id=unique_id)
+        if utils.is_voting_exists(records, message, unique_id):
+            return
+
         if utils.extract_arg(message.text, 2) is None:
             bot.reply_to(message, "В сообщении не указан бинарный аргумент.")
             return
@@ -929,11 +1018,6 @@ def op(message):
                 raise ValueError
         except ValueError:
             bot.reply_to(message, "Неверное значение бинарного аргумента!")
-            return
-
-        unique_id = "global admin permissons"
-        records = sqlWorker.msg_chk(unique_id=unique_id)
-        if utils.is_voting_exists(records, message, unique_id):
             return
 
         vote_text = (f"Тема голосования: изменение разрешённых прав для администраторов на следующие:"
@@ -1040,7 +1124,7 @@ def rank(message):
         bot.reply_to(message, "Данный бот не является администратором.")
         return
 
-    if bot.get_me().id == message.reply_to_message.from_user.id:
+    if data.bot_id == message.reply_to_message.from_user.id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -1117,7 +1201,7 @@ def deop(message):
         bot.reply_to(message, f"Пользователь {who_name} не является администратором!")
         return
 
-    if bot.get_me().id == message.reply_to_message.from_user.id:
+    if data.bot_id == message.reply_to_message.from_user.id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -1417,7 +1501,7 @@ def mute_user(message):
                            + "если они были выданы с помощью бота." + only_for_admins)
         return
 
-    if bot.get_me().id == message.reply_to_message.from_user.id:
+    if data.bot_id == message.reply_to_message.from_user.id:
         bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         return
 
@@ -1502,34 +1586,81 @@ def mute_user(message):
                                 f"будут дружно молчать в течении " + utils.formatted_timer(timer_mute) + user_rate,
                        parse_mode="html")
 
+def captcha_failed(bot_message):
+    time.sleep(60)
+    datalist = sqlWorker.captcha(bot_message.message_id)
+    if not datalist:
+        return
+    sqlWorker.captcha(bot_message.message_id, remove=True)
+    try:
+        bot.ban_chat_member(bot_message.chat.id, datalist[0][1], until_date=int(time.time()) + 60)
+    except telebot.apihelper.ApiTelegramException:
+        bot.edit_message_text(f"Я не смог заблокировать пользователя {datalist[0][3]}! Недостаточно прав?",
+            bot_message.chat.id, bot_message.message_id)
+        return
+    bot.edit_message_text(f"К сожалению, пользователь {datalist[0][3]} не смог пройти капчу и был кикнут на 60 секунд.",
+                          bot_message.chat.id, bot_message.message_id)
+
+def captcha(message, user_id, username):
+    try:
+        bot.restrict_chat_member(data.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
+                                 can_invite_users=False, can_pin_messages=False)
+    except telebot.apihelper.ApiTelegramException:
+        logging.error(traceback.format_exc())
+        bot.reply_to(message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
+        return
+
+    button_values = [random.randint(1000,9999) for _ in range(3)]
+    max_value = max(button_values)
+    buttons = [types.InlineKeyboardButton(text=str(i), callback_data=f"captcha_{i}") for i in button_values]
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(*buttons)
+
+    bot_message = bot.reply_to(message, "<b>СТОП!</b>\nВы были остановлены антиспам-системой АнкаБота!\n"
+                          "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ число в течении 60 секунд, "
+                          "иначе вы будете кикнуты на 1 минуту. Время пошло.",
+                               reply_markup=keyboard, parse_mode="html")
+
+    sqlWorker.captcha(bot_message.id, add=True, user_id=user_id, max_value=max_value, username=username)
+    threading.Thread(target=captcha_failed, args=(bot_message,)).start()
+
 
 @bot.message_handler(content_types=['new_chat_members'])
-def whitelist_checker(message):
-    def welcome_msg_get():
-        try:
-            file = open(data.path + "welcome.txt", 'r', encoding="utf-8")
-            welcome_msg = file.read().format(utils.username_parser_invite(message), message.chat.title)
-            file.close()
-        except FileNotFoundError:
-            logging.warning("file \"welcome.txt\" isn't found. The standard welcome message will be used.")
-            welcome_msg = utils.welcome_default.format(utils.username_parser_invite(message), message.chat.title)
-        except (IOError, IndexError):
-            logging.error("file \"welcome.txt\" isn't readable. The standard welcome message will be used.")
-            logging.error(traceback.format_exc())
-            welcome_msg = utils.welcome_default.format(utils.username_parser_invite(message), message.chat.title)
-        if welcome_msg == "":
-            logging.warning("file \"welcome.txt\" is empty. The standard welcome message will be used.")
-            welcome_msg = utils.welcome_default.format(utils.username_parser_invite(message), message.chat.title)
-        return welcome_msg
+def new_usr_checker(message):
 
+    username = utils.username_parser_invite(message)
     user_id = message.json.get("new_chat_participant").get("id")
+    is_bot = message.json.get("new_chat_participant").get("is_bot")
 
     if bot.get_chat_member(data.main_chat_id, user_id).status == "creator":
         bot.reply_to(message, "Приветствую вас, Владыка.")
         return
 
-    if not (sqlWorker.whitelist(user_id) or message.json.get("new_chat_participant").get("is_bot")):
-        # Fuck you Durov
+    if data.binary_chat_mode == 1 and not is_bot:
+        unique_id = str(user_id) + "_new_usr"
+        records = sqlWorker.msg_chk(unique_id=unique_id)
+        if utils.is_voting_exists(records, message, unique_id):
+            return
+        try:
+            bot.restrict_chat_member(data.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
+                                     can_invite_users=False, can_pin_messages=False)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            bot.reply_to(message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
+            return
+
+        vote_text = ("Требуется подтверждение вступления нового пользователя " + username
+                     + ", в противном случае он будет кикнут.")
+
+        pool_constructor(unique_id, vote_text, message, "captcha", data.global_timer, data.thresholds_get(),
+                         [username, user_id, "пользователя"], data.bot_id)
+        return
+
+    elif data.binary_chat_mode == 2 and not is_bot:
+        captcha(message, user_id, username)
+        return
+
+    if not (sqlWorker.whitelist(user_id) or is_bot):
         if message.chat.id != data.main_chat_id:
             return
 
@@ -1544,7 +1675,7 @@ def whitelist_checker(message):
                 except telebot.apihelper.ApiTelegramException:
                     sqlWorker.remove_ally(i[0])
             if sqlWorker.whitelist(user_id):
-                bot.reply_to(message, welcome_msg_get())
+                bot.reply_to(message, utils.welcome_msg_get(username, message))
                 return
 
         try:
@@ -1553,8 +1684,8 @@ def whitelist_checker(message):
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
-    elif not message.json.get("new_chat_participant").get("is_bot") and message.chat.id == data.main_chat_id:
-        bot.reply_to(message, welcome_msg_get())
+    elif not is_bot and message.chat.id == data.main_chat_id:
+        bot.reply_to(message, utils.welcome_msg_get(username, message))
     elif message.chat.id == data.main_chat_id:
         unique_id = str(user_id) + "_new_usr"
         records = sqlWorker.msg_chk(unique_id=unique_id)
@@ -1562,18 +1693,17 @@ def whitelist_checker(message):
             return
         try:
             bot.restrict_chat_member(data.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
-                                           can_invite_users=False, can_pin_messages=False,
-                                           until_date=int(time.time()) + 60)
+                                     can_invite_users=False, can_pin_messages=False, until_date=int(time.time()) + 60)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.reply_to(message, "Ошибка блокировки нового бота. Недостаточно прав?")
             return
 
         vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем "
-                     + utils.username_parser(message, True) + ", в противном случае он будет кикнут")
+                     + utils.username_parser(message, True) + ", в противном случае он будет кикнут.")
 
         pool_constructor(unique_id, vote_text, message, "captcha", 60, data.thresholds_get(),
-                         [utils.username_parser_invite(message), user_id, "бота"], bot.get_me().id)
+                         [username, user_id, "бота"], data.bot_id)
 
 
 @bot.message_handler(commands=['allies'])
@@ -1658,7 +1788,7 @@ def allies_list(message):
     if allies is not None:
         for i in allies:
             try:
-                bot.get_chat_member(i[0], bot.get_me().id).status
+                bot.get_chat_member(i[0], data.bot_id).status
             except telebot.apihelper.ApiTelegramException:
                 sqlWorker.remove_ally(i[0])
                 allies.remove(i)
@@ -1732,6 +1862,38 @@ def call_msg_chk(call_msg):
             logging.error(traceback.format_exc())
 
     return records
+
+
+@bot.callback_query_handler(func=lambda call: "captcha" in call.data)
+def captcha_buttons(call_msg):
+    datalist = sqlWorker.captcha(call_msg.message.message_id)
+    if not datalist:
+        bot.edit_message_text("Капча не найдена в БД и закрыта.", call_msg.message.chat.id, call_msg.message.message_id)
+        return
+    if datalist[0][1] != str(call_msg.from_user.id):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text='Вы не можете решать чужую капчу!', show_alert=True)
+        return
+
+    if int(call_msg.data.split("_")[1]) != datalist[0][2]:
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text='Неправильный ответ!', show_alert=True)
+        return
+
+    sqlWorker.captcha(call_msg.message.message_id, remove=True)
+    try:
+        bot.restrict_chat_member(call_msg.message.chat.id, datalist[0][1],
+                                 None, True, True, True, True, True, True, True, True)
+    except telebot.apihelper.ApiTelegramException:
+        bot.edit_message_text(f"Я не смог снять ограничения с пользователя {datalist[0][3]}! Недостаточно прав?",
+                              call_msg.message.chat.id, call_msg.message.message_id)
+        return
+
+    try:
+        bot.edit_message_text(utils.welcome_msg_get(datalist[0][3], call_msg.message), call_msg.message.chat.id,
+                              call_msg.message.message_id)
+    except telebot.apihelper.ApiTelegramException:
+        pass
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel")
@@ -1813,6 +1975,7 @@ def callback_inline(call_msg):
     counter_yes = records[0][3]
     counter_no = records[0][4]
     votes_need_current = records[0][7]
+    cancel = True if records[0][8] != data.bot_id else False
 
     user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
@@ -1833,7 +1996,7 @@ def callback_inline(call_msg):
                     counter_yes = counter_yes - 1
                 sqlWorker.pool_update(counter_yes, counter_no, unique_id)
                 sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
-                utils.vote_update(counter_yes, counter_no, call_msg.message)
+                utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
             else:
                 bot.answer_callback_query(callback_query_id=call_msg.id,
                                                 text="Вы уже голосовали за этот вариант. " +
@@ -1856,7 +2019,7 @@ def callback_inline(call_msg):
                     counter_no = counter_no - 1
                 sqlWorker.user_vote_remove(call_msg)
             sqlWorker.pool_update(counter_yes, counter_no, unique_id)
-            utils.vote_update(counter_yes, counter_no, call_msg.message)
+            utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
     else:
         if call_msg.data == "yes":
             counter_yes = counter_yes + 1
@@ -1865,7 +2028,7 @@ def callback_inline(call_msg):
 
         sqlWorker.pool_update(counter_yes, counter_no, unique_id)
         sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
-        utils.vote_update(counter_yes, counter_no, call_msg.message)
+        utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
 
     if counter_yes >= votes_need_current or counter_no >= votes_need_current:
         vote_abuse.clear()

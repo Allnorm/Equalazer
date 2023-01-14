@@ -64,6 +64,12 @@ class SqlWorker:
                                     rate INTEGER,
                                     public_mode INTEGER,
                                     allowed_admins INTEGER);""")
+        cursor.execute("""CREATE TABLE if not exists captcha (
+                                    message_id TEXT,
+                                    user_id TEXT,
+                                    max_value INTEGER,
+                                    username TEXT);""")
+        cursor.execute("""DELETE FROM captcha""")
         cursor.execute(f"""SELECT * FROM params""")
         if not cursor.fetchall():
             cursor.execute("""INSERT INTO params VALUES (?, 0, 0, 3600, 600, 2, 3, 30, 2, 1, 0, 212)""", (version,))
@@ -250,3 +256,13 @@ class SqlWorker:
         if value is not None:
             cursor.execute(f"""UPDATE params SET {key} = ?""", (value,))
         return record[0][0]
+
+    @open_close_db
+    def captcha(self, cursor, message_id, add=False, remove=False, user_id=None, max_value=None, username=None):
+        if add:
+            cursor.execute("""INSERT INTO captcha VALUES (?, ?, ?, ?)""", (message_id, user_id, max_value, username))
+        elif remove:
+            cursor.execute("""DELETE FROM captcha WHERE message_id = ?""", (message_id,))
+        else:
+            cursor.execute("""SELECT * FROM captcha WHERE message_id = ?""", (message_id,))
+            return cursor.fetchall()

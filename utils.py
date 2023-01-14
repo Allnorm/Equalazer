@@ -14,9 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.6.3"
+VERSION = "1.7"
 BUILD_DATE = "12.01.2023"
-welcome_default = "Welcome to {1}!"
 
 class ConfigData:
 
@@ -37,6 +36,10 @@ class ConfigData:
     admin_allowed = 0b11010100 # Ведущий бит всегда 1, запись сделана задом наперёд
     path = "" # Outside param
     token = "" # Outside param
+    chat_mode = "mixed" # Outside param
+    binary_chat_mode = 0
+    bot_id = None
+    welcome_default = "Welcome to {1}!"
 
 
     def __init__(self):
@@ -78,6 +81,7 @@ class ConfigData:
                 self.rules = self.bool_init(config["Chat"]["rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
+                self.chat_mode = config["Chat"]["chat-mode"]
                 break
             except Exception as e:
                 logging.error((str(e)))
@@ -92,6 +96,17 @@ class ConfigData:
                     self.remake_conf()
                 else:
                     sys.exit(0)
+
+        if self.chat_mode not in ["private", "mixed", "public", "captcha"]:
+            self.chat_mode = "mixed"
+            logging.warning(f"Incorrect chat-mode value, reset to default (mixed)")
+
+        if self.chat_mode == "private":
+            self.binary_chat_mode = 0
+        elif self.chat_mode == "public":
+            self.binary_chat_mode = 1
+        elif self.chat_mode == "captcha":
+            self.binary_chat_mode = 2
 
         if config["Chat"]["chatid"] != "init":
             self.main_chat_id = int(config["Chat"]["chatid"])
@@ -122,11 +137,6 @@ class ConfigData:
         if self.debug:
             self.wait_timer = 0
 
-        try:
-            os.remove(self.path + "tmp_img")
-        except IOError:
-            pass
-
     def sql_worker_get(self, sql_worker_):
         self.__votes_need = sql_worker_.params("votes")
         self.__votes_need_ban = sql_worker_.params("votes_ban")
@@ -135,6 +145,8 @@ class ConfigData:
         self.global_timer_ban = sql_worker_.params("timer_ban")
         if not self.admin_fixed:
             self.admin_allowed = sql_worker_.params("allowed_admins")
+        if self.chat_mode == "mixed":
+            self.binary_chat_mode = sql_worker_.params("public_mode")
 
         if self.debug:
             self.global_timer = 20
@@ -268,6 +280,7 @@ class ConfigData:
         config.set("Chat", "rules", "false")
         config.set("Chat", "rate", "true")
         config.set("Chat", "admin-fixed", "false")
+        config.set("Chat", "chat-mode", "mixed")
         config.set("Chat", "admin-allowed", "0010101")
         try:
             config.write(open(self.path + "config.ini", "w"))
@@ -286,6 +299,7 @@ sqlWorker = sql_worker.SqlWorker(data.path + "database.db", VERSION)
 def init():
 
     data.sql_worker_get(sqlWorker)
+    data.bot_id = bot.get_me().id
 
     threading.Thread(target=auto_clear).start()
 
@@ -447,24 +461,24 @@ def formatted_timer(timer_in_second):
     # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
 
 
-def make_keyboard(counter_yes, counter_no):
+def make_keyboard(counter_yes, counter_no, cancel=True):
     buttons = [
         types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes"),
         types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no"),
-        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote"),
-        types.InlineKeyboardButton(text="Отмена голосования", callback_data="cancel")
+        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
     ]
+    if cancel:
+        buttons.append(types.InlineKeyboardButton(text="Отмена голосования", callback_data="cancel"))
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
     return keyboard
 
-
-def vote_make(text, message, adduser, silent):
+def vote_make(text, message, adduser, silent, cancel=True):
     if adduser:
         vote_message = bot.send_message(data.main_chat_id, text,
-                                        reply_markup=make_keyboard("0", "0"), parse_mode="html")
+                                        reply_markup=make_keyboard("0", "0", cancel=False), parse_mode="html")
     else:
-        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0"), parse_mode="html")
+        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0", cancel), parse_mode="html")
     if not silent:
         try:
             bot.pin_chat_message(data.main_chat_id, vote_message.message_id, disable_notification=True)
@@ -474,9 +488,9 @@ def vote_make(text, message, adduser, silent):
     return vote_message
 
 
-def vote_update(counter_yes, counter_no, call):
+def vote_update(counter_yes, counter_no, call, cancel=True):
     bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id,
-                                  reply_markup=make_keyboard(counter_yes, counter_no))
+                                  reply_markup=make_keyboard(counter_yes, counter_no, cancel))
 
 
 def is_voting_exists(records, message, unique_id):
@@ -563,3 +577,20 @@ def get_promote_args(promote_list):
             kwargs_list[key] = True
         promote_list = promote_list >> 1
     return kwargs_list
+
+def welcome_msg_get(username, message):
+    try:
+        file = open(data.path + "welcome.txt", 'r', encoding="utf-8")
+        welcome_msg = file.read().format(username, message.chat.title)
+        file.close()
+    except FileNotFoundError:
+        logging.warning("file \"welcome.txt\" isn't found. The standard welcome message will be used.")
+        welcome_msg = data.welcome_default.format(username, message.chat.title)
+    except (IOError, IndexError):
+        logging.error("file \"welcome.txt\" isn't readable. The standard welcome message will be used.")
+        logging.error(traceback.format_exc())
+        welcome_msg = data.welcome_default.format(username, message.chat.title)
+    if welcome_msg == "":
+        logging.warning("file \"welcome.txt\" is empty. The standard welcome message will be used.")
+        welcome_msg = data.welcome_default.format(username, message.chat.title)
+    return welcome_msg
