@@ -14,33 +14,32 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.1"
-BUILD_DATE = "12.01.2023"
+VERSION = "1.7.2"
+BUILD_DATE = "14.01.2023"
+
 
 class ConfigData:
-
     global_timer = 3600
     global_timer_ban = 300
     __votes_need = 0
     __votes_need_ban = 0
     __votes_need_min = 1
-    main_chat_id = "" # Outside param
+    main_chat_id = ""  # Outside param
     debug = False
     vote_mode = 3
     wait_timer = 30
     abuse_mode = 2
-    secret_ballot = True # Outside param
+    secret_ballot = True  # Outside param
     rules = False
     rate = True
-    admin_fixed = False # Outside param
-    admin_allowed = 0b11010100 # Ведущий бит всегда 1, запись сделана задом наперёд
-    path = "" # Outside param
-    token = "" # Outside param
-    chat_mode = "mixed" # Outside param
+    admin_fixed = False  # Outside param
+    admin_allowed = 0b11010100  # Ведущий бит всегда 1, запись сделана задом наперёд
+    path = ""  # Outside param
+    token = ""  # Outside param
+    chat_mode = "mixed"  # Outside param
     binary_chat_mode = 0
     bot_id = None
     welcome_default = "Welcome to {1}!"
-
 
     def __init__(self):
 
@@ -127,10 +126,10 @@ class ConfigData:
         try:
             if self.admin_fixed:
                 self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
-            if not 0b10000000 <=  self.admin_allowed <= 0b11111111:
-                 raise ValueError
+            if not 0b10000000 <= self.admin_allowed <= 0b11111111:
+                raise ValueError
         except (KeyError, TypeError, ValueError):
-            self.admin_allowed = 0b11010100 # recommended value for private chats
+            self.admin_allowed = 0b11010100  # recommended value for private chats
             logging.warning(f"Incorrect admin-allowed value, reset to default ("
                             + f"{self.admin_allowed:b}"[:0:-1] + ")!")
 
@@ -155,7 +154,6 @@ class ConfigData:
             self.__votes_need_ban = 2
             self.__votes_need_min = 1
 
-
     @staticmethod
     def bool_init(var):
         if var.lower() in ("false", "0"):
@@ -164,7 +162,6 @@ class ConfigData:
             return True
         else:
             raise TypeError
-
 
     def auto_thresholds_get(self, ban=False, minimum=False):
 
@@ -199,7 +196,6 @@ class ConfigData:
                 return 2
             return votes_need
 
-
     def thresholds_get(self, ban=False, minimum=False):
         if ban:
             if self.__votes_need_ban != 0:
@@ -217,7 +213,6 @@ class ConfigData:
             else:
                 return self.auto_thresholds_get()
 
-
     def is_thresholds_auto(self, ban=False, minimum=False):
         if ban:
             if not self.__votes_need_ban:
@@ -231,7 +226,6 @@ class ConfigData:
             if not self.__votes_need:
                 return True
             return False
-
 
     def thresholds_set(self, value, ban=False, minimum=False):
         if ban:
@@ -251,7 +245,6 @@ class ConfigData:
             if not self.debug:
                 sqlWorker.params("votes", value)
 
-
     def timer_set(self, value, ban=False):
         if ban:
             self.global_timer_ban = value
@@ -261,7 +254,6 @@ class ConfigData:
             self.global_timer = value
             if not self.debug:
                 sqlWorker.params("timer", value)
-
 
     def remake_conf(self):
         token, chat_id = "", ""
@@ -297,7 +289,6 @@ sqlWorker = sql_worker.SqlWorker(data.path + "database.db", VERSION)
 
 
 def init():
-
     data.sql_worker_get(sqlWorker)
     data.bot_id = bot.get_me().id
 
@@ -309,8 +300,8 @@ def init():
 
     get_version = sqlWorker.params("version", VERSION)
     update_text = "" if get_version == VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
-                                                 f"Текущая версия: {VERSION}\n" \
-                                                 f"Предыдущая версия: {get_version}"
+                                                    f"Текущая версия: {VERSION}\n" \
+                                                    f"Предыдущая версия: {get_version}"
 
     if data.debug:
         logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
@@ -401,7 +392,7 @@ def username_parser_chat_member(chat_member, html=False):
             username = chat_member.user.first_name + " (@" + chat_member.user.username + ")"
         else:
             username = chat_member.user.first_name + " " + chat_member.user.last_name + \
-                   " (@" + chat_member.user.username + ")"
+                       " (@" + chat_member.user.username + ")"
 
     if not html:
         return username
@@ -472,6 +463,7 @@ def make_keyboard(counter_yes, counter_no, cancel=True):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
     return keyboard
+
 
 def vote_make(text, message, adduser, silent, cancel=True):
     if adduser:
@@ -559,10 +551,12 @@ def is_current_perm_allowed(local_list, global_list):
             else:
                 yield True
             local_list, global_list = local_list >> 1, global_list >> 1
+
     for i in current_perm_counter():
         if not i:
             return False
     return True
+
 
 def get_promote_args(promote_list):
     kwargs_list = {"can_change_info": False,
@@ -577,6 +571,7 @@ def get_promote_args(promote_list):
             kwargs_list[key] = True
         promote_list = promote_list >> 1
     return kwargs_list
+
 
 def welcome_msg_get(username, message):
     try:
