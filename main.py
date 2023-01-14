@@ -1616,9 +1616,10 @@ def captcha(message, user_id, username):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(*buttons)
 
-    bot_message = bot.reply_to(message, "<b>СТОП!</b>\nВы были остановлены антиспам-системой АнкаБота!\n"
-                          "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ число в течении 60 секунд, "
-                          "иначе вы будете кикнуты на 1 минуту. Время пошло.",
+    bot_message = bot.reply_to(message, "\u26a0\ufe0f <b>СТОП!</b> \u26a0\ufe0f"
+                                        "\nВы были остановлены антиспам-системой АнкаБота!\n"
+                                        "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ число в "
+                                        "течении 60 секунд, иначе вы будете кикнуты на 1 минуту. Время пошло.",
                                reply_markup=keyboard, parse_mode="html")
 
     sqlWorker.captcha(bot_message.id, add=True, user_id=user_id, max_value=max_value, username=username)
