@@ -777,14 +777,12 @@ def status(message):
         return
 
     if utils.extract_arg(message.text, 1) in ("add", "remove"):
-
         if message.reply_to_message is not None:
             who_id, who_name, is_bot = utils.reply_msg_target(message.reply_to_message)
         else:
             who_id, who_name, is_bot = utils.reply_msg_target(message)
 
         if utils.extract_arg(message.text, 2) is not None and utils.extract_arg(message.text, 1) == "remove":
-
             whitelist = sqlWorker.whitelist_get_all()
             if not whitelist:
                 bot.reply_to(message, "Вайтлист данного чата пуст!")
@@ -816,21 +814,18 @@ def status(message):
                 sqlWorker.whitelist(who_id, remove=True)
                 bot.reply_to(message, "Удалена некорректная запись!")
                 return
-
-            is_bot = False
-
-        if data.bot_id == who_id:
-            bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-            return
-
-        if is_bot:
-            bot.reply_to(message, f"Вайтлист не работает для ботов!")
-            return
+        else:
+            if data.bot_id == who_id:
+                bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+                return
+            elif is_bot:
+                bot.reply_to(message, f"Вайтлист не работает для ботов!")
+                return
 
         is_whitelist = sqlWorker.whitelist(who_id)
-
         unique_id = str(who_id) + "_whitelist"
         records = sqlWorker.msg_chk(unique_id=unique_id)
+
         if utils.is_voting_exists(records, message, unique_id):
             return
 
