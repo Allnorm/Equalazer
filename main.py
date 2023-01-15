@@ -184,7 +184,7 @@ def add_usr(message):
     # + "Сообщение от пользователя: " + msg_from_usr + ".")
 
     pool_constructor(unique_id, vote_text, message, "invite", data.global_timer, data.thresholds_get(),
-                     [message.chat.id, utils.username_parser(message)], data.bot_id, adduser=True)
+                     [message.chat.id, utils.username_parser(message), message.from_user.id], data.bot_id, adduser=True)
 
     warn = ""
     if bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "kicked":

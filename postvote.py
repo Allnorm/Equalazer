@@ -16,13 +16,12 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
     datalist = eval(records[0][6])
     mention = "<a href=\"tg://user?id=" + str(datalist[0]) + "\">" + utils.html_fix(datalist[1]) + "</a>"
     if accept:
-        sqlWorker.abuse_remove(records[0][8])
-        sqlWorker.abuse_update(records[0][8])
-        sqlWorker.whitelist(records[0][8], add=True)
-        if bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "left" \
-                and bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "kicked" \
-                and bot.get_chat_member(message_vote.chat.id, records[0][8]).status != "restricted" \
-                or bot.get_chat_member(message_vote.chat.id, records[0][8]).is_member:
+        sqlWorker.abuse_remove(datalist[2])
+        sqlWorker.abuse_update(datalist[2])
+        sqlWorker.whitelist(datalist[2], add=True)
+        status = bot.get_chat_member(message_vote.chat.id, datalist[2]).status
+        if status not in ["left", "kicked", "restricted"] \
+                or bot.get_chat_member(message_vote.chat.id, datalist[2]).is_member:
             bot.edit_message_text("Пользователь " + mention + " уже есть в этом чате. Инвайт отправлен не будет."
                                   + votes_counter,
                                   message_vote.chat.id, message_vote.message_id, parse_mode="html")
@@ -40,7 +39,7 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
             return
 
         try:
-            bot.unban_chat_member(message_vote.chat.id, records[0][8], only_if_banned=True)
+            bot.unban_chat_member(message_vote.chat.id, datalist[2], only_if_banned=True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
