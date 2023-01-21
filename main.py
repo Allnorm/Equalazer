@@ -136,16 +136,15 @@ def add_usr(message):
     if not utils.botname_checker(message):
         return
 
-    if not bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("left", "kicked",
-                                                                                   "restricted") \
-            or bot.get_chat_member(data.main_chat_id, message.from_user.id).is_member:
-        # Fuuuuuuuck my brain
+    if bot.get_chat_member(data.main_chat_id, message.from_user.id).is_member:
         bot.reply_to(message, "Вы уже есть в нужном вам чате.")
         return
 
     if data.binary_chat_mode != 0:
         try:
-            invite = bot.export_chat_invite_link(data.main_chat_id)
+            invite = bot.get_chat(data.main_chat_id).invite_link
+            if invite is None:
+                raise telebot.apihelper.ApiTelegramException
             bot.reply_to(message, f"Ссылка на администрируемый мной чат:\n" + invite)
         except telebot.apihelper.ApiTelegramException:
             bot.reply_to(message, "Ошибка получения ссылки на чат. Недостаточно прав?")
