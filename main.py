@@ -1633,6 +1633,9 @@ def new_usr_checker(message):
     if data.main_chat_id == -1:  # Проверка на init mode
         return
 
+    if data.main_chat_id != message.chat.id:  # В чужих чатах не следим
+        return
+
     username = utils.username_parser_invite(message)
     user_id = message.json.get("new_chat_participant").get("id")
     is_bot = message.json.get("new_chat_participant").get("is_bot")
@@ -1641,57 +1644,7 @@ def new_usr_checker(message):
         bot.reply_to(message, "Приветствую вас, Владыка.")
         return
 
-    if data.binary_chat_mode == 1 and not is_bot:
-        unique_id = str(user_id) + "_new_usr"
-        records = sqlWorker.msg_chk(unique_id=unique_id)
-        if utils.is_voting_exists(records, message, unique_id):
-            return
-        try:
-            bot.restrict_chat_member(data.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
-                                     can_invite_users=False, can_pin_messages=False)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-            bot.reply_to(message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
-            return
-
-        vote_text = ("Требуется подтверждение вступления нового пользователя " + username
-                     + ", в противном случае он будет кикнут.")
-
-        pool_constructor(unique_id, vote_text, message, "captcha", data.global_timer, data.thresholds_get(),
-                         [username, user_id, "пользователя"], data.bot_id)
-        return
-
-    elif data.binary_chat_mode == 2 and not is_bot:
-        captcha(message, user_id, username)
-        return
-
-    if not (sqlWorker.whitelist(user_id) or is_bot):
-        if message.chat.id != data.main_chat_id:
-            return
-
-        allies = sqlWorker.get_allies()
-        if allies is not None:
-            for i in allies:
-                try:
-                    usr_status = bot.get_chat_member(i[0], user_id).status
-                    if usr_status != "left" and usr_status != "kicked":
-                        sqlWorker.whitelist(user_id, add=True)
-                        break
-                except telebot.apihelper.ApiTelegramException:
-                    sqlWorker.remove_ally(i[0])
-            if sqlWorker.whitelist(user_id):
-                bot.reply_to(message, utils.welcome_msg_get(username, message))
-                return
-
-        try:
-            bot.ban_chat_member(data.main_chat_id, user_id, until_date=int(time.time()) + 86400)
-            bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-            bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
-    elif not is_bot and message.chat.id == data.main_chat_id:
-        bot.reply_to(message, utils.welcome_msg_get(username, message))
-    elif message.chat.id == data.main_chat_id:
+    if is_bot:
         unique_id = str(user_id) + "_new_usr"
         records = sqlWorker.msg_chk(unique_id=unique_id)
         if utils.is_voting_exists(records, message, unique_id):
@@ -1709,6 +1662,51 @@ def new_usr_checker(message):
 
         pool_constructor(unique_id, vote_text, message, "captcha", 60, data.thresholds_get(),
                          [username, user_id, "бота"], data.bot_id)
+        return
+
+    allies = sqlWorker.get_allies()
+    if allies is not None:
+        for i in allies:
+            try:
+                usr_status = bot.get_chat_member(i[0], user_id).status
+                if usr_status not in ["left", "kicked"]:
+                    if data.binary_chat_mode == 0:
+                        sqlWorker.whitelist(user_id, add=True)
+                    bot.reply_to(message, utils.welcome_msg_get(username, message))
+                    return
+            except telebot.apihelper.ApiTelegramException:
+                sqlWorker.remove_ally(i[0])
+
+    if data.binary_chat_mode == 0:
+        if sqlWorker.whitelist(user_id):
+            bot.reply_to(message, utils.welcome_msg_get(username, message))
+        else:
+            try:
+                bot.ban_chat_member(data.main_chat_id, user_id, until_date=int(time.time()) + 86400)
+                bot.reply_to(message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
+            except telebot.apihelper.ApiTelegramException:
+                logging.error(traceback.format_exc())
+                bot.reply_to(message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
+    elif data.binary_chat_mode == 1:
+        unique_id = str(user_id) + "_new_usr"
+        records = sqlWorker.msg_chk(unique_id=unique_id)
+        if utils.is_voting_exists(records, message, unique_id):
+            return
+        try:
+            bot.restrict_chat_member(data.main_chat_id, user_id, can_send_messages=False, can_change_info=False,
+                                     can_invite_users=False, can_pin_messages=False)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            bot.reply_to(message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
+            return
+
+        vote_text = ("Требуется подтверждение вступления нового пользователя " + username
+                     + ", в противном случае он будет кикнут.")
+
+        pool_constructor(unique_id, vote_text, message, "captcha", data.global_timer, data.thresholds_get(),
+                         [username, user_id, "пользователя"], data.bot_id)
+    elif data.binary_chat_mode == 2:
+        captcha(message, user_id, username)
 
 
 @bot.message_handler(commands=['allies'])
