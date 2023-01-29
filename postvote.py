@@ -43,17 +43,16 @@ def vote_result_useradd(records, message_vote, votes_counter, accept):
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
-        bot.edit_message_text("Создана инвайт-ссылка и отправлена запросившему кандидату "
-                              + mention + ".\n" + "Ссылка истечёт через 1 сутки." + votes_counter,
+        bot.edit_message_text(f"Создана инвайт-ссылка и отправлена запросившему кандидату {mention}.\n"
+                              f"Ссылка истечёт через 1 сутки." + votes_counter,
                               message_vote.chat.id, message_vote.message_id, parse_mode="html")
         bot.send_message(datalist[0], f"Дано добро на вступление в чат {message_vote.chat.title}!\n"
-                                      "Ссылка истечёт через 1 сутки.\n"
-                         + invite.invite_link)
+                                      "Ссылка истечёт через 1 сутки.\n" + invite.invite_link)
         if data.rate:
             sqlWorker.update_rate(datalist[0], 0)
     else:
         sqlWorker.abuse_update(datalist[0])
-        bot.edit_message_text("К сожалению, запрос вступления пользователя " + mention + " отклонён."
+        bot.edit_message_text(f"К сожалению, запрос вступления пользователя {mention} отклонён."
                               + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
 
         bot.send_message(datalist[0], "Запрос на вступление был отклонён." + votes_counter)
@@ -454,7 +453,7 @@ def vote_result_add_allies(records, message_vote, votes_counter, accept):
                                           f"<b>{utils.html_fix(message_vote.chat.title)}</b>!\n"
                                           f"Ссылка для упрощённого перехода: "
                                           f"{bot.get_chat(message_vote.chat.id).invite_link}.",
-                             parse_mode="html")
+                             parse_mode="html", message_thread_id=datalist[1])
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.edit_message_text("Ошибка установки союзных отношений с чатом! Информация сохранена в логах бота."
@@ -471,7 +470,8 @@ def vote_result_add_allies(records, message_vote, votes_counter, accept):
                                   f"{bot.get_chat(datalist[0]).title} отклонён."
                                   + votes_counter, message_vote.chat.id, message_vote.message_id)
             bot.send_message(datalist[0], f"Вопрос установки союзных отношения с чатом "
-                                          f"{message_vote.chat.title} отклонён." + votes_counter)
+                                          f"{message_vote.chat.title} отклонён." + votes_counter,
+                             message_thread_id=datalist[1])
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Вопрос установки союзных отношения с чатом отклонён."
                                   + votes_counter, message_vote.chat.id, message_vote.message_id)
@@ -484,8 +484,8 @@ def vote_result_remove_allies(records, message_vote, votes_counter, accept):
         sqlWorker.remove_ally(datalist[0])
         try:
             ally_title = f" <b>{utils.html_fix(bot.get_chat(datalist[0]).title)}</b> "
-            bot.send_message(datalist[0], f"Cоюз с чатом <b>{utils.html_fix(message_vote.chat.title)}</b> "
-                                          f"разорван." + votes_counter, parse_mode="html")
+            bot.send_message(datalist[0], f"Cоюз с чатом <b>{utils.html_fix(message_vote.chat.title)}</b> разорван."
+                             + votes_counter, parse_mode="html", message_thread_id=datalist[1])
         except telebot.apihelper.ApiTelegramException:
             ally_title = " "
         bot.edit_message_text(f"Союзные отношения с чатом{ally_title}разорваны." + votes_counter,

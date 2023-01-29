@@ -1380,6 +1380,11 @@ def reset(message):
 
 @bot.message_handler(commands=['getchat'])
 def get_id(message):
+
+    if utils.extract_arg(message.text, 1) == "print" and data.debug:
+        bot.reply_to(message, f"ID чата {message.chat.id}.\nID темы {message.message_thread_id}")
+        return
+
     if not utils.botname_checker(message, get_chat=True):
         return
 
@@ -1387,7 +1392,7 @@ def get_id(message):
         bot.reply_to(message, "Данная команда не может быть запущена в личных сообщениях.")
         return
 
-    utils.write_init_chat(message.chat.id, message)
+    utils.write_init_chat(message)
 
 
 @bot.message_handler(commands=['getuser'])
@@ -1762,7 +1767,7 @@ def allies_list(message):
                      f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
         pool_constructor(unique_id, vote_text, message, vote_type, 86400, data.thresholds_get(),
-                         [message.chat.id], message.from_user.id, adduser=True)
+                         [message.chat.id, message.message_thread_id], message.from_user.id, adduser=True)
 
         mode_text = "создании" if mode == "add" else "разрыве"
 
@@ -1835,18 +1840,19 @@ def revoke(message):
     if not utils.botname_checker(message):
         return
 
-    bot.reply_to(message, f"Версия бота: {utils.VERSION}\nДата сборки: {utils.BUILD_DATE}\n"
+    bot.reply_to(message, f"DeuterBot, версия {utils.VERSION}\nДата сборки: {utils.BUILD_DATE}\n"
                           f"Created by Allnorm aka Peter Burzec")
 
 
 @bot.message_handler(commands=['niko'])
 def niko(message):
+
     if not utils.botname_checker(message):
         return
 
     try:
-        bot.send_sticker(message.chat.id,
-                         random.choice(bot.get_sticker_set("OneShotSolstice").stickers).file_id)
+        bot.send_sticker(message.chat.id, random.choice(bot.get_sticker_set("OneShotSolstice").stickers).file_id,
+                         message_thread_id=message.message_thread_id)
         # bot.send_sticker(message.chat.id, open(os.path.join("ee", random.choice(os.listdir("ee"))), 'rb'))
         # Random file
     except (FileNotFoundError, telebot.apihelper.ApiTelegramException, IndexError):

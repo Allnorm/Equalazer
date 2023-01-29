@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.8"
+VERSION = "1.7.9"
 BUILD_DATE = "29.01.2023"
 
 
@@ -40,6 +40,7 @@ class ConfigData:
     binary_chat_mode = 0
     bot_id = None
     welcome_default = "Welcome to {1}!"
+    thread_id = None
 
     def __init__(self):
 
@@ -121,6 +122,11 @@ class ConfigData:
         try:
             self.secret_ballot = self.bool_init(config["Chat"]["secret-ballots"])
         except (KeyError, TypeError):
+            pass
+
+        try:
+            self.thread_id = int(config["Chat"]["thread-id"])
+        except (KeyError, TypeError, ValueError):
             pass
 
         try:
@@ -273,6 +279,7 @@ class ConfigData:
         config.set("Chat", "admin-fixed", "false")
         config.set("Chat", "chat-mode", "mixed")
         config.set("Chat", "admin-allowed", "0010101")
+        config.set("Chat", "thread-id", "none")
         try:
             config.write(open(self.path + "config.ini", "w"))
             print("New config file was created successful")
@@ -301,12 +308,16 @@ def init():
     update_text = "" if get_version == VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
                                                     f"Текущая версия: {VERSION}\n" \
                                                     f"Предыдущая версия: {get_version}"
-
-    if data.debug:
-        logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
-        bot.send_message(data.main_chat_id, f"Бот запущен в режиме отладки!" + update_text)
-    else:
-        bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text)
+    try:
+        if data.debug:
+            logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
+            bot.send_message(data.main_chat_id, f"Бот запущен в режиме отладки!" + update_text,
+                             message_thread_id=data.thread_id)
+        else:
+            bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text, message_thread_id=data.thread_id)
+    except telebot.apihelper.ApiTelegramException:
+        logging.error("I was unable to send a launch message! Possibly the wrong value for the main chat or topic?")
+        logging.error(traceback.format_exc())
 
     logging.info(f"###DEUTERBOT {VERSION} BUILD DATE {BUILD_DATE} HAS BEEN STARTED!###")
 
@@ -466,8 +477,8 @@ def make_keyboard(counter_yes, counter_no, cancel=True):
 
 def vote_make(text, message, adduser, silent, cancel=True):
     if adduser:
-        vote_message = bot.send_message(data.main_chat_id, text,
-                                        reply_markup=make_keyboard("0", "0", cancel=False), parse_mode="html")
+        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard("0", "0", cancel=False),
+                                        parse_mode="html", message_thread_id=data.thread_id)
     else:
         vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0", cancel), parse_mode="html")
     if not silent:
@@ -590,14 +601,21 @@ def welcome_msg_get(username, message):
     return welcome_msg
 
 
-def write_init_chat(chat_id, message):
+def write_init_chat(message):
 
     config = configparser.ConfigParser()
     try:
         config.read(data.path + "config.ini")
-        config.set("Chat", "chatid", str(chat_id))
+        config.set("Chat", "chatid", str(message.chat.id))
+        if message.message_thread_id is not None:
+            config.set("Chat", "thread-id", str(message.message_thread_id))
+            thread_ = " и темы "
+        else:
+            thread_ = " "
+            config.set("Chat", "thread-id", "none")
         config.write(open(data.path + "config.ini", "w"))
-        bot.reply_to(message, "ID чата сохранён. Теперь требуется перезапустить бота для перехода в нормальный режим.")
+        bot.reply_to(message, f"ID чата{thread_}сохранён. "
+                              "Теперь требуется перезапустить бота для перехода в нормальный режим.")
     except Exception as e:
         logging.error(str(e) + "\n" + traceback.format_exc())
         bot.reply_to(message, "Ошибка обновления конфига! Информация сохранена в логи бота!")
