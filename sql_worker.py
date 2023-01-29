@@ -32,7 +32,7 @@ class SqlWorker:
                                     data TEXT NOT NULL,
                                     votes_need INTEGER,
                                     user_id INTEGER);''')
-        cursor.execute("""CREATE TABLE if not exists users_choise (
+        cursor.execute("""CREATE TABLE if not exists users_choice (
                                     message_id INTEGER,
                                     user_id INTEGER,
                                     choice TEXT,
@@ -132,7 +132,7 @@ class SqlWorker:
         return fetchall
 
     @open_close_db
-    def addpool(self, cursor, unique_id, message_vote, pool_type, current_time, work_data, votes_need, user_id):
+    def add_pool(self, cursor, unique_id, message_vote, pool_type, current_time, work_data, votes_need, user_id):
         cursor.execute("""INSERT INTO current_pools VALUES (?,?,?,?,?,?,?,?,?);""",
                        (unique_id, message_vote.id, pool_type, 0, 0, current_time, work_data, votes_need, user_id))
 
@@ -149,11 +149,11 @@ class SqlWorker:
     def rem_rec(self, cursor, message_id, unique_id=None):
         if unique_id is not None:
             cursor.execute("""DELETE FROM current_pools WHERE unique_id = ?""", (unique_id,))
-        cursor.execute("""DELETE FROM users_choise WHERE message_id = ?""", (message_id,))
+        cursor.execute("""DELETE FROM users_choice WHERE message_id = ?""", (message_id,))
 
     @open_close_db
     def is_user_voted(self, cursor, user_id, message_id):
-        cursor.execute("""SELECT choice FROM users_choise WHERE user_id = ? AND message_id = ?""",
+        cursor.execute("""SELECT choice FROM users_choice WHERE user_id = ? AND message_id = ?""",
                        (user_id, message_id,))
         fetchall = cursor.fetchall()
         if fetchall:
@@ -167,19 +167,19 @@ class SqlWorker:
 
     @open_close_db
     def user_vote_update(self, cursor, call_msg, username):
-        cursor.execute("""SELECT * FROM users_choise WHERE user_id = ? AND message_id = ?""",
+        cursor.execute("""SELECT * FROM users_choice WHERE user_id = ? AND message_id = ?""",
                        (call_msg.from_user.id, call_msg.message.id,))
         record = cursor.fetchall()
         if not record:
-            cursor.execute("""INSERT INTO users_choise VALUES (?,?,?,?)""",
+            cursor.execute("""INSERT INTO users_choice VALUES (?,?,?,?)""",
                            (call_msg.message.id, call_msg.from_user.id, call_msg.data, username))
         else:
-            cursor.execute("""UPDATE users_choise SET choice = ? where message_id = ? AND user_id = ?""",
+            cursor.execute("""UPDATE users_choice SET choice = ? where message_id = ? AND user_id = ?""",
                            (call_msg.data, call_msg.message.id, call_msg.from_user.id))
 
     @open_close_db
     def user_vote_remove(self, cursor, call_msg):
-        cursor.execute("""DELETE FROM users_choise WHERE message_id = ? AND user_id = ?""",
+        cursor.execute("""DELETE FROM users_choice WHERE message_id = ? AND user_id = ?""",
                        (call_msg.message.id, call_msg.from_user.id,))
 
     @open_close_db

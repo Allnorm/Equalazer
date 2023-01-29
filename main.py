@@ -125,8 +125,8 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
                 f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
     cancel = True if data.bot_id != user_id else False
     message_vote = utils.vote_make(vote_text, message, adduser, silent, cancel)
-    sqlWorker.addpool(unique_id, message_vote, vote_type,
-                      int(time.time()) + current_timer, str(vote_args), current_votes, user_id)
+    sqlWorker.add_pool(unique_id, message_vote, vote_type, int(time.time()) + current_timer,
+                       str(vote_args), current_votes, user_id)
     utils.pool_saver(unique_id, message_vote)
     threading.Thread(target=vote_timer, args=(current_timer, unique_id, message_vote)).start()
 
@@ -959,7 +959,7 @@ def private_mode(message):
 
     chat_mode_locked = "да" if data.chat_mode != "mixed" else "нет"
 
-    bot.reply_to(message, "Существуют три режима работы антиспам-фильтра АнкаБота.\n"
+    bot.reply_to(message, "Существуют три режима работы антиспам-фильтра ДейтерБота.\n"
                           "1. Использование вайтлиста и системы инвайтов. Участник, не найденный в вайтлисте или в "
                           "одном из союзных чатов, блокируется. Классическая схема, применяемая для приватных чатов.\n"
                           "2. Использование голосования при вступлении участника. При вступлении участника в чат "
@@ -985,7 +985,7 @@ def op(message):
         return
 
     if utils.extract_arg(message.text, 1) == "help":
-        help_txt = "В АнкаБоте используется система записи прав администратора в виде строки из единиц и нулей. " \
+        help_txt = "В ДейтерБоте используется система записи прав администратора в виде строки из единиц и нулей. " \
                    "Для получения и выдачи нужных прав необходимо использовать запись вида /op 0010101 и т. п. " \
                    "Если не использовать данную запись, будут выданы права по умолчанию для чата.\n" \
                    "Глобальные права администраторов для чата можно изменить с помощью команды вида " \
@@ -1378,14 +1378,16 @@ def reset(message):
         bot.reply_to(message, "Абуз инвайта и союзников сброшен.")
 
 
-@bot.message_handler(commands=['getid'])
+@bot.message_handler(commands=['getchat'])
 def get_id(message):
-    if not utils.botname_checker(message, getchat=True):
+    if not utils.botname_checker(message, get_chat=True):
         return
 
-    if data.debug:
-        print(message.chat.id)
-        bot.reply_to(message, "ID чата сохранён")
+    if message.chat.id == message.from_user.id:
+        bot.reply_to(message, "Данная команда не может быть запущена в личных сообщениях.")
+        return
+
+    utils.write_init_chat(message.chat.id, message)
 
 
 @bot.message_handler(commands=['getuser'])
@@ -1618,7 +1620,7 @@ def captcha(message, user_id, username):
     keyboard.add(*buttons)
 
     bot_message = bot.reply_to(message, "\u26a0\ufe0f <b>СТОП!</b> \u26a0\ufe0f"
-                                        "\nВы были остановлены антиспам-системой АнкаБота!\n"
+                                        "\nВы были остановлены антиспам-системой ДейтерБота!\n"
                                         "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ число в "
                                         "течении 60 секунд, иначе вы будете кикнуты на 1 минуту. Время пошло.",
                                reply_markup=keyboard, parse_mode="html")

@@ -14,8 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.6"
-BUILD_DATE = "21.01.2023"
+VERSION = "1.7.7"
+BUILD_DATE = "22.01.2023"
 
 
 class ConfigData:
@@ -309,7 +309,7 @@ def init():
     else:
         bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text)
 
-    logging.info(f"###ANK REMOTE CONTROL {VERSION} BUILD DATE {BUILD_DATE} HAS BEEN STARTED!###")
+    logging.info(f"###DEUTERBOT {VERSION} BUILD DATE {BUILD_DATE} HAS BEEN STARTED!###")
 
 
 def auto_clear():
@@ -497,14 +497,14 @@ def is_voting_exists(records, message, unique_id):
         return True
 
 
-def botname_checker(message, getchat=False):  # Crutch to prevent the bot from responding to other bots commands
+def botname_checker(message, get_chat=False):  # Crutch to prevent the bot from responding to other bots commands
 
     cmd_text = message.text.split()[0]
 
-    if data.main_chat_id != -1 and getchat:
+    if data.main_chat_id != -1 and get_chat:
         return False
 
-    if data.main_chat_id == -1 and not getchat:
+    if data.main_chat_id == -1 and not get_chat:
         return False
 
     if ("@" in cmd_text and "@" + bot.get_me().username in cmd_text) or not ("@" in cmd_text):
@@ -589,3 +589,16 @@ def welcome_msg_get(username, message):
         logging.warning("file \"welcome.txt\" is empty. The standard welcome message will be used.")
         welcome_msg = data.welcome_default.format(username, message.chat.title)
     return welcome_msg
+
+
+def write_init_chat(chat_id, message):
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(data.path + "config.ini")
+        config.set("Chat", "chatid", str(chat_id))
+        config.write(open(data.path + "config.ini", "w"))
+        bot.reply_to(message, "ID чата сохранён. Теперь требуется перезапустить бота для перехода в нормальный режим.")
+    except Exception as e:
+        logging.error(str(e) + "\n" + traceback.format_exc())
+        bot.reply_to(message, "Ошибка обновления конфига! Информация сохранена в логи бота!")
