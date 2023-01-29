@@ -14,8 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.7"
-BUILD_DATE = "22.01.2023"
+VERSION = "1.7.8"
+BUILD_DATE = "29.01.2023"
 
 
 class ConfigData:
@@ -266,7 +266,6 @@ class ConfigData:
         config.set("Chat", "token", token)
         config.set("Chat", "chatid", chat_id)
         config.set("Chat", "votes-mode", "3")
-        config.set("Chat", "abuse-random", "0")
         config.set("Chat", "wait-timer", "30")
         config.set("Chat", "abuse-mode", "2")
         config.set("Chat", "rules", "false")
