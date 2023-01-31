@@ -136,7 +136,7 @@ def add_usr(message):
     if not utils.botname_checker(message):
         return
 
-    if bot.get_chat_member(data.main_chat_id, message.from_user.id).is_member:
+    if not bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("left", "kicked", "restricted"):
         bot.reply_to(message, "Вы уже есть в нужном вам чате.")
         return
 
