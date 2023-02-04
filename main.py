@@ -33,7 +33,8 @@ functions = {
     "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random"),
     "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста"),
     "global admin permissons": (postvote.vote_result_op_global, "изменение разрешённых прав для выдачи"),
-    "private mode": (postvote.vote_result_private_mode, "изменение настроек приватности чата")
+    "private mode": (postvote.vote_result_private_mode, "изменение настроек приватности чата"),
+    "remove topic": (postvote.vote_result_topic, "удаление топика")
 }
 
 vote_abuse = {}
@@ -1075,9 +1076,40 @@ def op(message):
                      [who_id, who_name, binary_rule], message.from_user.id)
 
 
+@bot.message_handler(commands=['remtopic'])
+def rem_topic(message):
+
+    if not utils.botname_checker(message):
+        return
+
+    if message.chat.id != data.main_chat_id:
+        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+        return
+
+    if message.message_thread_id is None:
+        bot.reply_to(message, "Данный чат НЕ является топиком или является основным топиком!")
+        return
+
+    unique_id = str(message.message_thread_id) + "_rem_topic"
+    records = sqlWorker.msg_chk(unique_id=unique_id)
+    if utils.is_voting_exists(records, message, unique_id):
+        return
+
+    vote_text = ("Тема голосования: удаление данного топика" +
+                 f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
+
+    pool_constructor(unique_id, vote_text, message, "remove topic", 86400, data.thresholds_get(),
+                     [message.message_thread_id, utils.username_parser(message.reply_to_message),
+                      message.reply_to_message.forum_topic_created.name], message.from_user.id)
+
+
 @bot.message_handler(commands=['rank'])
 def rank(message):
     if not utils.botname_checker(message):
+        return
+
+    if message.chat.id != data.main_chat_id:
+        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
     if message.reply_to_message is None or message.reply_to_message.from_user.id == message.from_user.id:

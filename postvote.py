@@ -559,3 +559,24 @@ def vote_result_private_mode(records, message_vote, votes_counter, accept):
     else:
         bot.edit_message_text(f"Вопрос изменения настроек приватности чата отклонён."
                               + votes_counter, message_vote.chat.id, message_vote.message_id)
+
+
+def vote_result_topic(records, message_vote, votes_counter, accept):
+    datalist = eval(records[0][6])
+    if accept:
+        try:
+            bot.delete_forum_topic(data.main_chat_id, datalist[0])
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            bot.edit_message_text("Ошибка удаления топика! Информация сохранена в логах бота."
+                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            return
+        try:
+            bot.send_message(data.main_chat_id, f"Пользователь {datalist[1]} удалил топик {datalist[2]}."
+                             + votes_counter, message_thread_id=data.thread_id)
+        except telebot.apihelper.ApiTelegramException:
+            pass
+        raise Warning
+    else:
+        bot.edit_message_text(f"Вопрос удаления топика отклонён." + votes_counter,
+                              message_vote.chat.id, message_vote.message_id)

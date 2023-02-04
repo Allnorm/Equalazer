@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.11"
+VERSION = "1.7.12"
 BUILD_DATE = "04.02.2023"
 
 
@@ -283,7 +283,7 @@ class ConfigData:
         config.set("Chat", "rate", "true")
         config.set("Chat", "admin-fixed", "false")
         config.set("Chat", "chat-mode", "mixed")
-        config.set("Chat", "admin-allowed", "0010101")
+        config.set("Chat", "admin-allowed", "001010010")
         config.set("Chat", "thread-id", "none")
         try:
             config.write(open(self.path + "config.ini", "w"))
