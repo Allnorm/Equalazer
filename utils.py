@@ -14,8 +14,8 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.7.10"
-BUILD_DATE = "29.01.2023"
+VERSION = "1.7.11"
+BUILD_DATE = "04.02.2023"
 
 
 class ConfigData:
@@ -33,7 +33,7 @@ class ConfigData:
     rules = False
     rate = True
     admin_fixed = False  # Outside param
-    admin_allowed = 0b11010100  # Ведущий бит всегда 1, запись сделана задом наперёд
+    admin_allowed = 0b1010010100  # Ведущий бит всегда 1, запись сделана задом наперёд
     path = ""  # Outside param
     token = ""  # Outside param
     chat_mode = "mixed"  # Outside param
@@ -132,10 +132,10 @@ class ConfigData:
         try:
             if self.admin_fixed:
                 self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
-            if not 0b10000000 <= self.admin_allowed <= 0b11111111:
+            if not 0b1000000000 <= self.admin_allowed <= 0b1111111111:
                 raise ValueError
         except (KeyError, TypeError, ValueError):
-            self.admin_allowed = 0b11010100  # recommended value for private chats
+            self.admin_allowed = 0b1010010100  # recommended value for private chats
             logging.warning(f"Incorrect admin-allowed value, reset to default ("
                             + f"{self.admin_allowed:b}"[:0:-1] + ")!")
 
@@ -150,6 +150,11 @@ class ConfigData:
         self.global_timer_ban = sql_worker_.params("timer_ban")
         if not self.admin_fixed:
             self.admin_allowed = sql_worker_.params("allowed_admins")
+            if not 0b1000000000 <= self.admin_allowed <= 0b1111111111:
+                self.admin_allowed = 0b1010010100  # recommended value for private chats
+                sqlWorker.params("allowed_admins", self.admin_allowed)
+                logging.warning(f"Incorrect admin-allowed value, reset to default ("
+                                + f"{self.admin_allowed:b}"[:0:-1] + ")!")
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sql_worker_.params("public_mode")
 
@@ -411,6 +416,7 @@ def username_parser_chat_member(chat_member, html=False):
 
 
 def reply_msg_target(message):
+
     if message.json.get("new_chat_participant") is not None:
         user_id = message.json.get("new_chat_participant").get("id")
         username = username_parser_invite(message)
@@ -542,7 +548,8 @@ def pool_saver(unique_id, message_vote):
 
 def allowed_list(admin_int):
     rules = ["Изменение профиля группы", "Удаление сообщений", "Пригласительные ссылки", "Блокировка участников",
-             "Закрепление сообщений", "Добавление администраторов", "Управление видеочатами"]
+             "Закрепление сообщений", "Добавление администраторов", "Анонимность", "Управление видеочатами",
+             "Управление темами"]
     admin_str = ""
     binary = "\nВ бинарном виде - " + f"{admin_int:b}"[:0:-1]
     for i in rules:
@@ -575,7 +582,9 @@ def get_promote_args(promote_list):
                    "can_restrict_members": False,
                    "can_pin_messages": False,
                    "can_promote_members": False,
-                   "can_manage_video_chats": False}
+                   "is_anonymous": False,
+                   "can_manage_video_chats": False,
+                   "can_manage_topics": False}
     for key in kwargs_list:
         if promote_list % 2 == 1:
             kwargs_list[key] = True
