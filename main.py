@@ -182,7 +182,7 @@ def add_answer(message):
         bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на заявку на вступление")
         return
 
@@ -220,7 +220,7 @@ def ban_usr(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на сообщение пользователя, которого требуется забанить.")
         return
 
@@ -298,7 +298,7 @@ def mute_usr(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на имя пользователя, которого требуется замутить.")
         return
 
@@ -374,7 +374,7 @@ def unban_usr(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на имя пользователя, которого требуется размутить или разбанить.")
         return
 
@@ -631,7 +631,7 @@ def rating(message):
     mode = utils.extract_arg(message.text, 1)
 
     if mode is None:
-        if message.reply_to_message is None:
+        if utils.topic_reply_fix(message.reply_to_message) is None:
             user_id, username, _ = utils.reply_msg_target(message)
             if user_id == 1087968824:
                 bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
@@ -717,7 +717,7 @@ def status(message):
         return
 
     target_msg = message
-    if message.reply_to_message is not None:
+    if utils.topic_reply_fix(message.reply_to_message) is not None:
         target_msg = message.reply_to_message
 
     statuses = {"left": "покинул группу",
@@ -793,7 +793,7 @@ def status(message):
         return
 
     if utils.extract_arg(message.text, 1) in ("add", "remove"):
-        if message.reply_to_message is not None:
+        if utils.topic_reply_fix(message.reply_to_message) is not None:
             who_id, who_name, is_bot = utils.reply_msg_target(message.reply_to_message)
         else:
             who_id, who_name, is_bot = utils.reply_msg_target(message)
@@ -882,7 +882,7 @@ def msg_remover(message, clearmsg):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на сообщение пользователя, которое требуется удалить.")
         return
 
@@ -1064,7 +1064,7 @@ def op(message):
         bot.reply_to(message, "Неизвестный аргумент команды!")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         who_id, who_name, _ = utils.reply_msg_target(message)
     else:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
@@ -1143,7 +1143,7 @@ def rem_topic(message):
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "remove topic", 86400, data.thresholds_get(),
-                     [message.message_thread_id, utils.username_parser(message.reply_to_message),
+                     [message.message_thread_id, utils.username_parser(message),
                       message.reply_to_message.forum_topic_created.name], message.from_user.id)
 
 
@@ -1156,7 +1156,13 @@ def rank(message):
         bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None or message.reply_to_message.from_user.id == message.from_user.id:
+    me = False
+    if utils.topic_reply_fix(message.reply_to_message) is None:
+        me = True
+    elif message.reply_to_message.from_user.id == message.from_user.id:
+        me = True
+
+    if me:
         if bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "administrator":
 
             if utils.extract_arg(message.text, 1) is None:
@@ -1187,7 +1193,7 @@ def rank(message):
             bot.reply_to(message, "Вы не являетесь администратором.")
             return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на сообщение бота, звание которого вы хотите сменить.")
         return
 
@@ -1240,12 +1246,12 @@ def deop(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if utils.extract_arg(message.text, 1) is None and message.reply_to_message is None:
+    if utils.extract_arg(message.text, 1) is None and utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Ответьте на сообщение, используйте аргумент \"me\" или номер админа из списка /op list")
         return
 
     me = True if utils.extract_arg(message.text, 1) == "me" else False
-    if message.reply_to_message is not None:
+    if utils.topic_reply_fix(message.reply_to_message) is not None:
         if message.reply_to_message.from_user.id == message.from_user.id:
             me = True
 
@@ -1287,7 +1293,7 @@ def deop(message):
         else:
             who_name = utils.username_parser_chat_member(admin)
         who_id = admin.user.id
-    elif message.reply_to_message is not None:
+    elif utils.topic_reply_fix(message.reply_to_message) is not None:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
     else:
         bot.reply_to(message, "Неизвестный аргумент команды")
@@ -1368,7 +1374,7 @@ def description(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is not None:
+    if utils.topic_reply_fix(message.reply_to_message) is not None:
         if message.reply_to_message.text is not None:
             description_text = message.reply_to_message.text
             if len(description_text) > 255:
@@ -1408,7 +1414,7 @@ def chat_pic(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
         bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на фотографию, файл jpg или png.")
         return
 
@@ -1508,7 +1514,7 @@ def get_usr(message):
     if not utils.botname_checker(message):
         return
 
-    if data.debug and message.reply_to_message is not None:
+    if data.debug and utils.topic_reply_fix(message.reply_to_message) is not None:
         user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
         bot.reply_to(message, f"ID пользователя {username} - {user_id}")
 
@@ -1601,7 +1607,7 @@ def mute_user(message):
         bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
-    if message.reply_to_message is None:
+    if utils.topic_reply_fix(message.reply_to_message) is None:
 
         if data.abuse_mode == 2:
             only_for_admins = "\nВ текущем режиме команду могут применять только администраторы чата."

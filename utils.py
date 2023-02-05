@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.8.1"
+VERSION = "1.8.2"
 BUILD_DATE = "05.02.2023"
 
 
@@ -632,3 +632,11 @@ def write_init_chat(message):
     except Exception as e:
         logging.error(str(e) + "\n" + traceback.format_exc())
         bot.reply_to(message, "Ошибка обновления конфига! Информация сохранена в логи бота!")
+
+
+def topic_reply_fix(message): # Опять эти конченые из тг мне насрали
+    if not message:
+        return
+    if message.content_type == "forum_topic_created":
+        return
+    return message
