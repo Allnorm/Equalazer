@@ -525,6 +525,10 @@ def timer(message):
                                 + " - кулдаун команды /random."
         bot.reply_to(message, "Текущие пороги таймера:\n" + timer_text + timer_random_text)
         return
+    
+    if utils.extract_arg(message.text, 2) != "random" and data.main_chat_id != message.chat.id:
+        bot.reply_to(message, "Команду с данным аргументом невозможно запустить не в основном чате.")
+        return
 
     if utils.extract_arg(message.text, 2) is None:
         unique_id = "timer"
