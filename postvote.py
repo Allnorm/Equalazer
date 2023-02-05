@@ -12,571 +12,715 @@ data = utils.data
 bot = utils.bot
 
 
-def vote_result_useradd(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    mention = "<a href=\"tg://user?id=" + str(datalist[0]) + "\">" + utils.html_fix(datalist[1]) + "</a>"
-    if accept:
-        sqlWorker.abuse_remove(datalist[2])
-        sqlWorker.abuse_update(datalist[2])
-        sqlWorker.whitelist(datalist[2], add=True)
-        status = bot.get_chat_member(message_vote.chat.id, datalist[2]).status
+class PostVote:
+
+    class SilentException(Exception):
+        pass
+
+    accept_text = ""
+    decline_text = ""
+    _description = "" # Описание голосования
+    votes_counter = ""
+    is_accept = False
+    records = []
+    data_list = []
+    message_vote = None
+
+    def post_vote(self, records, message_vote):
+        self.data_list = eval(records[0][6])
+        self.message_vote = message_vote
+        self.votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
+        if records[0][3] > records[0][4] and records[0][3] >= data.thresholds_get(minimum=True):
+            self.is_accept = True
+        elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
+            self.is_accept = False
+        else:
+            self.is_accept = False
+            self.votes_counter = f"\nНедостаточно голосов (требуется как минимум {data.thresholds_get(minimum=True)})"
+        self.records = records
+        self.post_vote_child()
+        try:
+            if self.is_accept:
+                self.accept()
+            else:
+                self.decline()
+        except self.SilentException:  # Пусть не срёт в логи после clearmsg
+            return
+        except Exception as e:
+            logging.error(str(e) + "\n" + traceback.format_exc())
+        self.final_hook()
+        try:
+            bot.unpin_chat_message(data.main_chat_id, message_vote.message_id)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+        try:
+            bot.reply_to(message_vote, "Оповещение о закрытии голосования.")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+
+    def post_vote_child(self):
+        return
+
+    def accept(self):
+        return
+
+    def decline(self):
+        return
+
+    def final_hook(self):
+        return
+
+    @property
+    def description(self):
+        return self._description
+
+
+class UserAdd(PostVote):
+
+    _description = "инвайт пользователя"
+    mention = ""
+
+    def post_vote_child(self):
+        self.mention = "<a href=\"tg://user?id=" + str(self.data_list[0]) + "\">" \
+                       + utils.html_fix(self.data_list[1]) + "</a>"
+
+    def accept(self):
+        sqlWorker.abuse_remove(self.data_list[2])
+        sqlWorker.abuse_update(self.data_list[2])
+        sqlWorker.whitelist(self.data_list[2], add=True)
+        status = bot.get_chat_member(self.message_vote.chat.id, self.data_list[2]).status
         if status not in ["left", "kicked", "restricted"] \
-                or bot.get_chat_member(message_vote.chat.id, datalist[2]).is_member:
-            bot.edit_message_text("Пользователь " + mention + " уже есть в этом чате. Инвайт отправлен не будет."
-                                  + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id, parse_mode="html")
-            bot.send_message(datalist[0], "Вы уже есть в нужном вам чате. Повторный инвайт выдавать запрещено.")
+                or bot.get_chat_member(self.message_vote.chat.id, self.data_list[2]).is_member:
+            bot.edit_message_text("Пользователь " + self.mention + " уже есть в этом чате. Инвайт отправлен не будет."
+                                  + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+            bot.send_message(self.data_list[0], "Вы уже есть в нужном вам чате. Повторный инвайт выдавать запрещено.")
             return
 
         try:
-            invite = bot.create_chat_invite_link(message_vote.chat.id, expire_date=int(time.time()) + 86400)
+            invite = bot.create_chat_invite_link(self.message_vote.chat.id, expire_date=int(time.time()) + 86400)
         except telebot.apihelper.ApiTelegramException:
-            bot.edit_message_text("Ошибка создания инвайт-ссылки для пользователя " + mention
-                                  + "! Недостаточно прав?" + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id, parse_mode="html")
-            bot.send_message(datalist[0], "Ошибка создания инвайт-ссылки для вступления.")
+            bot.edit_message_text("Ошибка создания инвайт-ссылки для пользователя " + self.mention
+                                  + "! Недостаточно прав?" + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+            bot.send_message(self.data_list[0], "Ошибка создания инвайт-ссылки для вступления.")
             logging.error(traceback.format_exc())
             return
 
         try:
-            bot.unban_chat_member(message_vote.chat.id, datalist[2], only_if_banned=True)
+            bot.unban_chat_member(self.message_vote.chat.id, self.data_list[2], only_if_banned=True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 
-        bot.edit_message_text(f"Создана инвайт-ссылка и отправлена запросившему кандидату {mention}.\n"
-                              f"Ссылка истечёт через 1 сутки." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id, parse_mode="html")
-        bot.send_message(datalist[0], f"Дано добро на вступление в чат {message_vote.chat.title}!\n"
+        bot.edit_message_text(f"Создана инвайт-ссылка и отправлена запросившему кандидату {self.mention}.\n"
+                              f"Ссылка истечёт через 1 сутки." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+        bot.send_message(self.data_list[0], f"Дано добро на вступление в чат {self.message_vote.chat.title}!\n"
                                       "Ссылка истечёт через 1 сутки.\n" + invite.invite_link)
         if data.rate:
-            sqlWorker.update_rate(datalist[0], 0)
-    else:
-        sqlWorker.abuse_update(datalist[0])
-        bot.edit_message_text(f"К сожалению, запрос вступления пользователя {mention} отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
+            sqlWorker.update_rate(self.data_list[0], 0)
 
-        bot.send_message(datalist[0], "Запрос на вступление был отклонён." + votes_counter)
+    def decline(self):
+        sqlWorker.abuse_update(self.data_list[0])
+        bot.edit_message_text(f"К сожалению, запрос вступления пользователя {self.mention} отклонён."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+
+        bot.send_message(self.data_list[0], "Запрос на вступление был отклонён." + self.votes_counter)
 
 
-def vote_result_userkick(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        until_date = int(time.time()) + datalist[4] if datalist[4] != 0 else None
-        if datalist[4] != 0:
-            until_text = " на время " + utils.formatted_timer(datalist[4])
+class Ban(PostVote):
+
+    _description = "блокировка пользователя"
+
+    def accept(self):
+        until_date = int(time.time()) + self.data_list[4] if self.data_list[4] != 0 else None
+        if self.data_list[4] != 0:
+            until_text = " на время " + utils.formatted_timer(self.data_list[4])
         else:
             until_text = "."
         try:
-            if bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
-                bot.restrict_chat_member(message_vote.chat.id, datalist[0], None, can_send_messages=True)
-            if datalist[3] == 2:
+            if bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status == "administrator":
+                bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0], None, can_send_messages=True)
+            if self.data_list[3] == 2:
                 if data.binary_chat_mode == 0:
-                    sqlWorker.whitelist(datalist[0], remove=True)
-                bot.ban_chat_member(message_vote.chat.id, datalist[0])
-                bot.edit_message_text("Пользователь " + datalist[1] + " перманентно заблокирован "
-                                      + "по милости пользователя " + datalist[2]
-                                      + " и не сможет войти в чат до разблокировки." + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
-                sqlWorker.clear_rate(datalist[0])
-            elif datalist[3] == 1:
-                bot.ban_chat_member(message_vote.chat.id, datalist[0], until_date=until_date)
+                    sqlWorker.whitelist(self.data_list[0], remove=True)
+                bot.ban_chat_member(self.message_vote.chat.id, self.data_list[0])
+                bot.edit_message_text("Пользователь " + self.data_list[1] + " перманентно заблокирован "
+                                      + "по милости пользователя " + self.data_list[2]
+                                      + " и не сможет войти в чат до разблокировки." + self.votes_counter,
+                                      self.message_vote.chat.id, self.message_vote.message_id)
+                sqlWorker.clear_rate(self.data_list[0])
+            elif self.data_list[3] == 1:
+                bot.ban_chat_member(self.message_vote.chat.id, self.data_list[0], until_date=until_date)
                 rate = ""
-                if not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
-                        and not bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "kicked" \
+                if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot \
+                        and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status == "kicked" \
                         and data.rate:
-                    sqlWorker.update_rate(datalist[0], -10)
-                    rate = "\nРейтинг " + datalist[1] + " снижен на 10 пунктов."
+                    sqlWorker.update_rate(self.data_list[0], -10)
+                    rate = "\nРейтинг " + self.data_list[1] + " снижен на 10 пунктов."
 
-                bot.edit_message_text("Пользователь " + datalist[1] + " заблокирован в чате "
-                                      + "по милости пользователя " + datalist[2] + until_text + rate
-                                      + votes_counter, message_vote.chat.id, message_vote.message_id)
+                bot.edit_message_text("Пользователь " + self.data_list[1] + " заблокирован в чате "
+                                      + "по милости пользователя " + self.data_list[2] + until_text + rate
+                                      + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
-            elif datalist[3] == 0:
-                bot.restrict_chat_member(message_vote.chat.id, datalist[0],
+            elif self.data_list[3] == 0:
+                bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
                                          can_send_messages=False, can_change_info=False,
                                          can_invite_users=False, can_pin_messages=False, until_date=until_date)
                 rate = ""
-                if not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot \
-                        and not bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "restricted" \
+                if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot \
+                        and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status == "restricted" \
                         and data.rate:
-                    sqlWorker.update_rate(datalist[0], -5)
-                    rate = "\nРейтинг " + datalist[1] + " снижен на 5 пунктов."
+                    sqlWorker.update_rate(self.data_list[0], -5)
+                    rate = "\nРейтинг " + self.data_list[1] + " снижен на 5 пунктов."
 
-                bot.edit_message_text("Пользователь " + datalist[1]
-                                      + " лишён права переписки в чате по милости пользователя " + datalist[2]
-                                      + until_text + rate + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
+                bot.edit_message_text("Пользователь " + self.data_list[1]
+                                      + " лишён права переписки в чате по милости пользователя " + self.data_list[2]
+                                      + until_text + rate + self.votes_counter,
+                                      self.message_vote.chat.id, self.message_vote.message_id)
 
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Ошибка блокировки пользователя " + datalist[1] + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-    else:
+            bot.edit_message_text("Ошибка блокировки пользователя " + self.data_list[1] + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
         solution = ("ограничения", "кика", "блокировки")
-        bot.edit_message_text("Вопрос " + solution[datalist[3]] + " " + datalist[1] + " отклонён"
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text("Вопрос " + solution[self.data_list[3]] + " " + self.data_list[1] + " отклонён"
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_unban(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class UnBan(PostVote):
+
+    _description = "снятие ограничений с пользователя"
+
+    def accept(self):
         try:
             if data.binary_chat_mode == 0:
-                sqlWorker.whitelist(datalist[0], add=True)
-            bot.unban_chat_member(message_vote.chat.id, datalist[0], True)
-            bot.restrict_chat_member(message_vote.chat.id, datalist[0], can_send_messages=True,
+                sqlWorker.whitelist(self.data_list[0], add=True)
+            bot.unban_chat_member(self.message_vote.chat.id, self.data_list[0], True)
+            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0], can_send_messages=True,
                                      can_change_info=True, can_invite_users=True, can_pin_messages=True,
                                      can_send_media_messages=True, can_send_polls=True,
                                      can_send_other_messages=True,
                                      can_add_web_page_previews=True)
 
             rate = ""
-            if not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and data.rate:
-                sqlWorker.update_rate(datalist[0], 2)
-                rate = "\nРейтинг " + datalist[1] + " повышен на 2 пункта."
+            if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot and data.rate:
+                sqlWorker.update_rate(self.data_list[0], 2)
+                rate = "\nРейтинг " + self.data_list[1] + " повышен на 2 пункта."
 
-            bot.edit_message_text("Пользователю " + datalist[1] + " восстановлено право переписки в чате "
-                                  + "по милости пользователя " + datalist[2] + rate
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Пользователю " + self.data_list[1] + " восстановлено право переписки в чате "
+                                  + "по милости пользователя " + self.data_list[2] + rate
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Я не смог вынести из мута пользователя " + datalist[1]
-                                  + ".  Недостаточно прав?" + votes_counter, message_vote.chat.id,
-                                  message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос снятия ограничений с пользователя " + datalist[1] + " отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Я не смог вынести из мута пользователя " + self.data_list[1]
+                                  + ".  Недостаточно прав?" + self.votes_counter, self.message_vote.chat.id,
+                                  self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос снятия ограничений с пользователя " + self.data_list[1] + " отклонён."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_new_usr(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class Captcha(PostVote):
+
+    _description = "капча"
+
+    def accept(self):
         try:
-            bot.restrict_chat_member(message_vote.chat.id, datalist[1],
+            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[1],
                                      None, True, True, True, True, True, True, True, True)
         except telebot.apihelper.ApiTelegramException:
-            bot.edit_message_text(f"Я не смог снять ограничения с {datalist[2]} {datalist[0]}! Недостаточно прав?",
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text(f"Я не смог снять ограничения с {self.data_list[2]} {self.data_list[0]}! "
+                                  f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
             return
-        bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} одобрено!" + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} одобрено!" + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
-    else:
+    def decline(self):
         try:
-            bot.ban_chat_member(message_vote.chat.id, datalist[1], until_date=int(time.time()) + 60)
+            bot.ban_chat_member(self.message_vote.chat.id, self.data_list[1], until_date=int(time.time()) + 60)
         except telebot.apihelper.ApiTelegramException:
-            bot.edit_message_text(f"Я не смог заблокировать {datalist[2]} {datalist[0]}! Недостаточно прав?",
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text(f"Я не смог заблокировать {self.data_list[2]} {self.data_list[0]}! "
+                                  f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
             return
-        bot.edit_message_text(f"Вступление {datalist[2]} {datalist[0]} отклонено."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} отклонено."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_treshold(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    ban = True if datalist[1] == "threshold_ban" else False
-    minimum = True if datalist[1] == "threshold_min" else False
-    if ban:
-        ban_text = "голосований по вопросам бана"
-    elif minimum:
-        ban_text = "минимального количества голосов"
-    else:
-        ban_text = "голосований по стандартным вопросам"
-    if datalist[1] == "threshold_min":
-        votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-    if accept or records[0][3] > records[0][4] and datalist[1] == "threshold_min":
-        if datalist[0] == 0:
-            data.thresholds_set(0, ban, minimum)
-            bot.edit_message_text(f"Установлен автоматический порог {ban_text}.\n"
-                                  + "Теперь требуется " + str(data.thresholds_get(ban))
-                                  + " голосов для решения." + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+class Threshold(PostVote):
+
+    votes_counter = ""
+    ban_text = ""
+    ban = False
+    minimum = False
+    _description = "смена порога голосов"
+
+    def post_vote_child(self):
+        self.ban = True if self.data_list[1] == "threshold_ban" else False
+        self.minimum = True if self.data_list[1] == "threshold_min" else False
+        if self.ban:
+            self.ban_text = "голосований по вопросам бана"
+        elif self.minimum:
+            self.ban_text = "минимального количества голосов"
         else:
-            data.thresholds_set(datalist[0], ban, minimum)
-            bot.edit_message_text(f"Установлен порог {ban_text}: "
-                                  + str(datalist[0]) + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text(f"Вопрос смены порога {ban_text} отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+            self.ban_text = "голосований по стандартным вопросам"
+        if self.data_list[1] == "threshold_min":
+            self.votes_counter = "\nЗа: " + str(self.records[0][3]) + "\n" + "Против: " + str(self.records[0][4])
+        if self.records[0][3] > self.records[0][4] and self.data_list[1] == "threshold_min":
+            self.is_accept = True
+
+    def accept(self):
+        if self.data_list[0] == 0:
+            data.thresholds_set(0, self.ban, self.minimum)
+            bot.edit_message_text(f"Установлен автоматический порог {self.ban_text}.\n"
+                                  + "Теперь требуется " + str(data.thresholds_get(self.ban))
+                                  + " голосов для решения." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+        else:
+            data.thresholds_set(self.data_list[0], self.ban, self.minimum)
+            bot.edit_message_text(f"Установлен порог {self.ban_text}: "
+                                  + str(self.data_list[0]) + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text(f"Вопрос смены порога {self.ban_text} отклонён."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_timer(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if datalist[1] == "timer":
-            data.timer_set(datalist[0])
-            bot.edit_message_text("Установлен таймер основного голосования на "
-                                  + utils.formatted_timer(datalist[0]) + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-        elif datalist[1] == "timer for ban votes":
-            data.timer_set(datalist[0], True)
-            bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(datalist[0])
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        timer_text = "" if datalist[1] == "timer" else "для бана "
-        bot.edit_message_text("Вопрос смены таймера " + timer_text + "отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+class Timer(PostVote):
+
+    _description = "смена таймера для стандартных опросов"
+    timer_text = ""
+
+    def accept(self):
+        data.timer_set(self.data_list[0])
+        bot.edit_message_text("Установлен таймер основного голосования на "
+                                  + utils.formatted_timer(self.data_list[0]) + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос смены таймера " + self.timer_text + "отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_delmsg(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class TimerBan(Timer):
+
+    _description = "смена таймера для бан-опросов"
+    timer_text = "для бана "
+
+    def accept(self):
+        data.timer_set(self.data_list[0], True)
+        bot.edit_message_text("Установлен таймер голосования за бан на " + utils.formatted_timer(self.data_list[0])
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+class DelMessage(PostVote):
+
+    _description = "удаление сообщения"
+
+    def accept(self):
         try:
-            bot.delete_message(message_vote.chat.id, datalist[0])
-            if datalist[2]:
-                bot.delete_message(message_vote.chat.id, message_vote.message_id)
-                raise Warning
+            bot.delete_message(self.message_vote.chat.id, self.data_list[0])
+            if self.data_list[2]:
+                bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
+                raise self.SilentException
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(traceback.format_exc())
-            if datalist[2]:
-                bot.delete_message(message_vote.chat.id, message_vote.message_id)
+            if self.data_list[2]:
+                bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
                 return
             if "message to delete not found" in str(e):
-                bot.edit_message_text("Сообщение, которое требуется удалить, не найдено." + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
+                bot.edit_message_text("Сообщение, которое требуется удалить, не найдено." + self.votes_counter,
+                                      self.message_vote.chat.id, self.message_vote.message_id)
             else:
-                bot.edit_message_text("Ошибка удаления сообщения по голосованию." + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
+                bot.edit_message_text("Ошибка удаления сообщения по голосованию." + self.votes_counter,
+                                      self.message_vote.chat.id, self.message_vote.message_id)
             return
 
-        bot.edit_message_text("Сообщение пользователя " + datalist[1] + " удалено успешно."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос удаления сообщения отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text("Сообщение пользователя " + self.data_list[1] + " удалено успешно."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос удаления сообщения отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_op_global(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class GlobalOp(PostVote):
+
+    _description = "изменение разрешённых прав для выдачи"
+
+    def accept(self):
         if data.admin_fixed:
             bot.edit_message_text("Настройки выдачи прав администратора не могут быть перезаписаны "
                                   "(запрещено хостером бота!)"
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
 
-        data.admin_allowed = datalist[0]
+        data.admin_allowed = self.data_list[0]
         if not data.admin_fixed:
-            sqlWorker.params("allowed_admins", datalist[0])
+            sqlWorker.params("allowed_admins", self.data_list[0])
         bot.edit_message_text("Разрешённые для администраторов права успешно изменены на следующие:"
-                              + utils.allowed_list(datalist[0]) + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+                              + utils.allowed_list(self.data_list[0]) + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
         return
-    else:
-        bot.edit_message_text("Вопрос изменения разрешённых для администраторов прав отклонён" + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос изменения разрешённых для администраторов прав отклонён" + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_op(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        status = bot.get_chat_member(message_vote.chat.id, datalist[0]).status
+class Op(PostVote):
+
+    _description = "назначение администратора"
+
+    def accept(self):
+        status = bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status
         if status != "member" and status != "administrator":
-            bot.edit_message_text("Пользователь " + datalist[1]
+            bot.edit_message_text("Пользователь " + self.data_list[1]
                                   + " имеет статус, не позволяющий назначить его администратором."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            bot.promote_chat_member(message_vote.chat.id, datalist[0],
-                                    can_manage_chat=True, **utils.get_promote_args(datalist[2]))
+            bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0],
+                                    can_manage_chat=True, **utils.get_promote_args(self.data_list[2]))
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text(f"Ошибка назначения администратора {datalist[1]}. Недостаточно прав?" + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text(
+                f"Ошибка назначения администратора {self.data_list[1]}. Недостаточно прав?" + self.votes_counter,
+                self.message_vote.chat.id, self.message_vote.message_id)
             return
 
         rate = ""
-        if all([not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot,
+        if all([not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot,
                 data.rate,
                 not status == "administrator"]):
-            sqlWorker.update_rate(datalist[0], 3)
-            rate = "\nРейтинг " + datalist[1] + " повышен на 3 пункта."
+            sqlWorker.update_rate(self.data_list[0], 3)
+            rate = "\nРейтинг " + self.data_list[1] + " повышен на 3 пункта."
 
-        bot.edit_message_text("Пользователь " + datalist[1] + " назначен администратором в чате."
-                              + rate + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос назначения " + datalist[1] + " администратором отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text("Пользователь " + self.data_list[1] + " назначен администратором в чате."
+                              + rate + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
+    def decline(self):
+        bot.edit_message_text("Вопрос назначения " + self.data_list[1] + " администратором отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
-def vote_result_rank(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if bot.get_chat_member(message_vote.chat.id, datalist[0]).status == "administrator":
+class Rank(PostVote):
+
+    _description = "смена звания бота"
+
+    def accept(self):
+        if bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status == "administrator":
             try:
-                bot.set_chat_administrator_custom_title(message_vote.chat.id, datalist[0], datalist[2])
-                bot.edit_message_text("Звание \"" + datalist[2] + "\" успешно установлено для бота "
-                                      + datalist[1] + " пользователем " + datalist[3] + "." + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
+                bot.set_chat_administrator_custom_title(self.message_vote.chat.id, self.data_list[0], self.data_list[2])
+                bot.edit_message_text("Звание \"" + self.data_list[2] + "\" успешно установлено для бота "
+                                  + self.data_list[1] + " пользователем " + self.data_list[3] + "." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
             except telebot.apihelper.ApiTelegramException as e:
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
-                    bot.edit_message_text("Ошибка смены звания для бота " + datalist[1]
-                                          + " - в звании не поддерживаются эмодзи." + votes_counter,
-                                          message_vote.chat.id, message_vote.message_id)
+                    bot.edit_message_text("Ошибка смены звания для бота " + self.data_list[1]
+                                      + " - в звании не поддерживаются эмодзи." + self.votes_counter,
+                                      self.message_vote.chat.id, self.message_vote.message_id)
                     return
                 logging.error(traceback.format_exc())
-                bot.edit_message_text("Ошибка смены звания для бота " + datalist[1] + "." + votes_counter,
-                                      message_vote.chat.id, message_vote.message_id)
+                bot.edit_message_text("Ошибка смены звания для бота " + self.data_list[1] + "." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
             return
         else:
-            bot.edit_message_text("Бот " + datalist[1] + " не является администратором. Смена звания невозможна."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Бот " + self.data_list[1] + " не является администратором. Смена звания невозможна."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
-    else:
-        bot.edit_message_text("Вопрос смены звания бота " + datalist[1] + " отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос смены звания бота " + self.data_list[1] + " отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_deop(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if bot.get_chat_member(message_vote.chat.id, datalist[0]).status != "administrator":
-            bot.edit_message_text("Пользователь " + datalist[1] + " уже не является администратором."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+class Deop(PostVote):
+
+    _description = "снятие администратора"
+
+    def accept(self):
+        if bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status != "administrator":
+            bot.edit_message_text("Пользователь " + self.data_list[1] + " уже не является администратором."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            bot.restrict_chat_member(message_vote.chat.id, datalist[0],
+            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
                                      None, can_send_messages=True)
-            bot.restrict_chat_member(message_vote.chat.id, datalist[0],
+            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
                                      None, True, True, True, True, True, True, True, True)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Ошибка снятия администратора " + datalist[1] + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Ошибка снятия администратора " + self.data_list[1] + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
             return
 
         rate = ""
-        if not bot.get_chat_member(message_vote.chat.id, datalist[0]).user.is_bot and data.rate:
-            sqlWorker.update_rate(datalist[0], -3)
-            rate = "\nРейтинг " + datalist[1] + " снижен на 3 пункта."
+        if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot and data.rate:
+            sqlWorker.update_rate(self.data_list[0], -3)
+            rate = "\nРейтинг " + self.data_list[1] + " снижен на 3 пункта."
 
-        bot.edit_message_text("Пользователь " + datalist[1] + " разжалован из админов."
-                              + rate + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос снятия " + datalist[1] + " из администраторов отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text("Пользователь " + self.data_list[1] + " разжалован из админов."
+                              + rate + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос снятия " + self.data_list[1] + " из администраторов отклонён."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_title(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class Title(PostVote):
+
+    _description = "смена названия чата"
+
+    def accept(self):
         try:
-            bot.set_chat_title(message_vote.chat.id, datalist[0])
+            bot.set_chat_title(self.message_vote.chat.id, self.data_list[0])
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?" + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?" + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
             return
-        bot.edit_message_text("Название чата успешно сменено на \"" + datalist[0]
-                              + "\" пользователем " + datalist[1] + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text("Вопрос смены названия чата отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+        bot.edit_message_text("Название чата успешно сменено на \"" + self.data_list[0]
+                              + "\" пользователем " + self.data_list[1] + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text("Вопрос смены названия чата отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_description(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class Description(PostVote):
+
+    _description = "смена описания чата"
+
+    def accept(self):
         try:
-            bot.set_chat_description(message_vote.chat.id, datalist[0])
+            bot.set_chat_description(self.message_vote.chat.id, self.data_list[0])
         except telebot.apihelper.ApiTelegramException:
-            bot.edit_message_text("Ошибка установки описания чата. Недостаточно прав?" + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text("Ошибка установки описания чата. Недостаточно прав?" + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
             return
-        if datalist[0] == "":
+        if self.data_list[0] == "":
             bot.edit_message_text("Описание чата успешно сменено на пустое пользователем "
-                                  + datalist[1] + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+                                  + self.data_list[1] + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
         else:
-            bot.edit_message_text("Описание чата успешно сменено на\n<code>" + utils.html_fix(datalist[0])
-                                  + "</code>\nпользователем " + datalist[1] + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id, parse_mode="html")
-    else:
+            bot.edit_message_text("Описание чата успешно сменено на\n<code>" + utils.html_fix(self.data_list[0])
+                                  + "</code>\nпользователем " + self.data_list[1] + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+
+    def decline(self):
         bot.edit_message_text("Вопрос смены описания чата отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_chat_pic(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+class ChatPic(PostVote):
+
+    _description = "смена аватарки чата"
+
+    def accept(self):
         try:
-            bot.set_chat_photo(message_vote.chat.id, open(data.path + 'tmp_img', 'rb'))
-            bot.edit_message_text("Фотография чата успешно изменена пользователем " + datalist[0]
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.set_chat_photo(self.message_vote.chat.id, open(data.path + 'tmp_img', 'rb'))
+            bot.edit_message_text("Фотография чата успешно изменена пользователем " + self.data_list[0]
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         except Exception as e:
             logging.error((str(e)))
             logging.error(traceback.format_exc())
-            bot.edit_message_text("Ошибка установки новой фотографии чата." + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-    else:
+            bot.edit_message_text("Ошибка установки новой фотографии чата." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
         bot.edit_message_text("Вопрос смены фотографии чата отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
-    try:
-        os.remove(data.path + "tmp_img")
-    except IOError:
-        pass
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
-
-def vote_result_change_rate(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if datalist[2] == "up":
-            chrate = "увеличил на " + str(records[0][3] - records[0][4])
-            sqlWorker.update_rate(datalist[1], records[0][3] - records[0][4])
-        else:
-            chrate = "уменьшил на " + str(records[0][3] - records[0][4])
-            sqlWorker.update_rate(datalist[1], records[0][4] - records[0][3])
-        bot.edit_message_text(f"Пользователь {datalist[3]} "
-                              f"{chrate} социальный рейтинг пользователя {datalist[0]}."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        bot.edit_message_text(f"Вопрос изменения социального рейтинга пользователя {datalist[0]} отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
-
-
-def vote_result_add_allies(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        sqlWorker.abuse_remove(datalist[0])
-        sqlWorker.abuse_update(datalist[0])
-        sqlWorker.add_ally(datalist[0])
+    def final_hook(self):
         try:
-            ally_title = bot.get_chat(datalist[0]).title
-            invite = bot.get_chat(datalist[0]).invite_link
+            os.remove(data.path + "tmp_img")
+        except IOError:
+            pass
+
+
+class ChangeRate(PostVote):
+
+    _description = "изменение рейтинга"
+
+    def accept(self):
+        if self.data_list[2] == "up":
+            chrate = "увеличил на " + str(self.records[0][3] - self.records[0][4])
+            sqlWorker.update_rate(self.data_list[1], self.records[0][3] - self.records[0][4])
+        else:
+            chrate = "уменьшил на " + str(self.records[0][3] - self.records[0][4])
+            sqlWorker.update_rate(self.data_list[1], self.records[0][4] - self.records[0][3])
+        bot.edit_message_text(f"Пользователь {self.data_list[3]} "
+                              f"{chrate} социальный рейтинг пользователя {self.data_list[0]}."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text(f"Вопрос изменения социального рейтинга пользователя {self.data_list[0]} отклонён."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+
+class AddAllies(PostVote):
+
+    _description = "добавление союзного чата"
+
+    def accept(self):
+        sqlWorker.abuse_remove(self.data_list[0])
+        sqlWorker.abuse_update(self.data_list[0])
+        sqlWorker.add_ally(self.data_list[0])
+        try:
+            ally_title = bot.get_chat(self.data_list[0]).title
+            invite = bot.get_chat(self.data_list[0]).invite_link
             if invite is None:
                 invite = "Инвайт-ссылка на данный чат отсутствует."
             else:
                 invite = f"Инвайт ссылка на данный чат: {invite}."
-            bot.send_message(datalist[0], f"Установлены союзные отношения с чатом "
-                                          f"<b>{utils.html_fix(message_vote.chat.title)}</b>!\n"
-                                          f"Ссылка для упрощённого перехода: "
-                                          f"{bot.get_chat(message_vote.chat.id).invite_link}.",
-                             parse_mode="html", message_thread_id=datalist[1])
+            bot.send_message(self.data_list[0], f"Установлены союзные отношения с чатом "
+                                           f"<b>{utils.html_fix(self.message_vote.chat.title)}</b>!\n"
+                                           f"Ссылка для упрощённого перехода: "
+                                           f"{bot.get_chat(self.message_vote.chat.id).invite_link}.",
+                             parse_mode="html", message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.edit_message_text("Ошибка установки союзных отношений с чатом! Информация сохранена в логах бота."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
 
         bot.edit_message_text(f"Установлены союзные отношения с чатом "
                               f"<b>{utils.html_fix(ally_title)}!</b>\n{invite}"
-                              + votes_counter, message_vote.chat.id, message_vote.message_id, parse_mode="html")
-    else:
-        sqlWorker.abuse_update(datalist[0])
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+
+    def decline(self):
+        sqlWorker.abuse_update(self.data_list[0])
         try:
             bot.edit_message_text(f"Вопрос установки союзных отношения с чатом "
-                                  f"{bot.get_chat(datalist[0]).title} отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
-            bot.send_message(datalist[0], f"Вопрос установки союзных отношения с чатом "
-                                          f"{message_vote.chat.title} отклонён." + votes_counter,
-                             message_thread_id=datalist[1])
+                                  f"{bot.get_chat(self.data_list[0]).title} отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+            bot.send_message(self.data_list[0], f"Вопрос установки союзных отношения с чатом "
+                                           f"{self.message_vote.chat.title} отклонён." + self.votes_counter,
+                             message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Вопрос установки союзных отношения с чатом отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_remove_allies(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        sqlWorker.abuse_remove(datalist[0])
-        sqlWorker.remove_ally(datalist[0])
+class RemoveAllies(PostVote):
+
+    _description = "удаление союзного чата"
+
+    def accept(self):
+        sqlWorker.abuse_remove(self.data_list[0])
+        sqlWorker.remove_ally(self.data_list[0])
         try:
-            ally_title = f" <b>{utils.html_fix(bot.get_chat(datalist[0]).title)}</b> "
-            bot.send_message(datalist[0], f"Cоюз с чатом <b>{utils.html_fix(message_vote.chat.title)}</b> разорван."
-                             + votes_counter, parse_mode="html", message_thread_id=datalist[1])
+            ally_title = f" <b>{utils.html_fix(bot.get_chat(self.data_list[0]).title)}</b> "
+            bot.send_message(self.data_list[0], f"Cоюз с чатом <b>{utils.html_fix(self.message_vote.chat.title)}</b> разорван."
+                             + self.votes_counter, parse_mode="html", message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException:
             ally_title = " "
-        bot.edit_message_text(f"Союзные отношения с чатом{ally_title}разорваны." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id, parse_mode="html")
-    else:
+        bot.edit_message_text(f"Союзные отношения с чатом{ally_title}разорваны." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+
+    def decline(self):
         try:
             bot.edit_message_text(f"Вопрос разрыва союзных отношений с чатом "
-                                  f"{bot.get_chat(datalist[0]).title} отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
-            bot.send_message(datalist[0], f"Вопрос разрыва союзных отношения с чатом "
-                                          f"{message_vote.chat.title} отклонён." + votes_counter)
+                                  f"{bot.get_chat(self.data_list[0]).title} отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+            bot.send_message(self.data_list[0], f"Вопрос разрыва союзных отношения с чатом "
+                                          f"{self.message_vote.chat.title} отклонён." + self.votes_counter)
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Вопрос разрыва союзных отношения с чатом отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_random_cooldown(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        sqlWorker.abuse_random(message_vote.chat.id, datalist[0])
-        if datalist[0] == -1:
-            bot.edit_message_text("Команда /random отключена." + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-        elif datalist[0] == 0:
-            bot.edit_message_text("Кулдаун команды /random отключён." + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
+class RandomCooldown(PostVote):
+
+    _description = "изменение кулдауна команды /random"
+    
+    def accept(self):
+        sqlWorker.abuse_random(self.message_vote.chat.id, self.data_list[0])
+        if self.data_list[0] == -1:
+            bot.edit_message_text("Команда /random отключена." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+        elif self.data_list[0] == 0:
+            bot.edit_message_text("Кулдаун команды /random отключён." + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
         else:
             bot.edit_message_text("Установлен порог кулдауна команды /random на значение " +
-                                  utils.formatted_timer(datalist[0]) + votes_counter,
-                                  message_vote.chat.id, message_vote.message_id)
-    else:
-        if datalist[0] == 1:
-            bot.edit_message_text(f"Вопрос отключения команды /abuse отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  utils.formatted_timer(self.data_list[0]) + self.votes_counter,
+                                  self.message_vote.chat.id, self.message_vote.message_id)
+    
+    def decline(self):
+        if self.data_list[0] == 1:
+            bot.edit_message_text(f"Вопрос отключения команды /random отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         else:
-            bot.edit_message_text(f"Вопрос изменения таймера команды /abuse отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text(f"Вопрос изменения таймера команды /random отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
-def vote_result_whitelist(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
-        if datalist[2] == "add":
-            sqlWorker.whitelist(datalist[0], add=True)
-            bot.edit_message_text(f"Пользователь {datalist[1]} добавлен в вайтлист."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+class Whitelist(PostVote):
+
+    _description = "редактирование вайтлиста"
+
+    def accept(self):
+        if self.data_list[2] == "add":
+            sqlWorker.whitelist(self.data_list[0], add=True)
+            bot.edit_message_text(f"Пользователь {self.data_list[1]} добавлен в вайтлист."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         else:
-            sqlWorker.whitelist(datalist[0], remove=True)
-            bot.edit_message_text(f"Пользователь {datalist[1]} удалён из вайтлиста."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
-        if datalist[2] == "add":
-            bot.edit_message_text(f"Вопрос добавления пользователя {datalist[1]} в вайтлист отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            sqlWorker.whitelist(self.data_list[0], remove=True)
+            bot.edit_message_text(f"Пользователь {self.data_list[1]} удалён из вайтлиста."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+            
+    def decline(self):
+        if self.data_list[2] == "add":
+            bot.edit_message_text(f"Вопрос добавления пользователя {self.data_list[1]} в вайтлист отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         else:
-            bot.edit_message_text(f"Вопрос удаления пользователя {datalist[1]} из вайтлиста отклонён."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+            bot.edit_message_text(f"Вопрос удаления пользователя {self.data_list[1]} из вайтлиста отклонён."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+            
 
+class PrivateMode(PostVote):
 
-def vote_result_private_mode(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+    _description = "изменение настроек приватности чата"
+    
+    def accept(self):
         if data.chat_mode != "mixed":
             bot.edit_message_text("Настройки приватности не могут быть перезаписаны (запрещено хостером бота!)"
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
-        data.binary_chat_mode = datalist[0]
-        sqlWorker.params("public_mode", datalist[0])
-        bot.edit_message_text(f"Пользователь {datalist[1]} изменил режим приватности чата на {datalist[2]}."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
-    else:
+        data.binary_chat_mode = self.data_list[0]
+        sqlWorker.params("public_mode", self.data_list[0])
+        bot.edit_message_text(f"Пользователь {self.data_list[1]} изменил режим приватности чата на {self.data_list[2]}."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+    
+    def decline(self):
         bot.edit_message_text(f"Вопрос изменения настроек приватности чата отклонён."
-                              + votes_counter, message_vote.chat.id, message_vote.message_id)
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+        
 
+class Topic(PostVote):
 
-def vote_result_topic(records, message_vote, votes_counter, accept):
-    datalist = eval(records[0][6])
-    if accept:
+    _description = "удаление топика"
+    
+    def accept(self):
         try:
-            bot.delete_forum_topic(data.main_chat_id, datalist[0])
+            bot.delete_forum_topic(data.main_chat_id, self.data_list[0])
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             bot.edit_message_text("Ошибка удаления топика! Информация сохранена в логах бота."
-                                  + votes_counter, message_vote.chat.id, message_vote.message_id)
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            bot.send_message(data.main_chat_id, f"Пользователь {datalist[1]} удалил топик {datalist[2]}."
-                             + votes_counter, message_thread_id=data.thread_id)
+            bot.send_message(data.main_chat_id, f"Пользователь {self.data_list[1]} удалил топик {self.data_list[2]}."
+                             + self.votes_counter, message_thread_id=data.thread_id)
         except telebot.apihelper.ApiTelegramException:
             pass
-        raise Warning
-    else:
-        bot.edit_message_text(f"Вопрос удаления топика отклонён." + votes_counter,
-                              message_vote.chat.id, message_vote.message_id)
+        raise self.SilentException
+
+    def decline(self):
+        bot.edit_message_text(f"Вопрос удаления топика отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)

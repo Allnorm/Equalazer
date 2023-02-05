@@ -12,29 +12,29 @@ from telebot import types
 import utils
 import postvote
 
-functions = {
-    "invite": (postvote.vote_result_useradd, "инвайт пользователя"),
-    "ban": (postvote.vote_result_userkick, "блокировка пользователя"),
-    "unban": (postvote.vote_result_unban, "снятие ограничений с пользователя"),
-    "threshold": (postvote.vote_result_treshold, "смена порога голосов"),
-    "timer": (postvote.vote_result_timer, "смена таймера для стандартных опросов"),
-    "timer for ban votes": (postvote.vote_result_timer, "смена таймера для бан-опросов"),
-    "delete message": (postvote.vote_result_delmsg, "удаление сообщения"),
-    "op": (postvote.vote_result_op, "назначение администратора"),
-    "deop": (postvote.vote_result_deop, "снятие администратора"),
-    "title": (postvote.vote_result_title, "смена названия чата"),
-    "chat picture": (postvote.vote_result_chat_pic, "смена аватарки чата"),
-    "description": (postvote.vote_result_description, "смена описания чата"),
-    "rank": (postvote.vote_result_rank, "смена звания бота"),
-    "captcha": (postvote.vote_result_new_usr, "капча"),
-    "change rate": (postvote.vote_result_change_rate, "изменение рейтинга"),
-    "add allies": (postvote.vote_result_add_allies, "добавление союзного чата"),
-    "remove allies": (postvote.vote_result_remove_allies, "удаление союзного чата"),
-    "timer for random cooldown": (postvote.vote_result_random_cooldown, "изменение кулдауна команды /random"),
-    "whitelist": (postvote.vote_result_whitelist, "редактирование вайтлиста"),
-    "global admin permissons": (postvote.vote_result_op_global, "изменение разрешённых прав для выдачи"),
-    "private mode": (postvote.vote_result_private_mode, "изменение настроек приватности чата"),
-    "remove topic": (postvote.vote_result_topic, "удаление топика")
+post_vote_list = {
+    "invite": postvote.UserAdd(),
+    "ban": postvote.Ban(),
+    "unban": postvote.UnBan(),
+    "threshold": postvote.Threshold(),
+    "timer": postvote.Timer(),
+    "timer for ban votes": postvote.TimerBan(),
+    "delete message": postvote.DelMessage(),
+    "op": postvote.Op(),
+    "deop": postvote.Deop(),
+    "title": postvote.Title(),
+    "chat picture": postvote.ChatPic(),
+    "description": postvote.Description(),
+    "rank": postvote.Rank(),
+    "captcha": postvote.Captcha(),
+    "change rate": postvote.ChangeRate(),
+    "add allies": postvote.AddAllies(),
+    "remove allies": postvote.RemoveAllies(),
+    "timer for random cooldown": postvote.RandomCooldown(),
+    "whitelist": postvote.Whitelist(),
+    "global admin permissons": postvote.GlobalOp(),
+    "private mode": postvote.PrivateMode(),
+    "remove topic": postvote.Topic()
 }
 
 vote_abuse = {}
@@ -43,7 +43,7 @@ bot = utils.bot
 
 
 def vote_result(unique_id, message_vote):
-    global functions
+    global post_vote_list
     records = sqlWorker.msg_chk(unique_id=unique_id)
     if not records:
         return
@@ -58,35 +58,13 @@ def vote_result(unique_id, message_vote):
         logging.error(traceback.format_exc())
 
     sqlWorker.rem_rec(message_vote.id, unique_id)
-    votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-    if records[0][3] > records[0][4] and records[0][3] >= data.thresholds_get(minimum=True):
-        accept = True
-    elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
-        accept = False
-    else:
-        accept = False
-        votes_counter = f"\nНедостаточно голосов (требуется как минимум {data.thresholds_get(minimum=True)})"
 
     try:
-        functions[records[0][2]][0](records, message_vote, votes_counter, accept)
+        post_vote_list[records[0][2]].post_vote(records, message_vote)
     except KeyError:
         logging.error(traceback.format_exc())
         bot.edit_message_text("Ошибка применения результатов голосования. Итоговая функция не найдена!",
                               message_vote.chat.id, message_vote.id)
-    except Warning:  # Пусть не срёт в логи после clearmsg
-        return
-    except Exception as e:
-        logging.error(str(e) + "\n" + traceback.format_exc())
-
-    try:
-        bot.unpin_chat_message(data.main_chat_id, message_vote.message_id)
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
-
-    try:
-        bot.reply_to(message_vote, "Оповещение о закрытии голосования.")
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
 
 
 def auto_restart_pools():
@@ -526,6 +504,10 @@ def timer(message):
         bot.reply_to(message, "Текущие пороги таймера:\n" + timer_text + timer_random_text)
         return
 
+    if utils.extract_arg(message.text, 2) != "random" and data.main_chat_id != message.chat.id:
+        bot.reply_to(message, "Команду с данным аргументом невозможно запустить не в основном чате.")
+        return
+
     if utils.extract_arg(message.text, 2) is None:
         unique_id = "timer"
         bantext = "таймера стандартных голосований"
@@ -759,9 +741,14 @@ def whitelist_building(message, whitelist):
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
             sqlWorker.whitelist(user[0], remove=True)
+            whitelist.remove(user)
             continue
         user_list = user_list + f'{counter}. <a href="tg://user?id={user[0]}">{username}</a>\n'
         counter = counter + 1
+
+    if not whitelist:
+        bot.reply_to(message, "Вайтлист данного чата пуст!")
+        return
 
     bot.edit_message_text(user_list + "Узнать подробную информацию о конкретном пользователе можно командой /status",
                           chat_id=whitelist_msg.chat.id, message_id=whitelist_msg.id, parse_mode='html')
@@ -1482,7 +1469,7 @@ def rules_msg(message):
 
 @bot.message_handler(commands=['votes'])
 def votes_msg(message):
-    global functions
+    global post_vote_list
     if not utils.botname_checker(message):
         return
 
@@ -1501,7 +1488,7 @@ def votes_msg(message):
 
     for record in records:
         pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
-                                f"тип - {functions[record[2]][1]}, " + \
+                                f"тип - {post_vote_list[record[2]].description}, " + \
                     f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
         number = number + 1
 
