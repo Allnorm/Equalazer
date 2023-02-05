@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.8"
+VERSION = "1.8.1"
 BUILD_DATE = "05.02.2023"
 
 
@@ -353,8 +353,12 @@ def html_fix(text):
 
 
 def username_parser(message, html=False):
+
     if message.from_user.first_name == "":
         return "DELETED USER"
+
+    if message.from_user.username == "GroupAnonymousBot":
+        return "ANONYMOUS ADMIN"
 
     if message.from_user.username is None:
         if message.from_user.last_name is None:

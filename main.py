@@ -102,7 +102,7 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
     vote_text = f"{vote_text}\nГолосование будет закрыто через {utils.formatted_timer(current_timer)}, " \
                 f"для досрочного завершения требуется голосов за один из пунктов: {str(current_votes)}.\n" \
                 f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
-    cancel = True if data.bot_id != user_id else False
+    cancel = False if data.bot_id == user_id or user_id == 1087968824 else True # Anonymous ID
     message_vote = utils.vote_make(vote_text, message, adduser, silent, cancel)
     sqlWorker.add_pool(unique_id, message_vote, vote_type, int(time.time()) + current_timer,
                        str(vote_args), current_votes, user_id)
@@ -226,6 +226,11 @@ def ban_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
+    if user_id == 1087968824:
+        bot.reply_to(message, "Я не могу заблокировать анонимного администратора! "
+                              "Вы можете снять с него права командой /deop %индекс%.")
+        return
+
     restrict_timer = 0
     if utils.extract_arg(message.text, 1) is not None:
         restrict_timer = utils.time_parser(utils.extract_arg(message.text, 1))
@@ -251,7 +256,7 @@ def ban_usr(message):
         return
 
     if data.bot_id == user_id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
     unique_id = str(user_id) + "_userban"
@@ -299,6 +304,11 @@ def mute_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
+    if user_id == 1087968824:
+        bot.reply_to(message, "Я не могу ограничить анонимного администратора! "
+                              "Вы можете снять с него права командой /deop %индекс%.")
+        return
+
     if bot.get_chat_member(data.main_chat_id, user_id).status == "kicked":
         bot.reply_to(message, "Данный пользователь уже забанен или кикнут.")
         return
@@ -308,7 +318,7 @@ def mute_usr(message):
         return
 
     if data.bot_id == user_id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
     restrict_timer = 0
@@ -370,8 +380,12 @@ def unban_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
+    if user_id == 1087968824:
+        bot.reply_to(message, "Я не могу разблокировать анонимного администратора!")
+        return
+
     if data.bot_id == user_id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
     if bot.get_chat_member(data.main_chat_id, user_id).status != "restricted" and \
@@ -580,23 +594,26 @@ def timer(message):
 def rate_top(message):
     rate_msg = bot.reply_to(message, "Сборка рейтинга, ожидайте...")
     rates = sqlWorker.get_all_rates()
-    if rates is None:
-        bot.reply_to(message, "Ещё ни у одного пользователя нет социального рейтинга!")
-        return
-
     rates = sorted(rates, key=lambda rate: rate[1], reverse=True)
     rate_text = "Список пользователей по социальному рейтингу:"
     user_counter = 1
 
     for user_rate in rates:
-        if bot.get_chat_member(data.main_chat_id, user_rate[0]).status == "kicked" \
-                or bot.get_chat_member(data.main_chat_id, user_rate[0]).status == "left":
-            sqlWorker.clear_rate(user_rate[0])
-            continue
-        username = utils.username_parser_chat_member(bot.get_chat_member(data.main_chat_id, user_rate[0]), True)
-        rate_text = rate_text + f'\n{user_counter}. ' \
+        try:
+            if bot.get_chat_member(data.main_chat_id, user_rate[0]).status in ["kicked", "left"]:
+                sqlWorker.clear_rate(user_rate[0])
+                continue
+            username = utils.username_parser_chat_member(bot.get_chat_member(data.main_chat_id, user_rate[0]), True)
+            rate_text = rate_text + f'\n{user_counter}. ' \
                                 f'<a href="tg://user?id={user_rate[0]}">{username}</a>: {str(user_rate[1])}'
-        user_counter += 1
+            user_counter += 1
+        except telebot.apihelper.ApiTelegramException:
+            rates.remove(user_rate)
+
+    if rates is None:
+        bot.edit_message_text(message, "Ещё ни у одного пользователя нет социального рейтинга!",
+                              rate_msg.chat.id, rate_msg.id)
+        return
 
     bot.edit_message_text(rate_text, chat_id=rate_msg.chat.id,
                           message_id=rate_msg.id, parse_mode='html')
@@ -616,9 +633,12 @@ def rating(message):
     if mode is None:
         if message.reply_to_message is None:
             user_id, username, _ = utils.reply_msg_target(message)
+            if user_id == 1087968824:
+                bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
+                return
         else:
-            if data.bot_id == message.reply_to_message.from_user.id:
-                bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            if message.reply_to_message.from_user.id in [data.bot_id, 1087968824]:
+                bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
                 return
 
             user_status = bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).status
@@ -654,8 +674,8 @@ def rating(message):
             bot.reply_to(message, "Вы не можете менять свой собственный рейтинг!")
             return
 
-        if user_id == data.bot_id:
-            bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        if user_id in [data.bot_id, 1087968824]:
+            bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
             return
 
         if is_bot:
@@ -708,6 +728,11 @@ def status(message):
                 "member": "участник"}
 
     user_id, username, is_bot = utils.reply_msg_target(target_msg)
+
+    if user_id == 1087968824:
+        bot.reply_to(message, "Данный пользователь является анонимным администратором. "
+                              "Я не могу получить о нём информацию!")
+        return
 
     if data.binary_chat_mode != 0:
         whitelist_status = "вайтлист отключён"
@@ -806,8 +831,8 @@ def status(message):
                 bot.reply_to(message, "Удалена некорректная запись!")
                 return
         else:
-            if data.bot_id == who_id:
-                bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            if who_id in [data.bot_id, 1087968824]:
+                bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
                 return
             elif is_bot:
                 bot.reply_to(message, f"Вайтлист не работает для ботов!")
@@ -969,6 +994,7 @@ def private_mode(message):
 
 @bot.message_handler(commands=['op'])
 def op(message):
+
     if not utils.botname_checker(message):
         return
 
@@ -988,7 +1014,23 @@ def op(message):
                    f"\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
         bot.reply_to(message, help_txt, parse_mode="html")
         return
-
+    elif utils.extract_arg(message.text, 1) == "list":
+        admin_list = bot.get_chat_administrators(data.main_chat_id)
+        admin_msg = bot.reply_to(message, "Сборка списка администраторов, ожидайте...")
+        admin_list_text = "Список текущих администраторов чата:" if admin_list else "В чате нет администраторов!"
+        counter = 0
+        for admin in admin_list:
+            counter += 1
+            admin_list_text += f"\n{counter}. "
+            admin_title = f'"{admin.custom_title}"' if admin.custom_title else "отсутствует"
+            if admin.is_anonymous and not admin.user.is_bot:
+                admin_list_text += f'Анонимный администратор (звание {admin_title})'
+            else:
+                admin_list_text += utils.username_parser_chat_member(admin)
+            if admin.status == "creator":
+                admin_list_text += " - автор чата"
+        bot.edit_message_text(admin_list_text, admin_msg.chat.id, admin_msg.id)
+        return
     elif utils.extract_arg(message.text, 1) == "global":
         if data.admin_fixed:
             bot.reply_to(message, "Изменение глобальных прав администраторов для чата заблокировано хостером.")
@@ -1018,11 +1060,22 @@ def op(message):
         pool_constructor(unique_id, vote_text, message, unique_id, data.global_timer, data.thresholds_get(),
                          [binary_rules], message.from_user.id)
         return
+    elif utils.extract_arg(message.text, 1) is not None:
+        bot.reply_to(message, "Неизвестный аргумент команды!")
+        return
 
     if message.reply_to_message is None:
         who_id, who_name, _ = utils.reply_msg_target(message)
     else:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
+
+    if who_id == 1087968824:
+        bot.reply_to(message, "Я не могу менять права анонимным администраторам!")
+        return
+
+    if who_id == data.bot_id:
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
+        return
 
     if bot.get_chat_member(data.main_chat_id, who_id).status == "creator":
         bot.reply_to(message, "Пользователь является создателем чата.")
@@ -1138,6 +1191,10 @@ def rank(message):
         bot.reply_to(message, "Ответьте на сообщение бота, звание которого вы хотите сменить.")
         return
 
+    if message.reply_to_message.from_user.id == 1087968824:
+        bot.reply_to(message, "Я не могу менять звание анонимных администраторов!")
+        return
+
     if not message.reply_to_message.from_user.is_bot:
         bot.reply_to(message, "Вы не можете менять звание других пользователей (кроме ботов).")
         return
@@ -1147,7 +1204,7 @@ def rank(message):
         return
 
     if data.bot_id == message.reply_to_message.from_user.id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
     unique_id = str(message.reply_to_message.from_user.id) + "_rank"
@@ -1183,8 +1240,8 @@ def deop(message):
         bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
         return
 
-    if utils.extract_arg(message.text, 1) != "me" and message.reply_to_message is None:
-        bot.reply_to(message, "Ответьте на сообщение или используйте аргумент \"me\"")
+    if utils.extract_arg(message.text, 1) is None and message.reply_to_message is None:
+        bot.reply_to(message, "Ответьте на сообщение, используйте аргумент \"me\" или номер админа из списка /op list")
         return
 
     me = True if utils.extract_arg(message.text, 1) == "me" else False
@@ -1213,18 +1270,45 @@ def deop(message):
             bot.reply_to(message, "Я не могу изменить ваши права!")
             return
 
-    who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
+
+    if utils.extract_arg(message.text, 1).isdigit():
+        index = int(utils.extract_arg(message.text, 1)) - 1
+        admin_list = bot.get_chat_administrators(data.main_chat_id)
+        try:
+            if index < 0:
+                raise IndexError
+            admin = admin_list[index]
+        except IndexError:
+            bot.reply_to(message, "Админ с указанным индексом не найден")
+            return
+        if admin.is_anonymous and not admin.user.is_bot:
+            admin_title = f'"{admin.custom_title}"' if admin.custom_title else "отсутствует"
+            who_name = f'ANONYMOUS (звание {admin_title})'
+        else:
+            who_name = utils.username_parser_chat_member(admin)
+        who_id = admin.user.id
+    elif message.reply_to_message is not None:
+        who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
+    else:
+        bot.reply_to(message, "Неизвестный аргумент команды")
+        return
 
     if bot.get_chat_member(data.main_chat_id, who_id).status == "creator":
-        bot.reply_to(message, f"Пользователь {who_name} является создателем чата, я не могу снять его права.")
+        bot.reply_to(message, f"{who_name} является создателем чата, я не могу снять его права.")
         return
 
     if bot.get_chat_member(data.main_chat_id, who_id).status != "administrator":
-        bot.reply_to(message, f"Пользователь {who_name} не является администратором!")
+        bot.reply_to(message, f"{who_name} не является администратором!")
         return
 
-    if data.bot_id == message.reply_to_message.from_user.id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    if data.bot_id == who_id:
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
+        return
+
+    if who_id == 1087968824:
+        bot.reply_to(message, "Я не могу снять права анонимного администратора таким образом! "
+                              "Для анонимов вы можете использовать команду вида /deop %индекс%. "
+                              "Список администраторов вы можете получить командой /op list.")
         return
 
     unique_id = str(who_id) + "_deop"
@@ -1232,7 +1316,7 @@ def deop(message):
     if utils.is_voting_exists(records, message, unique_id):
         return
 
-    vote_text = (f"Тема голосования: снятие прав администратора с пользователя {utils.html_fix(who_name)}"
+    vote_text = (f"Тема голосования: снятие прав администратора с {utils.html_fix(who_name)}"
                  f".\nИнициатор голосования: {utils.username_parser(message, True)}.")
 
     pool_constructor(unique_id, vote_text, message, "deop", data.global_timer, data.thresholds_get(),
@@ -1532,7 +1616,11 @@ def mute_user(message):
         return
 
     if data.bot_id == message.reply_to_message.from_user.id:
-        bot.reply_to(message, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
+        return
+
+    if 1087968824 in [message.reply_to_message.from_user.id, message.from_user.id]:
+        bot.reply_to(message, "Я не могу ограничить анонимного пользователя!")
         return
 
     if message.from_user.id != message.reply_to_message.from_user.id and data.abuse_mode == 2:
@@ -2021,7 +2109,7 @@ def callback_inline(call_msg):
     counter_yes = records[0][3]
     counter_no = records[0][4]
     votes_need_current = records[0][7]
-    cancel = True if records[0][8] != data.bot_id else False
+    cancel = False if records[0][8] == data.bot_id or records[0][8] == 1087968824 else True
 
     user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
