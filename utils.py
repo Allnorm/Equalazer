@@ -15,7 +15,7 @@ import sql_worker
 import telebot
 
 VERSION = "1.8.3"
-BUILD_DATE = "05.02.2023"
+BUILD_DATE = "15.02.2023"
 
 
 class ConfigData:
