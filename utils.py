@@ -14,7 +14,7 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.8.2"
+VERSION = "1.8.3"
 BUILD_DATE = "05.02.2023"
 
 

@@ -1256,6 +1256,11 @@ def deop(message):
             me = True
 
     if me:
+        if message.from_user.id == 1087968824:
+            bot.reply_to(message, "Я не могу снять права анонимного администратора таким образом! "
+                              "Для анонимов вы можете использовать команду вида /deop %индекс%. "
+                              "Список администраторов вы можете получить командой /op list.")
+            return
         if bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "creator":
             bot.reply_to(message, "Вы являетесь создателем чата, я не могу снять ваши права.")
             return
@@ -1276,8 +1281,7 @@ def deop(message):
             bot.reply_to(message, "Я не могу изменить ваши права!")
             return
 
-
-    if utils.extract_arg(message.text, 1).isdigit():
+    if str(utils.extract_arg(message.text, 1)).isdigit():
         index = int(utils.extract_arg(message.text, 1)) - 1
         admin_list = bot.get_chat_administrators(data.main_chat_id)
         try:
