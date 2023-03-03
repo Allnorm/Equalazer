@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -27,7 +28,7 @@ class PostVote:
     message_vote = None
 
     def post_vote(self, records, message_vote):
-        self.data_list = eval(records[0][6])
+        self.data_list = json.loads(records[0][6])
         self.message_vote = message_vote
         self.votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
         if records[0][3] > records[0][4] and records[0][3] >= data.thresholds_get(minimum=True):

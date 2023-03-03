@@ -14,11 +14,14 @@ import sql_worker
 
 import telebot
 
-VERSION = "1.8.3"
-BUILD_DATE = "15.02.2023"
-
 
 class ConfigData:
+    VERSION = "1.8.4"
+    BUILD_DATE = "03.03.2023"
+    ANONYMOUS_ID = 1087968824
+    ADMIN_MAX = 0b1111111111
+    ADMIN_MIN = 0b1000000000
+    __ADMIN_RECOMMENDED = 0b1010010100
     global_timer = 3600
     global_timer_ban = 300
     __votes_need = 0
@@ -33,7 +36,7 @@ class ConfigData:
     rules = False
     rate = True
     admin_fixed = False  # Outside param
-    admin_allowed = 0b1010010100  # Ведущий бит всегда 1, запись сделана задом наперёд
+    admin_allowed = __ADMIN_RECOMMENDED # Ведущий бит всегда 1, запись сделана задом наперёд
     path = ""  # Outside param
     token = ""  # Outside param
     chat_mode = "mixed"  # Outside param
@@ -132,10 +135,10 @@ class ConfigData:
         try:
             if self.admin_fixed:
                 self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
-            if not 0b1000000000 <= self.admin_allowed <= 0b1111111111:
+            if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
                 raise ValueError
         except (KeyError, TypeError, ValueError):
-            self.admin_allowed = 0b1010010100  # recommended value for private chats
+            self.admin_allowed = self.__ADMIN_RECOMMENDED
             logging.warning(f"Incorrect admin-allowed value, reset to default ("
                             + f"{self.admin_allowed:b}"[:0:-1] + ")!")
 
@@ -150,8 +153,8 @@ class ConfigData:
         self.global_timer_ban = sql_worker_.params("timer_ban")
         if not self.admin_fixed:
             self.admin_allowed = sql_worker_.params("allowed_admins")
-            if not 0b1000000000 <= self.admin_allowed <= 0b1111111111:
-                self.admin_allowed = 0b1010010100  # recommended value for private chats
+            if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
+                self.admin_allowed = self.__ADMIN_RECOMMENDED
                 sqlWorker.params("allowed_admins", self.admin_allowed)
                 logging.warning(f"Incorrect admin-allowed value, reset to default ("
                                 + f"{self.admin_allowed:b}"[:0:-1] + ")!")
@@ -296,7 +299,7 @@ class ConfigData:
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
-sqlWorker = sql_worker.SqlWorker(data.path + "database.db", VERSION)
+sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.VERSION)
 
 
 def init():
@@ -309,9 +312,9 @@ def init():
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
-    get_version = sqlWorker.params("version", VERSION)
-    update_text = "" if get_version == VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
-                                                    f"Текущая версия: {VERSION}\n" \
+    get_version = sqlWorker.params("version", data.VERSION)
+    update_text = "" if get_version == data.VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
+                                                    f"Текущая версия: {data.VERSION}\n" \
                                                     f"Предыдущая версия: {get_version}"
     try:
         if data.debug:
@@ -324,7 +327,7 @@ def init():
         logging.error("I was unable to send a launch message! Possibly the wrong value for the main chat or topic?")
         logging.error(traceback.format_exc())
 
-    logging.info(f"###DEUTERBOT {VERSION} BUILD DATE {BUILD_DATE} HAS BEEN STARTED!###")
+    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
 
 def auto_clear():
@@ -640,3 +643,16 @@ def topic_reply_fix(message): # Опять эти конченые из тг м�
     if message.content_type == "forum_topic_created":
         return
     return message
+
+def command_forbidden(message, private_dialog=False, text=None):
+    if private_dialog:
+        if message.chat.id == message.from_user.id:
+            text = text or "Данную команду невозможно запустить в личных сообщениях."
+            bot.reply_to(message, text)
+            return True
+    else:
+        if message.chat.id != data.main_chat_id:
+            text = text or "Данную команду можно запустить только в основном чате."
+            bot.reply_to(message, text)
+            return True
+    return False

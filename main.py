@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pickle
@@ -102,10 +103,10 @@ def pool_constructor(unique_id: str, vote_text: str, message, vote_type: str, cu
     vote_text = f"{vote_text}\nГолосование будет закрыто через {utils.formatted_timer(current_timer)}, " \
                 f"для досрочного завершения требуется голосов за один из пунктов: {str(current_votes)}.\n" \
                 f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
-    cancel = False if data.bot_id == user_id or user_id == 1087968824 else True # Anonymous ID
+    cancel = False if data.bot_id == user_id or user_id == data.ANONYMOUS_ID else True
     message_vote = utils.vote_make(vote_text, message, adduser, silent, cancel)
     sqlWorker.add_pool(unique_id, message_vote, vote_type, int(time.time()) + current_timer,
-                       str(vote_args), current_votes, user_id)
+                       json.dumps(vote_args), current_votes, user_id)
     utils.pool_saver(unique_id, message_vote)
     threading.Thread(target=vote_timer, args=(current_timer, unique_id, message_vote)).start()
 
@@ -175,11 +176,7 @@ def add_usr(message):
 
 @bot.message_handler(commands=['answer'])
 def add_answer(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -213,11 +210,7 @@ def add_answer(message):
 
 @bot.message_handler(commands=['ban', 'kick'])
 def ban_usr(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -226,7 +219,7 @@ def ban_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if user_id == 1087968824:
+    if user_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу заблокировать анонимного администратора! "
                               "Вы можете снять с него права командой /deop %индекс%.")
         return
@@ -291,11 +284,7 @@ def ban_usr(message):
 
 @bot.message_handler(commands=['mute'])
 def mute_usr(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -304,7 +293,7 @@ def mute_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if user_id == 1087968824:
+    if user_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу ограничить анонимного администратора! "
                               "Вы можете снять с него права командой /deop %индекс%.")
         return
@@ -367,11 +356,7 @@ def mute_usr(message):
 
 @bot.message_handler(commands=['unmute', 'unban'])
 def unban_usr(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -380,7 +365,7 @@ def unban_usr(message):
 
     user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if user_id == 1087968824:
+    if user_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу разблокировать анонимного администратора!")
         return
 
@@ -407,11 +392,7 @@ def unban_usr(message):
 
 @bot.message_handler(commands=['threshold'])
 def thresholds(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     mode = utils.extract_arg(message.text, 1)
@@ -495,11 +476,7 @@ def thresholds(message):
 
 @bot.message_handler(commands=['timer'])
 def timer(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id == message.from_user.id:
-        bot.reply_to(message, "Данную команду невозможно запустить в личных сообщениях.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message, private_dialog=True):
         return
 
     timer_arg = utils.extract_arg(message.text, 1)
@@ -518,13 +495,10 @@ def timer(message):
         bot.reply_to(message, "Текущие пороги таймера:\n" + timer_text + timer_random_text)
         return
     
-    if utils.extract_arg(message.text, 2) != "random" and data.main_chat_id != message.chat.id:
-        bot.reply_to(message, "Команду с данным аргументом невозможно запустить не в основном чате.")
-        return
-
-    if utils.extract_arg(message.text, 2) != "random" and data.main_chat_id != message.chat.id:
-        bot.reply_to(message, "Команду с данным аргументом невозможно запустить не в основном чате.")
-        return
+    if utils.extract_arg(message.text, 2) != "random":
+        if utils.command_forbidden(message, text="Команду с данным аргументом невозможно "
+                                                 "запустить не в основном чате."):
+            return
 
     if utils.extract_arg(message.text, 2) is None:
         unique_id = "timer"
@@ -621,11 +595,7 @@ def rate_top(message):
 
 @bot.message_handler(commands=['rate'])
 def rating(message):
-    if not utils.botname_checker(message) or not data.rate:
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or not data.rate or utils.command_forbidden(message):
         return
 
     mode = utils.extract_arg(message.text, 1)
@@ -633,11 +603,11 @@ def rating(message):
     if mode is None:
         if utils.topic_reply_fix(message.reply_to_message) is None:
             user_id, username, _ = utils.reply_msg_target(message)
-            if user_id == 1087968824:
+            if user_id == data.ANONYMOUS_ID:
                 bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
                 return
         else:
-            if message.reply_to_message.from_user.id in [data.bot_id, 1087968824]:
+            if message.reply_to_message.from_user.id in [data.bot_id, data.ANONYMOUS_ID]:
                 bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
                 return
 
@@ -674,7 +644,7 @@ def rating(message):
             bot.reply_to(message, "Вы не можете менять свой собственный рейтинг!")
             return
 
-        if user_id in [data.bot_id, 1087968824]:
+        if user_id in [data.bot_id, data.ANONYMOUS_ID]:
             bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
             return
 
@@ -709,11 +679,7 @@ def rating(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     target_msg = message
@@ -729,7 +695,7 @@ def status(message):
 
     user_id, username, is_bot = utils.reply_msg_target(target_msg)
 
-    if user_id == 1087968824:
+    if user_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Данный пользователь является анонимным администратором. "
                               "Я не могу получить о нём информацию!")
         return
@@ -785,11 +751,7 @@ def whitelist_building(message, whitelist):
 
 @bot.message_handler(commands=['whitelist'])
 def status(message):
-    if not utils.botname_checker(message) or data.binary_chat_mode != 0:
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or data.binary_chat_mode != 0 or utils.command_forbidden(message):
         return
 
     if utils.extract_arg(message.text, 1) in ("add", "remove"):
@@ -831,7 +793,7 @@ def status(message):
                 bot.reply_to(message, "Удалена некорректная запись!")
                 return
         else:
-            if who_id in [data.bot_id, 1087968824]:
+            if who_id in [data.bot_id, data.ANONYMOUS_ID]:
                 bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
                 return
             elif is_bot:
@@ -875,11 +837,7 @@ def status(message):
 
 
 def msg_remover(message, clearmsg):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -923,11 +881,7 @@ def clear_msg(message):
 
 @bot.message_handler(commands=['private'])
 def private_mode(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.extract_arg(message.text, 1) is not None:
@@ -995,11 +949,7 @@ def private_mode(message):
 @bot.message_handler(commands=['op'])
 def op(message):
 
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.extract_arg(message.text, 1) == "help":
@@ -1047,7 +997,7 @@ def op(message):
 
         try:
             binary_rules = int("1" + utils.extract_arg(message.text, 2)[::-1], 2)
-            if not 0b1000000000 <= binary_rules <= 0b1111111111:
+            if not data.ADMIN_MIN <= binary_rules <= data.ADMIN_MAX:
                 raise ValueError
         except ValueError:
             bot.reply_to(message, "Неверное значение бинарного аргумента!")
@@ -1069,7 +1019,7 @@ def op(message):
     else:
         who_id, who_name, _ = utils.reply_msg_target(message.reply_to_message)
 
-    if who_id == 1087968824:
+    if who_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу менять права анонимным администраторам!")
         return
 
@@ -1093,7 +1043,7 @@ def op(message):
     if utils.extract_arg(message.text, 1) is not None:
         try:
             binary_rule = int("1" + utils.extract_arg(message.text, 1)[::-1], 2)
-            if not 0b1000000000 <= binary_rule <= 0b1111111111:
+            if not data.ADMIN_MIN <= binary_rule <= data.ADMIN_MAX:
                 raise ValueError
         except ValueError:
             bot.reply_to(message, "Неверное значение бинарного аргумента!")
@@ -1123,11 +1073,7 @@ def op(message):
 @bot.message_handler(commands=['remtopic'])
 def rem_topic(message):
 
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if message.message_thread_id is None:
@@ -1149,11 +1095,7 @@ def rem_topic(message):
 
 @bot.message_handler(commands=['rank'])
 def rank(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     me = False
@@ -1197,7 +1139,7 @@ def rank(message):
         bot.reply_to(message, "Ответьте на сообщение бота, звание которого вы хотите сменить.")
         return
 
-    if message.reply_to_message.from_user.id == 1087968824:
+    if message.reply_to_message.from_user.id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу менять звание анонимных администраторов!")
         return
 
@@ -1239,11 +1181,7 @@ def rank(message):
 
 @bot.message_handler(commands=['deop'])
 def deop(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.extract_arg(message.text, 1) is None and utils.topic_reply_fix(message.reply_to_message) is None:
@@ -1256,7 +1194,7 @@ def deop(message):
             me = True
 
     if me:
-        if message.from_user.id == 1087968824:
+        if message.from_user.id == data.ANONYMOUS_ID:
             bot.reply_to(message, "Я не могу снять права анонимного администратора таким образом! "
                               "Для анонимов вы можете использовать команду вида /deop %индекс%. "
                               "Список администраторов вы можете получить командой /op list.")
@@ -1315,7 +1253,7 @@ def deop(message):
         bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
-    if who_id == 1087968824:
+    if who_id == data.ANONYMOUS_ID:
         bot.reply_to(message, "Я не могу снять права анонимного администратора таким образом! "
                               "Для анонимов вы можете использовать команду вида /deop %индекс%. "
                               "Список администраторов вы можете получить командой /op list.")
@@ -1336,11 +1274,7 @@ def deop(message):
 
 @bot.message_handler(commands=['title'])
 def title(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.extract_arg(message.text, 1) is None:
@@ -1371,11 +1305,7 @@ def title(message):
 
 @bot.message_handler(commands=['description'])
 def description(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is not None:
@@ -1411,11 +1341,7 @@ def description(message):
 
 @bot.message_handler(commands=['chatpic'])
 def chat_pic(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данное голосование можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -1525,11 +1451,7 @@ def get_usr(message):
 
 @bot.message_handler(commands=['help'])
 def help_msg(message):
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     try:
@@ -1546,11 +1468,7 @@ def help_msg(message):
 
 @bot.message_handler(commands=['rules'])
 def rules_msg(message):
-    if not utils.botname_checker(message) or not data.rules:
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or not data.rules or utils.command_forbidden(message):
         return
 
     try:
@@ -1568,11 +1486,7 @@ def rules_msg(message):
 @bot.message_handler(commands=['votes'])
 def votes_msg(message):
     global post_vote_list
-    if not utils.botname_checker(message):
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     records = sqlWorker.get_all_pools()
@@ -1600,15 +1514,11 @@ def votes_msg(message):
 
 @bot.message_handler(commands=['abyss'])
 def mute_user(message):
-    if not utils.botname_checker(message):
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
     if data.abuse_mode == 0:
         bot.reply_to(message, "Команда /abyss отключена в файле конфигурации бота.")
-        return
-
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате.")
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -1629,7 +1539,7 @@ def mute_user(message):
         bot.reply_to(message, "https://goo.su/wLZSEz1", disable_web_page_preview=True)
         return
 
-    if 1087968824 in [message.reply_to_message.from_user.id, message.from_user.id]:
+    if data.ANONYMOUS_ID in [message.reply_to_message.from_user.id, message.from_user.id]:
         bot.reply_to(message, "Я не могу ограничить анонимного пользователя!")
         return
 
@@ -1909,9 +1819,8 @@ def allies_list(message):
                      + bot.get_chat(data.main_chat_id).invite_link)
         return
 
-    if message.chat.id != data.main_chat_id:
-        bot.reply_to(message, "Данную команду без аргументов можно запустить "
-                              "только в основном чате или в союзных чатах.")
+    if utils.command_forbidden(message, text="Данную команду без аргументов можно "
+                                             "запустить только в основном чате или в союзных чатах."):
         return
 
     allies_text = "Список союзных чатов: \n"
@@ -1945,10 +1854,10 @@ def revoke(message):
         return
 
     is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
-
-    if message.chat.id != data.main_chat_id and not is_allies:
-        bot.reply_to(message, "Данную команду можно запустить только в основном чате или в союзных чатах.")
-        return
+    if not is_allies:
+        if utils.command_forbidden(message, text="Данную команду можно запустить только "
+                                                 "в основном чате или в союзных чатах."):
+            return
 
     try:
         bot.revoke_chat_invite_link(data.main_chat_id, bot.get_chat(data.main_chat_id).invite_link)
@@ -1962,7 +1871,7 @@ def revoke(message):
     if not utils.botname_checker(message):
         return
 
-    bot.reply_to(message, f"DeuterBot, версия {utils.VERSION}\nДата сборки: {utils.BUILD_DATE}\n"
+    bot.reply_to(message, f"DeuterBot, версия {data.VERSION}\nДата сборки: {data.BUILD_DATE}\n"
                           f"Created by Allnorm aka Peter Burzec")
 
 
@@ -2119,7 +2028,7 @@ def callback_inline(call_msg):
     counter_yes = records[0][3]
     counter_no = records[0][4]
     votes_need_current = records[0][7]
-    cancel = False if records[0][8] == data.bot_id or records[0][8] == 1087968824 else True
+    cancel = False if records[0][8] == data.bot_id or records[0][8] == data.ANONYMOUS_ID else True
 
     user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
     if user_ch:
