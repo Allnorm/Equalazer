@@ -16,12 +16,13 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.8.4"
-    BUILD_DATE = "03.03.2023"
+    VERSION = "1.8.5"
+    BUILD_DATE = "05.03.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
     __ADMIN_RECOMMENDED = 0b1010010100
+    EASTER_LINK = "https://goo.su/wLZSEz1"
     global_timer = 3600
     global_timer_ban = 300
     __votes_need = 0
@@ -36,7 +37,7 @@ class ConfigData:
     rules = False
     rate = True
     admin_fixed = False  # Outside param
-    admin_allowed = __ADMIN_RECOMMENDED # Ведущий бит всегда 1, запись сделана задом наперёд
+    admin_allowed = __ADMIN_RECOMMENDED  # Ведущий бит всегда 1, запись сделана задом наперёд
     path = ""  # Outside param
     token = ""  # Outside param
     chat_mode = "mixed"  # Outside param
@@ -314,8 +315,8 @@ def init():
 
     get_version = sqlWorker.params("version", data.VERSION)
     update_text = "" if get_version == data.VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
-                                                    f"Текущая версия: {data.VERSION}\n" \
-                                                    f"Предыдущая версия: {get_version}"
+                                                         f"Текущая версия: {data.VERSION}\n" \
+                                                         f"Предыдущая версия: {get_version}"
     try:
         if data.debug:
             logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
@@ -356,7 +357,6 @@ def html_fix(text):
 
 
 def username_parser(message, html=False):
-
     if message.from_user.first_name == "":
         return "DELETED USER"
 
@@ -423,7 +423,6 @@ def username_parser_chat_member(chat_member, html=False):
 
 
 def reply_msg_target(message):
-
     if message.json.get("new_chat_participant") is not None:
         user_id = message.json.get("new_chat_participant").get("id")
         username = username_parser_invite(message)
@@ -618,7 +617,6 @@ def welcome_msg_get(username, message):
 
 
 def write_init_chat(message):
-
     config = configparser.ConfigParser()
     try:
         config.read(data.path + "config.ini")
@@ -637,12 +635,13 @@ def write_init_chat(message):
         bot.reply_to(message, "Ошибка обновления конфига! Информация сохранена в логи бота!")
 
 
-def topic_reply_fix(message): # Опять эти конченые из тг мне насрали
+def topic_reply_fix(message):  # Опять эти конченые из тг мне насрали
     if not message:
         return
     if message.content_type == "forum_topic_created":
         return
     return message
+
 
 def command_forbidden(message, private_dialog=False, text=None):
     if private_dialog:
