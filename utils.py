@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.8.5"
-    BUILD_DATE = "05.03.2023"
+    VERSION = "1.9"
+    BUILD_DATE = "06.03.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
@@ -519,7 +519,11 @@ def is_voting_exists(records, message, unique_id):
         return True
 
 
-def botname_checker(message, get_chat=False):  # Crutch to prevent the bot from responding to other bots commands
+def botname_checker(message, get_chat=False) -> bool:
+    """Crutch to prevent the bot from responding to other bots commands"""
+
+    if message.text is None:
+        return True
 
     cmd_text = message.text.split()[0]
 

@@ -11,7 +11,7 @@ import telebot
 
 import utils
 import prevote
-from prevote import vote_result, vote_timer, vote_abuse, post_vote_list
+from prevote import vote_abuse, post_vote_list
 
 data = utils.data
 bot = utils.bot
@@ -30,10 +30,10 @@ def auto_restart_pools():
             logging.error(traceback.format_exc())
             continue
         if record[5] > time_now:
-            threading.Thread(target=vote_timer, args=(record[5] - time_now, record[0], message_vote)).start()
+            threading.Thread(target=prevote.vote_timer, args=(record[5] - time_now, record[0], message_vote)).start()
             logging.info("Restarted poll " + record[0])
         else:
-            vote_result(record[0], message_vote)
+            prevote.vote_result(record[0], message_vote)
 
 
 sqlWorker = utils.sqlWorker
@@ -43,102 +43,102 @@ auto_restart_pools()
 
 @bot.message_handler(commands=['invite'])
 def add_usr(message):
-    prevote.invite(message)
+    prevote.Invite(message)
 
 
 @bot.message_handler(commands=['ban', 'kick'])
 def ban_usr(message):
-    prevote.ban(message)
+    prevote.Ban(message)
 
 
 @bot.message_handler(commands=['mute'])
 def mute_usr(message):
-    prevote.mute(message)
+    prevote.Mute(message)
 
 
 @bot.message_handler(commands=['unmute', 'unban'])
 def unban_usr(message):
-    prevote.unban(message)
+    prevote.Unban(message)
 
 
 @bot.message_handler(commands=['threshold'])
 def thresholds(message):
-    prevote.thresholds(message)
+    prevote.Thresholds(message)
 
 
 @bot.message_handler(commands=['timer'])
 def timer(message):
-    prevote.timer(message)
+    prevote.Timer(message)
 
 
 @bot.message_handler(commands=['rate'])
 def rate(message):
-    prevote.rating(message)
+    prevote.Rating(message)
 
 
 @bot.message_handler(commands=['whitelist'])
 def whitelist(message):
-    prevote.whitelist(message)
+    prevote.Whitelist(message)
 
 
 @bot.message_handler(commands=['delete'])
 def delete_msg(message):
-    prevote.msg_remover(message, False)
+    prevote.MessageRemover(message)
 
 
 @bot.message_handler(commands=['clear'])
 def clear_msg(message):
-    prevote.msg_remover(message, True)
+    prevote.MessageSilentRemover(message)
 
 
 @bot.message_handler(commands=['private'])
 def private_mode(message):
-    prevote.private_mode(message)
+    prevote.PrivateMode(message)
 
 
 @bot.message_handler(commands=['op'])
 def op(message):
-    prevote.op(message)
+    prevote.Op(message)
 
 
 @bot.message_handler(commands=['remtopic'])
 def rem_topic(message):
-    prevote.rem_topic(message)
+    prevote.RemoveTopic(message)
 
 
 @bot.message_handler(commands=['rank'])
 def rank(message):
-    prevote.rank(message)
+    prevote.Rank(message)
 
 
 @bot.message_handler(commands=['deop'])
 def deop(message):
-    prevote.deop(message)
+    prevote.Deop(message)
 
 
 @bot.message_handler(commands=['title'])
 def title(message):
-    prevote.title(message)
+    prevote.Title(message)
 
 
 @bot.message_handler(commands=['description'])
 def description(message):
-    prevote.description(message)
+    prevote.Description(message)
 
 
 @bot.message_handler(commands=['chatpic'])
 def chat_pic(message):
-    prevote.chat_pic(message)
+    prevote.Avatar(message)
 
 
 @bot.message_handler(content_types=['new_chat_members'])
 def new_usr_checker(message):
-    prevote.new_usr_checker(message)
+    prevote.NewUserChecker(message)
 
 
 @bot.message_handler(commands=['allies'])
 def allies_list(message):
-    prevote.allies_list(message)
+    prevote.AlliesList(message)
 
 
 @bot.message_handler(commands=['answer'])
@@ -634,7 +634,7 @@ def callback_inline(call_msg):
 
     if records[0][5] <= int(time.time()):
         vote_abuse.clear()
-        vote_result(records[0][0], call_msg.message)
+        prevote.vote_result(records[0][0], call_msg.message)
         return
 
     unique_id = records[0][0]
@@ -698,7 +698,7 @@ def callback_inline(call_msg):
 
     if counter_yes >= votes_need_current or counter_no >= votes_need_current:
         vote_abuse.clear()
-        vote_result(unique_id, call_msg.message)
+        prevote.vote_result(unique_id, call_msg.message)
         return
 
     vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
