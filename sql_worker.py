@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import time
 
@@ -64,6 +65,8 @@ class SqlWorker:
                                     rate INTEGER,
                                     public_mode INTEGER,
                                     allowed_admins INTEGER);""")
+        cursor.execute("""CREATE TABLE if not exists params_new (
+                                    params TEXT PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists captcha (
                                     message_id TEXT,
                                     user_id TEXT,
@@ -71,8 +74,28 @@ class SqlWorker:
                                     username TEXT);""")
         cursor.execute("""DELETE FROM captcha""")
         cursor.execute(f"""SELECT * FROM params""")
-        if not cursor.fetchall():
+        records = cursor.fetchall()
+        if not records:
+            cursor.execute("""INSERT INTO params_new VALUES)""", (json.dumps({"version": f"{version}",
+                                                                              "votes": 0,
+                                                                              "votes_ban": 0,
+                                                                              "timer": 3600,
+                                                                              "timer_ban": 600,
+                                                                              "min_vote": 2,
+                                                                              "vote_mode": 3,
+                                                                              "wait_timer": 30,
+                                                                              "abuse_mode": 2,
+                                                                              "rate": 1,
+                                                                              "public_mode": 0,
+                                                                              "allowed_admins": 915}),))
             cursor.execute("""INSERT INTO params VALUES (?, 0, 0, 3600, 600, 2, 3, 30, 2, 1, 0, 915)""", (version,))
+        else:
+            cursor.execute(f"""SELECT * FROM params_new""")
+            if not cursor.fetchall():
+                cursor.execute("""INSERT INTO params_new VALUES (?)""",
+                           (json.dumps(dict(zip(["version", "votes", "votes_ban", "timer", "timer_ban",
+                                                 "min_vote", "vote_mode", "wait_timer", "abuse_mode", "rate",
+                                                 "public_mode", "allowed_admins"], records[0]))),))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
@@ -251,11 +274,13 @@ class SqlWorker:
 
     @open_close_db
     def params(self, cursor, key, value=None):
-        cursor.execute(f"""SELECT {key} FROM params""")
-        record = cursor.fetchall()
+        cursor.execute(f"""SELECT * FROM params_new""")
+        record: dict = json.loads(cursor.fetchall()[0][0])
+        return_value = record.get(key)
         if value is not None:
-            cursor.execute(f"""UPDATE params SET {key} = ?""", (value,))
-        return record[0][0]
+            record.update({key: value})
+            cursor.execute(f"""UPDATE params_new SET params = ?""", (json.dumps(record),))
+        return return_value
 
     @open_close_db
     def captcha(self, cursor, message_id, add=False, remove=False, user_id=None, max_value=None, username=None):
