@@ -19,7 +19,7 @@ class SqlWorker:
 
     dbname = ""
     
-    def __init__(self, dbname, version):
+    def __init__(self, dbname, recommended):
 
         self.dbname = dbname
 
@@ -54,9 +54,9 @@ class SqlWorker:
                                     abuse_random INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
-        cursor.execute("""DROP TABLE if exists params;""")
         cursor.execute("""DROP TABLE if exists users_choise;""")
-        cursor.execute("""CREATE TABLE if not exists params_new (
+        cursor.execute("ALTER TABLE params_new RENAME TO params")
+        cursor.execute("""CREATE TABLE if not exists params (
                                     params TEXT PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists captcha (
                                     message_id TEXT,
@@ -64,21 +64,10 @@ class SqlWorker:
                                     max_value INTEGER,
                                     username TEXT);""")
         cursor.execute("""DELETE FROM captcha""")
-        cursor.execute(f"""SELECT * FROM params_new""")
+        cursor.execute(f"""SELECT * FROM params""")
         records = cursor.fetchall()
         if not records:
-            cursor.execute("""INSERT INTO params_new VALUES)""", (json.dumps({"version": f"{version}",
-                                                                              "votes": 0,
-                                                                              "votes_ban": 0,
-                                                                              "timer": 3600,
-                                                                              "timer_ban": 600,
-                                                                              "min_vote": 2,
-                                                                              "vote_mode": 3,
-                                                                              "wait_timer": 30,
-                                                                              "abuse_mode": 2,
-                                                                              "rate": 1,
-                                                                              "public_mode": 0,
-                                                                              "allowed_admins": 915}),))
+            cursor.execute("""INSERT INTO params VALUES)""", (json.dumps(recommended),))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
@@ -255,12 +244,12 @@ class SqlWorker:
 
     @open_close_db
     def params(self, cursor, key, value=None):
-        cursor.execute(f"""SELECT * FROM params_new""")
+        cursor.execute(f"""SELECT * FROM params""")
         record: dict = json.loads(cursor.fetchall()[0][0])
         return_value = record.get(key)
         if value is not None:
             record.update({key: value})
-            cursor.execute(f"""UPDATE params_new SET params = ?""", (json.dumps(record),))
+            cursor.execute(f"""UPDATE params SET params = ?""", (json.dumps(record),))
         return return_value
 
     @open_close_db

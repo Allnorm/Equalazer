@@ -16,7 +16,7 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.9.2.1"
+    VERSION = "1.9.2.2"
     BUILD_DATE = "07.03.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
@@ -27,7 +27,7 @@ class ConfigData:
     global_timer_ban = 300
     __votes_need = 0
     __votes_need_ban = 0
-    __votes_need_min = 1
+    __votes_need_min = 2
     main_chat_id = ""  # Outside param
     debug = False
     vote_mode = 3
@@ -45,6 +45,18 @@ class ConfigData:
     bot_id = None
     welcome_default = "Welcome to {1}!"
     thread_id = None
+    SQL_INIT = {"version": VERSION,
+                "votes": __votes_need,
+                "votes_ban": __votes_need_ban,
+                "timer": global_timer,
+                "timer_ban": global_timer_ban,
+                "min_vote": __votes_need_min,
+                "vote_mode": vote_mode,
+                "wait_timer": wait_timer,
+                "abuse_mode": abuse_mode,
+                "rate": 1,
+                "public_mode": 0,
+                "allowed_admins": __ADMIN_RECOMMENDED}
 
     def __init__(self):
 
@@ -300,7 +312,7 @@ class ConfigData:
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
-sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.VERSION)
+sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
 
 
 def init():
