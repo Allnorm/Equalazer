@@ -345,7 +345,7 @@ def init():
 
 def auto_clear():
     while True:
-        records = sqlWorker.get_all_pools()
+        records = sqlWorker.get_all_polls()
         for record in records:
             if record[5] + 600 < int(time.time()):
                 sqlWorker.rem_rec(record[1], record[0])
@@ -558,13 +558,13 @@ def private_checker(message):  # Проверка на то, можно ли с�
         return "none"
 
 
-def pool_saver(unique_id, message_vote):
+def poll_saver(unique_id, message_vote):
     try:
-        pool = open(data.path + unique_id, 'wb')
-        pickle.dump(message_vote, pool, protocol=4)
-        pool.close()
+        poll = open(data.path + unique_id, 'wb')
+        pickle.dump(message_vote, poll, protocol=4)
+        poll.close()
     except (IOError, pickle.PicklingError):
-        logging.error("Failed to picking a pool! You will not be able to resume the timer after restarting the bot!")
+        logging.error("Failed to picking a poll! You will not be able to resume the timer after restarting the bot!")
         logging.error(traceback.format_exc())
 
 

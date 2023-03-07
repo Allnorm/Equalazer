@@ -25,7 +25,7 @@ class SqlWorker:
 
         sqlite_connection = sqlite3.connect(dbname)
         cursor = sqlite_connection.cursor()
-        cursor.execute('''CREATE TABLE if not exists current_pools (
+        cursor.execute('''CREATE TABLE if not exists current_polls (
                                     unique_id TEXT NOT NULL PRIMARY KEY,
                                     message_id INTEGER UNIQUE,
                                     type TEXT NOT NULL,
@@ -54,7 +54,6 @@ class SqlWorker:
                                     abuse_random INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
-        cursor.execute("""DROP TABLE if exists users_choise;""")
         cursor.execute("""CREATE TABLE if not exists params (
                                     params TEXT PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists captcha (
@@ -72,8 +71,8 @@ class SqlWorker:
         sqlite_connection.close()
 
     @open_close_db
-    def get_all_pools(self, cursor):
-        cursor.execute("""SELECT * FROM current_pools""")
+    def get_all_polls(self, cursor):
+        cursor.execute("""SELECT * FROM current_polls""")
         records = cursor.fetchall()
         return records
 
@@ -124,23 +123,23 @@ class SqlWorker:
         return fetchall
 
     @open_close_db
-    def add_pool(self, cursor, unique_id, message_vote, pool_type, current_time, work_data, votes_need, user_id):
-        cursor.execute("""INSERT INTO current_pools VALUES (?,?,?,?,?,?,?,?,?);""",
-                       (unique_id, message_vote.id, pool_type, 0, 0, current_time, work_data, votes_need, user_id))
+    def add_poll(self, cursor, unique_id, message_vote, poll_type, current_time, work_data, votes_need, user_id):
+        cursor.execute("""INSERT INTO current_polls VALUES (?,?,?,?,?,?,?,?,?);""",
+                       (unique_id, message_vote.id, poll_type, 0, 0, current_time, work_data, votes_need, user_id))
 
     @open_close_db
     def msg_chk(self, cursor, message_vote=None, unique_id=None):
         if message_vote is not None:
-            cursor.execute("""SELECT * FROM current_pools WHERE message_id = ?""", (message_vote.message_id,))
+            cursor.execute("""SELECT * FROM current_polls WHERE message_id = ?""", (message_vote.message_id,))
         elif unique_id is not None:
-            cursor.execute("""SELECT * FROM current_pools WHERE unique_id = ?""", (unique_id,))
+            cursor.execute("""SELECT * FROM current_polls WHERE unique_id = ?""", (unique_id,))
         records = cursor.fetchall()
         return records
 
     @open_close_db
     def rem_rec(self, cursor, message_id, unique_id=None):
         if unique_id is not None:
-            cursor.execute("""DELETE FROM current_pools WHERE unique_id = ?""", (unique_id,))
+            cursor.execute("""DELETE FROM current_polls WHERE unique_id = ?""", (unique_id,))
         cursor.execute("""DELETE FROM users_choice WHERE message_id = ?""", (message_id,))
 
     @open_close_db
@@ -153,8 +152,8 @@ class SqlWorker:
         return fetchall
 
     @open_close_db
-    def pool_update(self, cursor, counter_yes, counter_no, unique_id):
-        cursor.execute("""UPDATE current_pools SET counter_yes = ?, counter_no = ? where unique_id = ?""",
+    def poll_update(self, cursor, counter_yes, counter_no, unique_id):
+        cursor.execute("""UPDATE current_polls SET counter_yes = ?, counter_no = ? where unique_id = ?""",
                        (counter_yes, counter_no, unique_id))
 
     @open_close_db

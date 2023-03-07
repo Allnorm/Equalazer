@@ -722,7 +722,7 @@ class RemoveRules(PostVote):
                               self.message_vote.chat.id, self.message_vote.message_id)
 
 
-class CustomPool(PostVote):
+class CustomPoll(PostVote):
     _description = "пользовательский опрос"
 
     def post_vote_child(self):

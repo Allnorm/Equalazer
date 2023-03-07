@@ -17,16 +17,16 @@ data = utils.data
 bot = utils.bot
 
 
-def auto_restart_pools():
+def auto_restart_polls():
     time_now = int(time.time())
-    records = sqlWorker.get_all_pools()
+    records = sqlWorker.get_all_polls()
     for record in records:
         try:
-            pool = open(data.path + record[0], 'rb')
-            message_vote = pickle.load(pool)
-            pool.close()
+            poll = open(data.path + record[0], 'rb')
+            message_vote = pickle.load(poll)
+            poll.close()
         except (IOError, pickle.UnpicklingError):
-            logging.error(f"Failed to read a pool {record[0]}!")
+            logging.error(f"Failed to read a poll {record[0]}!")
             logging.error(traceback.format_exc())
             continue
         if record[5] > time_now:
@@ -38,7 +38,7 @@ def auto_restart_pools():
 
 sqlWorker = utils.sqlWorker
 utils.init()
-auto_restart_pools()
+auto_restart_polls()
 
 
 @bot.message_handler(commands=['invite'])
@@ -146,9 +146,9 @@ def rules_msg(message):
     prevote.Rules(message)
 
 
-@bot.message_handler(commands=['pool'])
-def custom_pool(message):
-    prevote.CustomPool(message)
+@bot.message_handler(commands=['poll'])
+def custom_poll(message):
+    prevote.CustomPoll(message)
 
 
 @bot.message_handler(commands=['answer'])
@@ -160,9 +160,9 @@ def add_answer(message):
         bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на заявку на вступление")
         return
 
-    pool = sqlWorker.msg_chk(message_vote=message.reply_to_message)
-    if pool:
-        if pool[0][2] != "invite":
+    poll = sqlWorker.msg_chk(message_vote=message.reply_to_message)
+    if poll:
+        if poll[0][2] != "invite":
             bot.reply_to(message, "Данное голосование не является голосованием о вступлении.")
             return
     else:
@@ -175,7 +175,7 @@ def add_answer(message):
         bot.reply_to(message, "Ответ не может быть пустым.")
         return
 
-    datalist = json.loads(pool[0][6])
+    datalist = json.loads(poll[0][6])
 
     try:
         bot.send_message(datalist[0], "Сообщение на вашу заявку от участника чата - \"" + msg_from_usr + "\"")
@@ -319,8 +319,8 @@ def votes_msg(message):
     if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
-    records = sqlWorker.get_all_pools()
-    pool_list = ""
+    records = sqlWorker.get_all_polls()
+    poll_list = ""
     number = 1
 
     if bot.get_chat(data.main_chat_id).username is not None:
@@ -329,17 +329,17 @@ def votes_msg(message):
         format_chat_id = "c/" + str(data.main_chat_id)[4:]
 
     for record in records:
-        pool_list = pool_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
+        poll_list = poll_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
                                 f"тип - {post_vote_list[record[2]].description}, " + \
                     f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
         number = number + 1
 
-    if pool_list == "":
-        pool_list = "У вас нет активных голосований!"
+    if poll_list == "":
+        poll_list = "У вас нет активных голосований!"
     else:
-        pool_list = "Список активных голосований:\n" + pool_list
+        poll_list = "Список активных голосований:\n" + poll_list
 
-    bot.reply_to(message, pool_list)
+    bot.reply_to(message, poll_list)
 
 
 @bot.message_handler(commands=['abyss'])
@@ -551,17 +551,17 @@ def cancel_vote(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
         return
 
-    pool = call_msg_chk(call_msg)
-    if not pool:
+    poll = call_msg_chk(call_msg)
+    if not poll:
         return
-    if pool[0][8] != call_msg.from_user.id:
+    if poll[0][8] != call_msg.from_user.id:
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
     vote_abuse.clear()
-    sqlWorker.rem_rec(call_msg.message.id, pool[0][0])
+    sqlWorker.rem_rec(call_msg.message.id, poll[0][0])
     try:
-        os.remove(data.path + pool[0][0])
+        os.remove(data.path + poll[0][0])
     except IOError:
         pass
     bot.edit_message_text(utils.html_fix(call_msg.message.text)
@@ -653,7 +653,7 @@ def callback_inline(call_msg):
                 if call_msg.data == "no":
                     counter_no = counter_no + 1
                     counter_yes = counter_yes - 1
-                sqlWorker.pool_update(counter_yes, counter_no, unique_id)
+                sqlWorker.poll_update(counter_yes, counter_no, unique_id)
                 sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
                 utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
             else:
@@ -677,7 +677,7 @@ def callback_inline(call_msg):
                 else:
                     counter_no = counter_no - 1
                 sqlWorker.user_vote_remove(call_msg)
-            sqlWorker.pool_update(counter_yes, counter_no, unique_id)
+            sqlWorker.poll_update(counter_yes, counter_no, unique_id)
             utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
     else:
         if call_msg.data == "yes":
@@ -685,7 +685,7 @@ def callback_inline(call_msg):
         if call_msg.data == "no":
             counter_no = counter_no + 1
 
-        sqlWorker.pool_update(counter_yes, counter_no, unique_id)
+        sqlWorker.poll_update(counter_yes, counter_no, unique_id)
         sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
         utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
 
