@@ -55,7 +55,6 @@ class SqlWorker:
         cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
         cursor.execute("""DROP TABLE if exists users_choise;""")
-        cursor.execute("ALTER TABLE params_new RENAME TO params")
         cursor.execute("""CREATE TABLE if not exists params (
                                     params TEXT PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists captcha (
