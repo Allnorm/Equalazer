@@ -242,10 +242,10 @@ class SqlWorker:
         return record[0][1]
 
     @open_close_db
-    def params(self, cursor, key, value=None):
+    def params(self, cursor, key, value=None, default_return=None):
         cursor.execute(f"""SELECT * FROM params""")
         record: dict = json.loads(cursor.fetchall()[0][0])
-        return_value = record.get(key)
+        return_value = record.get(key, default_return)
         if value is not None:
             record.update({key: value})
             cursor.execute(f"""UPDATE params SET params = ?""", (json.dumps(record),))

@@ -34,7 +34,10 @@ post_vote_list = {
     "whitelist": postvote.Whitelist(),
     "global admin permissons": postvote.GlobalOp(),
     "private mode": postvote.PrivateMode(),
-    "remove topic": postvote.Topic()
+    "remove topic": postvote.Topic(),
+    "add rules": postvote.AddRules(),
+    "remove rules": postvote.RemoveRules(),
+    "custom pool": postvote.CustomPool()
 }
 
 sqlWorker = utils.sqlWorker
@@ -95,8 +98,7 @@ class PreVote:
         self.message = message
         self.user_id = message.from_user.id
         if utils.extract_arg(message.text, 1) == "help":
-            if not utils.command_forbidden(self.message):
-                self.help()
+            self.help()
             return
         self.current_timer, self.current_votes = self.timer_votes_init()
         if self.pre_return():
@@ -1325,6 +1327,7 @@ class Title(PreVote):
 class Description(PreVote):
     unique_id = "description"
     vote_type = unique_id
+    help_text = "Для установки описания чата следует реплейнуть командой по сообщению с текстом описания."
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message):
@@ -1629,3 +1632,110 @@ class AlliesList(PreVote):
             return
 
         bot.reply_to(self.message, allies_text)
+
+
+class Rules(PreVote):
+    unique_id = "rules"
+    help_text = "Используйте аргументы add (с реплеем по сообщению с текстом правил) для добавления правил, " \
+                "remove - для их удаления."
+
+
+    def pre_return(self) -> bool:
+        if utils.command_forbidden(self.message):
+            return True
+
+    def direct_fn(self):
+        if data.fixed_rules:
+            try:
+                rules_text = open(data.path + "rules.txt", encoding="utf-8").read()
+            except FileNotFoundError:  # No file = no rules!
+                bot.reply_to(self.message, "В чате нет правил!")
+                return
+            except IOError:
+                logging.error(traceback.format_exc())
+                bot.reply_to(self.message, "Файл rules.txt не читается!")
+                return
+            bot.reply_to(self.message, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
+        else:
+            rules_text = sqlWorker.params("rules", default_return="")
+            if rules_text == "":
+                bot.reply_to(self.message, "В чате нет правил!")
+                return
+            bot.reply_to(self.message, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
+
+    def set_args(self) -> dict:
+        return {"add": self.add, "remove": self.remove}
+
+    def add(self):
+        if data.fixed_rules:
+            bot.reply_to(self.message, "Изменение правил запрещено хостером бота")
+            return
+        if self.message.reply_to_message is None:
+            bot.reply_to(self.message, "Пожалуйста, используйте эту команду как ответ на текстовое сообщение.")
+            return
+
+        if self.message.reply_to_message.text is None:
+            bot.reply_to(self.message, "В отвеченном сообщении не обнаружен текст!")
+            return
+        self.vote_type = "add rules"
+        self.pre_vote("добавление", self.message.reply_to_message.text)
+
+    def remove(self):
+        if data.fixed_rules:
+            bot.reply_to(self.message, "Изменение правил запрещено хостером бота")
+            return
+        rules_text = sqlWorker.params("rules", default_return="")
+        if rules_text == "":
+            bot.reply_to(self.message, "В чате нет правил!")
+            return
+        self.vote_type = "remove rules"
+        self.pre_vote("удаление", rules_text)
+
+    def pre_vote(self, vote_type_text, rules_text):
+        if self.is_voting_exist():
+            return
+        self.vote_text = (f"Тема голосования: {vote_type_text} правил.\nТекст правил:\n"
+                          f"<b>{utils.html_fix(rules_text)}</b>"
+                          f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.vote_args = [rules_text, utils.username_parser(self.message)]
+        self.pool_constructor()
+
+class CustomPool(PreVote):
+    vote_type = "custom pool"
+    help_text = 'Используйте эту команду для создания простых опросов с ответом только "да" и "нет".\n' \
+                'Первым аргументом может быть парсимое время (подробнее см. /help).\n' \
+                'Если аргумент времени не парсится, длительность опроса будет 1 сутки.\n' \
+                'Если кроме аргумента времени текста больше нет, аргумент будет считаться текстом.'
+
+    def pre_return(self) -> bool:
+        if utils.command_forbidden(self.message, True):
+            return True
+
+    @staticmethod
+    def timer_votes_init():
+        """timer, votes"""
+        return 86400, data.thresholds_get()
+
+    def direct_fn(self):
+        self.help()
+
+    def arg_fn(self, arg):
+        pool_timer = utils.time_parser(arg)
+        if pool_timer is None:
+            pool_text = self.message.text.split(maxsplit=1)[1]
+        else:
+            if utils.extract_arg(self.message.text, 2) is None:
+                pool_text = arg
+            else:
+                pool_text = self.message.text.split(maxsplit=2)[2]
+                self.current_timer = pool_timer
+        if not 300 <= self.current_timer <= 86400:
+            bot.reply_to(self.message, "Время опроса не может быть меньше 5 минут и больше 1 суток.")
+            return
+        self.unique_id = "custom_" + pool_text
+        if self.is_voting_exist():
+            return
+        self.vote_text = (f"Текст опроса:\n<b>{utils.html_fix(pool_text)}</b>"
+                          f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
+        self.vote_args = [pool_text]
+        self.pool_constructor()

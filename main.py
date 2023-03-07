@@ -141,6 +141,16 @@ def allies_list(message):
     prevote.AlliesList(message)
 
 
+@bot.message_handler(commands=['rules'])
+def rules_msg(message):
+    prevote.Rules(message)
+
+
+@bot.message_handler(commands=['pool'])
+def custom_pool(message):
+    prevote.CustomPool(message)
+
+
 @bot.message_handler(commands=['answer'])
 def add_answer(message):
     if not utils.botname_checker(message) or utils.command_forbidden(message):
@@ -302,23 +312,6 @@ def help_msg(message):
         return
 
     bot.reply_to(message, help_text, parse_mode="html")
-
-
-@bot.message_handler(commands=['rules'])
-def rules_msg(message):
-    if not utils.botname_checker(message) or not data.rules or utils.command_forbidden(message):
-        return
-
-    try:
-        rules_text = open(data.path + "rules.txt", encoding="utf-8").read()
-    except FileNotFoundError:
-        bot.reply_to(message, "Файл rules.txt не найден")
-        return
-    except IOError:
-        bot.reply_to(message, "Файл rules.txt не читается")
-        return
-
-    bot.reply_to(message, rules_text, parse_mode="html")
 
 
 @bot.message_handler(commands=['votes'])

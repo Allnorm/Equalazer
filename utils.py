@@ -34,7 +34,7 @@ class ConfigData:
     wait_timer = 30
     abuse_mode = 2
     secret_ballot = True  # Outside param
-    rules = False
+    fixed_rules = False # Outside param
     rate = True
     admin_fixed = False  # Outside param
     admin_allowed = __ADMIN_RECOMMENDED  # Ведущий бит всегда 1, запись сделана задом наперёд
@@ -94,7 +94,7 @@ class ConfigData:
                 self.vote_mode = int(config["Chat"]["votes-mode"])
                 self.wait_timer = int(config["Chat"]["wait-timer"])
                 self.abuse_mode = int(config["Chat"]["abuse-mode"])
-                self.rules = self.bool_init(config["Chat"]["rules"])
+                self.fixed_rules = self.bool_init(config["Chat"]["fixed-rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
                 self.chat_mode = config["Chat"]["chat-mode"]
@@ -295,7 +295,7 @@ class ConfigData:
         config.set("Chat", "votes-mode", "3")
         config.set("Chat", "wait-timer", "30")
         config.set("Chat", "abuse-mode", "2")
-        config.set("Chat", "rules", "false")
+        config.set("Chat", "fixed-rules", "false")
         config.set("Chat", "rate", "true")
         config.set("Chat", "admin-fixed", "false")
         config.set("Chat", "chat-mode", "mixed")

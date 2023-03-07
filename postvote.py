@@ -694,3 +694,44 @@ class Topic(PostVote):
     def decline(self):
         bot.edit_message_text(f"Вопрос удаления топика отклонён." + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
+
+class AddRules(PostVote):
+    _description = "добавление правил"
+
+    def accept(self):
+        sqlWorker.params("rules", self.data_list[0])
+        bot.edit_message_text(f"Пользователь {utils.html_fix(self.data_list[1])} установил следующие правила чата:\n"
+                              f"<b>{utils.html_fix(self.data_list[0])}</b>" + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
+
+    def decline(self):
+        bot.edit_message_text(f"Вопрос добавления правил отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
+
+
+class RemoveRules(PostVote):
+    _description = "удаление правил"
+
+    def accept(self):
+        sqlWorker.params("rules", "")
+        bot.edit_message_text(f"Пользователь {self.data_list[1]} удалил правила чата!"
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        bot.edit_message_text(f"Вопрос удаления правил отклонён." + self.votes_counter,
+                              self.message_vote.chat.id, self.message_vote.message_id)
+
+
+class CustomPool(PostVote):
+    _description = "пользовательский опрос"
+
+    def post_vote_child(self):
+        self.votes_counter = "\nЗа: " + str(self.records[0][3]) + "\n" + "Против: " + str(self.records[0][4])
+
+    def accept(self):
+        self.decline()  # Problems?)))))
+
+    def decline(self):
+        bot.edit_message_text(f"Опрос завершён. Текст опроса:\n<b>{utils.html_fix(self.data_list[0])}</b>"
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
+                              parse_mode="html")
