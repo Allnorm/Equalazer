@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.9.4"
-    BUILD_DATE = "07.03.2023"
+    VERSION = "1.9.5"
+    BUILD_DATE = "08.03.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
@@ -34,7 +34,7 @@ class ConfigData:
     wait_timer = 30
     abuse_mode = 2
     secret_ballot = True  # Outside param
-    fixed_rules = False # Outside param
+    fixed_rules = False  # Outside param
     rate = True
     admin_fixed = False  # Outside param
     admin_allowed = __ADMIN_RECOMMENDED  # Ведущий бит всегда 1, запись сделана задом наперёд

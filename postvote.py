@@ -695,6 +695,7 @@ class Topic(PostVote):
         bot.edit_message_text(f"Вопрос удаления топика отклонён." + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
 
+
 class AddRules(PostVote):
     _description = "добавление правил"
 

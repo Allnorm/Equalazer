@@ -144,12 +144,15 @@ class PreVote:
             return True
         return False
 
+    def get_votes_text(self):
+        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, "\
+               f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
+               f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
+
     def poll_constructor(self):
         """unique_id: str, vote_text: str, message, vote_type: str, current_timer: int, current_votes: int,
                      vote_args: list, user_id: int, adduser=False, silent=False"""
-        vote_text = f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
-                    f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
-                    f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
+        vote_text = self.get_votes_text()
         cancel = False if data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID else True
         message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, cancel)
         sqlWorker.add_poll(self.unique_id, message_vote, self.vote_type, int(time.time()) + self.current_timer,
@@ -158,7 +161,8 @@ class PreVote:
         threading.Thread(target=vote_timer, args=(self.current_timer, self.unique_id, message_vote)).start()
 
     def reply_msg_target(self):
-        self.reply_user_id, self.reply_username, self.reply_is_bot = utils.reply_msg_target(self.message)
+        self.reply_user_id, self.reply_username, self.reply_is_bot = \
+            utils.reply_msg_target(self.message.reply_to_message)
 
 
 class Invite(PreVote):
@@ -435,6 +439,15 @@ class Thresholds(PreVote):
                      + "Голосов для бана требуется: " + str(data.thresholds_get(True)) + auto_thresholds_ban_mode
                      + "\n" + "Минимальный порог голосов для принятия решения: "
                      + str(data.thresholds_get(minimum=True)) + auto_thresholds_min_mode)
+
+    def get_votes_text(self):
+        if self.unique_id == "threshold_min":
+            return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
+                   f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}."
+
+        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, "\
+               f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
+               f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
 
     def arg_fn(self, arg):
         if arg != "auto":
@@ -1639,7 +1652,6 @@ class Rules(PreVote):
     help_text = "Используйте аргументы add (с реплеем по сообщению с текстом правил) для добавления правил, " \
                 "remove - для их удаления."
 
-
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message):
             return True
@@ -1700,12 +1712,14 @@ class Rules(PreVote):
         self.vote_args = [rules_text, utils.username_parser(self.message)]
         self.poll_constructor()
 
+
 class CustomPoll(PreVote):
     vote_type = "custom poll"
     help_text = 'Используйте эту команду для создания простых опросов с ответом только "да" и "нет".\n' \
                 'Первым аргументом может быть парсимое время (подробнее см. /help).\n' \
                 'Если аргумент времени не парсится, длительность опроса будет 1 сутки.\n' \
-                'Если кроме аргумента времени текста больше нет, аргумент будет считаться текстом.'
+                'Если кроме аргумента времени текста больше нет, аргумент будет считаться текстом.\n' \
+                'Опрос закрывается по завершении таймера или после набора голосов всех участников.'
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message, True):
@@ -1714,10 +1728,14 @@ class CustomPoll(PreVote):
     @staticmethod
     def timer_votes_init():
         """timer, votes"""
-        return 86400, data.thresholds_get()
+        return 86400, bot.get_chat_member_count(data.main_chat_id)
 
     def direct_fn(self):
         self.help()
+
+    def get_votes_text(self):
+        return f"{self.vote_text}\nОпрос будет закрыт через {utils.formatted_timer(self.current_timer)} " \
+               f"или после голосования всех участников чата."
 
     def arg_fn(self, arg):
         poll_timer = utils.time_parser(arg)

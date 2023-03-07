@@ -65,7 +65,7 @@ class SqlWorker:
         cursor.execute(f"""SELECT * FROM params""")
         records = cursor.fetchall()
         if not records:
-            cursor.execute("""INSERT INTO params VALUES)""", (json.dumps(recommended),))
+            cursor.execute("""INSERT INTO params VALUES (?)""", (json.dumps(recommended),))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
