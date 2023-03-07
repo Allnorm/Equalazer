@@ -94,6 +94,10 @@ class PreVote:
             return
         self.message = message
         self.user_id = message.from_user.id
+        if utils.extract_arg(message.text, 1) == "help":
+            if not utils.command_forbidden(self.message):
+                self.help()
+            return
         self.current_timer, self.current_votes = self.timer_votes_init()
         if self.pre_return():
             return
@@ -101,8 +105,6 @@ class PreVote:
         arg = utils.extract_arg(message.text, 1)
         if arg is None:
             self.direct_fn()
-        elif arg == "help":
-            self.help()
         else:
             self.arg_fn(arg)
 
@@ -513,6 +515,9 @@ class Thresholds(PreVote):
 
 
 class Timer(PreVote):
+    help_text = "Использовать как /timer [время] [ban или без аргумента],\n" \
+                "или как /timer [время|0 (без кулдауна)|off|disable] random.\n" \
+                "Подробнее о парсинге времени - см. команду /help."
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message, private_dialog=True):
@@ -578,12 +583,12 @@ class Timer(PreVote):
     def random(self, timer_arg):
         self.unique_id = "timer for random cooldown"
         ban_text = "кулдауна команды /random"
-        if utils.extract_arg(self.message.text, 1) == "off":
+        if utils.extract_arg(self.message.text, 1) in ("off", "disable"):
             timer_arg = -1
         if timer_arg is None:
             bot.reply_to(self.message, "Неверный аргумент (должно быть число от 0 секунд до 1 часа).")
             return
-        elif timer_arg < 0 or timer_arg > 3600:
+        elif timer_arg < -1 or timer_arg > 3600:
             bot.reply_to(self.message, "Количество времени не может быть меньше 0 секунд и больше 1 часа.")
             return
         elif timer_arg == sqlWorker.abuse_random(self.message.chat.id):
@@ -591,6 +596,9 @@ class Timer(PreVote):
             return
         if timer_arg == 0:
             vote_text = (f"Тема голосования: отключение кулдауна команды /random."
+                         f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
+        elif timer_arg == -1:
+            vote_text = (f"Тема голосования: отключение команды /random."
                          f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         else:
             vote_text = ""

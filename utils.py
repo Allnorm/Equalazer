@@ -348,7 +348,7 @@ def auto_clear():
 def extract_arg(text, num):
     try:
         return text.split()[num]
-    except IndexError:
+    except (IndexError, AttributeError):
         pass
 
 
