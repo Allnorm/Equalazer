@@ -46,9 +46,14 @@ def add_usr(message):
     prevote.Invite(message)
 
 
-@bot.message_handler(commands=['ban', 'kick'])
+@bot.message_handler(commands=['ban', 'banuser'])
 def ban_usr(message):
     prevote.Ban(message)
+
+
+@bot.message_handler(commands=['kick', 'kickuser'])
+def kick_usr(message):
+    prevote.Kick(message)
 
 
 @bot.message_handler(commands=['mute'])

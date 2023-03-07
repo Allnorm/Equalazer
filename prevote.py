@@ -145,7 +145,7 @@ class PreVote:
         return False
 
     def get_votes_text(self):
-        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, "\
+        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
                f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
                f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
 
@@ -308,6 +308,12 @@ class Ban(PreVote):
         self.poll_constructor()
 
 
+class Kick(Ban):
+
+    def direct_fn(self):
+        self.ban(3600, True, f"\nПредложенный срок блокировки: {utils.formatted_timer(3600)}", 1)
+
+
 class Mute(PreVote):
     vote_type = "ban"
 
@@ -445,7 +451,7 @@ class Thresholds(PreVote):
             return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
                    f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}."
 
-        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, "\
+        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
                f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
                f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
 
@@ -978,20 +984,22 @@ class PrivateMode(PreVote):
 
 class Op(PreVote):
     vote_type = "op"
+    help_text = "В ДейтерБоте используется система записи прав администратора в виде строки из единиц " \
+                "и нулей. Для получения и выдачи нужных прав необходимо использовать запись вида " \
+                "/op 001010010 и т. п. Если не использовать данную запись, будут выданы права по умолчанию " \
+                "для чата.\nГлобальные права администраторов для чата можно изменить с помощью команды вида " \
+                "/op global 001010010, если хостер бота не запретил это.\n<b>Попытка выдачи недоступных " \
+                "боту или отключенных на уровне чата прав приведёт к ошибке!\nТекущие права для чата:</b>\n" \
+                "Изменения заблокированы хостером - {}{}" \
+                "\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message):
             return True
 
-        self.help_text = "В ДейтерБоте используется система записи прав администратора в виде строки из единиц " \
-                         "и нулей. Для получения и выдачи нужных прав необходимо использовать запись вида " \
-                         "/op 001010010 и т. п. Если не использовать данную запись, будут выданы права по умолчанию " \
-                         "для чата.\nГлобальные права администраторов для чата можно изменить с помощью команды вида " \
-                         "/op global 001010010, если хостер бота не запретил это.\n<b>Попытка выдачи недоступных " \
-                         "боту или отключенных на уровне чата прав приведёт к ошибке!\nТекущие права для чата:</b>\n" \
-                         f"Изменения заблокированы хостером - {data.admin_fixed}" \
-                         f"{utils.allowed_list(data.admin_allowed)}" \
-                         "\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
+    def help(self):
+        bot.reply_to(self.message, self.help_text.format(data.admin_fixed,
+                                                         utils.allowed_list(data.admin_allowed)), parse_mode="html")
 
     def set_args(self) -> dict:
         return {"list": self.list, "global": self.global_rules}
@@ -1678,9 +1686,15 @@ class Rules(PreVote):
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
 
+    def help(self):
+        if data.fixed_rules:
+            bot.reply_to(self.message, "Изменение правил запрещено хостером бота.")
+            return
+        bot.reply_to(self.message, self.help_text, parse_mode="html")
+
     def add(self):
         if data.fixed_rules:
-            bot.reply_to(self.message, "Изменение правил запрещено хостером бота")
+            bot.reply_to(self.message, "Изменение правил запрещено хостером бота.")
             return
         if self.message.reply_to_message is None:
             bot.reply_to(self.message, "Пожалуйста, используйте эту команду как ответ на текстовое сообщение.")
@@ -1694,7 +1708,7 @@ class Rules(PreVote):
 
     def remove(self):
         if data.fixed_rules:
-            bot.reply_to(self.message, "Изменение правил запрещено хостером бота")
+            bot.reply_to(self.message, "Изменение правил запрещено хостером бота.")
             return
         rules_text = sqlWorker.params("rules", default_return="")
         if rules_text == "":
