@@ -21,6 +21,8 @@ class SqlWorker:
     
     def __init__(self, dbname, version):
 
+        self.dbname = dbname
+
         sqlite_connection = sqlite3.connect(dbname)
         cursor = sqlite_connection.cursor()
         cursor.execute('''CREATE TABLE if not exists current_pools (
@@ -52,19 +54,8 @@ class SqlWorker:
                                     abuse_random INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists allies (
                                     chat_id INTEGER PRIMARY KEY);""")
-        cursor.execute("""CREATE TABLE if not exists params (
-                                    version TEXT,
-                                    votes INTEGER,
-                                    votes_ban INTEGER,
-                                    timer INTEGER,
-                                    timer_ban INTEGER,
-                                    min_vote INTEGER,
-                                    vote_mode INTEGER,
-                                    wait_timer INTEGER,
-                                    abuse_mode INTEGER,
-                                    rate INTEGER,
-                                    public_mode INTEGER,
-                                    allowed_admins INTEGER);""")
+        cursor.execute("""DROP TABLE if exists params;""")
+        cursor.execute("""DROP TABLE if exists users_choise;""")
         cursor.execute("""CREATE TABLE if not exists params_new (
                                     params TEXT PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists captcha (
@@ -73,7 +64,7 @@ class SqlWorker:
                                     max_value INTEGER,
                                     username TEXT);""")
         cursor.execute("""DELETE FROM captcha""")
-        cursor.execute(f"""SELECT * FROM params""")
+        cursor.execute(f"""SELECT * FROM params_new""")
         records = cursor.fetchall()
         if not records:
             cursor.execute("""INSERT INTO params_new VALUES)""", (json.dumps({"version": f"{version}",
@@ -88,19 +79,9 @@ class SqlWorker:
                                                                               "rate": 1,
                                                                               "public_mode": 0,
                                                                               "allowed_admins": 915}),))
-            cursor.execute("""INSERT INTO params VALUES (?, 0, 0, 3600, 600, 2, 3, 30, 2, 1, 0, 915)""", (version,))
-        else:
-            cursor.execute(f"""SELECT * FROM params_new""")
-            if not cursor.fetchall():
-                cursor.execute("""INSERT INTO params_new VALUES (?)""",
-                           (json.dumps(dict(zip(["version", "votes", "votes_ban", "timer", "timer_ban",
-                                                 "min_vote", "vote_mode", "wait_timer", "abuse_mode", "rate",
-                                                 "public_mode", "allowed_admins"], records[0]))),))
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
-
-        self.dbname = dbname
 
     @open_close_db
     def get_all_pools(self, cursor):
