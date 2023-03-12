@@ -1484,7 +1484,6 @@ class NewUserChecker(PreVote):
                     if usr_status not in ["left", "kicked"]:
                         if data.binary_chat_mode == 0:
                             sqlWorker.whitelist(self.reply_user_id, add=True)
-                        bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
                         return
                 except telebot.apihelper.ApiTelegramException:
                     sqlWorker.remove_ally(i[0])

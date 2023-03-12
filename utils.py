@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.9.6"
-    BUILD_DATE = "08.03.2023"
+    VERSION = "1.9.7"
+    BUILD_DATE = "12.03.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
