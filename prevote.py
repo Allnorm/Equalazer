@@ -32,7 +32,7 @@ post_vote_list = {
     "remove allies": postvote.RemoveAllies(),
     "timer for random cooldown": postvote.RandomCooldown(),
     "whitelist": postvote.Whitelist(),
-    "global admin permissons": postvote.GlobalOp(),
+    "global admin permissions": postvote.GlobalOp(),
     "private mode": postvote.PrivateMode(),
     "remove topic": postvote.Topic(),
     "add rules": postvote.AddRules(),
@@ -1001,6 +1001,12 @@ class Op(PreVote):
         bot.reply_to(self.message, self.help_text.format(data.admin_fixed,
                                                          utils.allowed_list(data.admin_allowed)), parse_mode="html")
 
+    def arg_fn(self, arg):  # If the command was run with arguments
+        try:
+            self.args[arg]()  # Runs a function from a dictionary by default
+        except KeyError:
+            self.direct_fn()
+
     def set_args(self) -> dict:
         return {"list": self.list, "global": self.global_rules}
 
@@ -1027,7 +1033,7 @@ class Op(PreVote):
             bot.reply_to(self.message, "Изменение глобальных прав администраторов для чата заблокировано хостером.")
             return
 
-        self.unique_id = "global admin permissons"
+        self.unique_id = "global admin permissions"
         self.vote_type = self.unique_id
         if self.is_voting_exist():
             return
@@ -1090,7 +1096,7 @@ class Op(PreVote):
             chosen_rights = utils.allowed_list(binary_rule)
         else:
             binary_rule = data.admin_allowed
-            chosen_rights = " дефолтные (см. /op help)"
+            chosen_rights = f" установленные в чате по умолчанию.{utils.allowed_list(binary_rule)}"
 
         self.unique_id = str(self.reply_user_id) + "_op"
         if self.is_voting_exist():
@@ -1098,7 +1104,7 @@ class Op(PreVote):
 
         self.vote_text = (f"Тема голосования: выдача/изменение прав администратора пользователю "
                           f"{utils.html_fix(self.reply_username)}"
-                          f"\nПрава, выбранные пользователем для выдачи:{chosen_rights}"
+                          f"\nПрава, выбранные для выдачи пользователю:{chosen_rights}"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}."
                           "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>")
         self.vote_args = [self.reply_user_id, self.reply_username, binary_rule]

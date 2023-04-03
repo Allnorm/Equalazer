@@ -44,19 +44,9 @@ class PostVote:
                 self.accept()
             else:
                 self.decline()
-        except self.SilentException:  # Пусть не срёт в логи после clearmsg
-            return
         except Exception as e:
             logging.error(str(e) + "\n" + traceback.format_exc())
         self.final_hook()
-        try:
-            bot.unpin_chat_message(data.main_chat_id, message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-        try:
-            bot.reply_to(message_vote, "Оповещение о закрытии голосования.")
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
 
     def post_vote_child(self):
         return
@@ -68,7 +58,14 @@ class PostVote:
         return
 
     def final_hook(self):
-        return
+        try:
+            bot.unpin_chat_message(data.main_chat_id, self.message_vote.message_id)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+        try:
+            bot.reply_to(self.message_vote, "Голосование завершено!")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
 
     @property
     def description(self):
@@ -310,28 +307,34 @@ class DelMessage(PostVote):
     def accept(self):
         try:
             bot.delete_message(self.message_vote.chat.id, self.data_list[0])
-            if self.data_list[2]:
-                bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
-                raise self.SilentException
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(traceback.format_exc())
-            if self.data_list[2]:
-                bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
-                return
             if "message to delete not found" in str(e):
                 bot.edit_message_text("Сообщение, которое требуется удалить, не найдено." + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
             else:
                 bot.edit_message_text("Ошибка удаления сообщения по голосованию." + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
+            self.data_list[2] = False  # Disable silent mode
             return
 
-        bot.edit_message_text("Сообщение пользователя " + self.data_list[1] + " удалено успешно."
-                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+        if self.data_list[2]:
+            try:
+                bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
+            except telebot.apihelper.ApiTelegramException:
+                logging.error(traceback.format_exc())
+        else:
+            bot.edit_message_text("Сообщение пользователя " + self.data_list[1] + " удалено успешно."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
         bot.edit_message_text("Вопрос удаления сообщения отклонён." + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
+
+    def final_hook(self):
+        if self.data_list[2]:
+            return
+        super().final_hook()
 
 
 class GlobalOp(PostVote):
@@ -362,7 +365,7 @@ class Op(PostVote):
 
     def accept(self):
         status = bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status
-        if status != "member" and status != "administrator":
+        if status not in ("member", "administrator"):
             bot.edit_message_text("Пользователь " + self.data_list[1]
                                   + " имеет статус, не позволяющий назначить его администратором."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
@@ -377,7 +380,10 @@ class Op(PostVote):
                 self.message_vote.chat.id, self.message_vote.message_id)
             return
 
-        rate = "" if not self.change_rate(3) else f"\nРейтинг {self.data_list[1]} повышен на 3 пункта."
+        rate = ""
+        if status != "administrator":
+            if self.change_rate(3):
+                rate = f"\nРейтинг {self.data_list[1]} повышен на 3 пункта."
 
         bot.edit_message_text("Пользователь " + self.data_list[1] + " назначен администратором в чате."
                               + rate + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
@@ -386,6 +392,21 @@ class Op(PostVote):
         bot.edit_message_text(
             "Вопрос назначения " + self.data_list[1] + " администратором отклонён." + self.votes_counter,
             self.message_vote.chat.id, self.message_vote.message_id)
+
+    def final_hook(self):
+        try:
+            bot.unpin_chat_message(data.main_chat_id, self.message_vote.message_id)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+        try:
+            if self.is_accept and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
+                bot.reply_to(self.message_vote, "Голосование завершено! <a href =\"tg://user?id="
+                             + str(self.data_list[0]) + "\">" + utils.html_fix(self.data_list[1])
+                             + "</a>, пожалуйста, не забудь сменить звание!", parse_mode="html")
+            else:
+                bot.reply_to(self.message_vote, "Голосование завершено!")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
 
 
 class Rank(PostVote):
@@ -515,6 +536,7 @@ class ChatPic(PostVote):
             os.remove(data.path + "tmp_img")
         except IOError:
             pass
+        super().final_hook()
 
 
 class ChangeRate(PostVote):
