@@ -30,7 +30,7 @@ class PostVote:
         self.data_list = json.loads(records[0][6])
         self.message_vote = message_vote
         self.votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-        if records[0][3] > records[0][4] and records[0][3] >= data.thresholds_get(minimum=True):
+        if records[0][3] > records[0][4] and records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
             self.is_accept = True
         elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
             self.is_accept = False
