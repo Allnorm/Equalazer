@@ -176,6 +176,9 @@ class Invite(PreVote):
             return True
         self.user_id = data.bot_id
 
+    def arg_fn(self, _):
+        self.direct_fn()
+
     def direct_fn(self):
 
         if data.binary_chat_mode != 0:  # 0 - mode with whitelist
