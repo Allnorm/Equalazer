@@ -5,6 +5,7 @@ import random
 import threading
 import time
 import traceback
+import zlib
 
 import telebot
 from telebot import types
@@ -1584,6 +1585,8 @@ class AlliesList(PreVote):
                 bot.reply_to(self.message, "Данную команду нельзя запустить в основном чате!")
                 return True
 
+        self.user_id = data.bot_id
+
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
 
@@ -1685,13 +1688,18 @@ class Rules(PreVote):
                 logging.error(traceback.format_exc())
                 bot.reply_to(self.message, "Файл rules.txt не читается!")
                 return
-            bot.reply_to(self.message, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
         else:
             rules_text = sqlWorker.params("rules", default_return="")
             if rules_text == "":
                 bot.reply_to(self.message, "В чате нет правил!")
                 return
-            bot.reply_to(self.message, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
+
+        try:
+            bot.send_message(self.message.from_user.id, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
+            bot.reply_to(self.message, "Текст правил чата отправлен в л/с.")
+        except telebot.apihelper.ApiTelegramException:
+            bot.reply_to(self.message,
+                         "Я не смог отправить сообщение вам в л/с. Недостаточно прав или нет личного диалога?")
 
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
@@ -1774,7 +1782,7 @@ class CustomPoll(PreVote):
         if not 300 <= self.current_timer <= 86400:
             bot.reply_to(self.message, "Время опроса не может быть меньше 5 минут и больше 1 суток.")
             return
-        self.unique_id = "custom_" + poll_text
+        self.unique_id = f"custom_{zlib.crc32(poll_text.encode('utf-8'))}_{self.message.chat.id}"
         if self.is_voting_exist():
             return
         self.vote_text = (f"Текст опроса:\n<b>{utils.html_fix(poll_text)}</b>"

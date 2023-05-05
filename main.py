@@ -308,7 +308,7 @@ def help_msg(message):
         return
 
     try:
-        help_text = open(data.path + "help.txt", encoding="utf-8").read()
+        help_text = open("help.txt", encoding="utf-8").read()
     except FileNotFoundError:
         bot.reply_to(message, "Файл help.txt не найден")
         return
@@ -316,7 +316,13 @@ def help_msg(message):
         bot.reply_to(message, "Файл help.txt не читается")
         return
 
-    bot.reply_to(message, help_text, parse_mode="html")
+    try:
+        bot.send_message(message.from_user.id,
+                         f"<b>Список всех доступных команд для ДейтерБота версии {data.VERSION}:</b>\n" +
+                         help_text, parse_mode="html")
+        bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
+    except telebot.apihelper.ApiTelegramException:
+        bot.reply_to(message, "Я не смог отправить сообщение вам в л/с. Недостаточно прав или нет личного диалога?")
 
 
 @bot.message_handler(commands=['votes'])
@@ -507,11 +513,11 @@ def call_msg_chk(call_msg):
         sqlWorker.rem_rec(call_msg.message.id)
         bot.edit_message_text(utils.html_fix(call_msg.message.text)
                               + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
-                              data.main_chat_id, call_msg.message.id, parse_mode='html')
+                              call_msg.message.chat.id, call_msg.message.id, parse_mode='html')
         try:
-            bot.unpin_chat_message(data.main_chat_id, call_msg.message.id)
+            bot.unpin_chat_message(call_msg.message.chat.id, call_msg.message.id)
         except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+            pass
 
     return records
 
@@ -571,13 +577,13 @@ def cancel_vote(call_msg):
         pass
     bot.edit_message_text(utils.html_fix(call_msg.message.text)
                           + "\n\n<b>Голосование было отменено автором голосования.</b>",
-                          data.main_chat_id, call_msg.message.id, parse_mode="html")
+                          call_msg.message.chat.id, call_msg.message.id, parse_mode="html")
     bot.reply_to(call_msg.message, "Голосование было отменено.")
 
     try:
-        bot.unpin_chat_message(data.main_chat_id, call_msg.message.id)
+        bot.unpin_chat_message(call_msg.message.chat.id, call_msg.message.id)
     except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
+        pass
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "vote")

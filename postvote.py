@@ -59,9 +59,9 @@ class PostVote:
 
     def final_hook(self):
         try:
-            bot.unpin_chat_message(data.main_chat_id, self.message_vote.message_id)
+            bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+            pass
         try:
             bot.reply_to(self.message_vote, "Голосование завершено!")
         except telebot.apihelper.ApiTelegramException:
@@ -395,7 +395,7 @@ class Op(PostVote):
 
     def final_hook(self):
         try:
-            bot.unpin_chat_message(data.main_chat_id, self.message_vote.message_id)
+            bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
         try:
@@ -758,3 +758,13 @@ class CustomPoll(PostVote):
         bot.edit_message_text(f"Опрос завершён. Текст опроса:\n<b>{utils.html_fix(self.data_list[0])}</b>"
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
                               parse_mode="html")
+
+    def final_hook(self):
+        try:
+            bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+        try:
+            bot.reply_to(self.message_vote, "Опрос завершён!")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())

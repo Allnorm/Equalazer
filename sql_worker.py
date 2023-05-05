@@ -25,7 +25,7 @@ class SqlWorker:
 
         sqlite_connection = sqlite3.connect(dbname)
         cursor = sqlite_connection.cursor()
-        cursor.execute('''CREATE TABLE if not exists current_polls (
+        cursor.execute("""CREATE TABLE if not exists current_polls (
                                     unique_id TEXT NOT NULL PRIMARY KEY,
                                     message_id INTEGER UNIQUE,
                                     type TEXT NOT NULL,
@@ -34,7 +34,7 @@ class SqlWorker:
                                     timer INTEGER,
                                     data TEXT NOT NULL,
                                     votes_need INTEGER,
-                                    user_id INTEGER);''')
+                                    user_id INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists users_choice (
                                     message_id INTEGER,
                                     user_id INTEGER,

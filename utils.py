@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.9.10"
-    BUILD_DATE = "28.04.2023"
+    VERSION = "1.10"
+    BUILD_DATE = "05.05.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
@@ -501,15 +501,15 @@ def make_keyboard(counter_yes, counter_no, cancel=True):
 
 def vote_make(text, message, adduser, silent, cancel=True):
     if adduser:
-        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard("0", "0", cancel=False),
+        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard("0", "0", cancel),
                                         parse_mode="html", message_thread_id=data.thread_id)
     else:
         vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0", cancel), parse_mode="html")
     if not silent:
         try:
-            bot.pin_chat_message(data.main_chat_id, vote_message.message_id, disable_notification=True)
+            bot.pin_chat_message(vote_message.chat.id, vote_message.message_id, disable_notification=True)
         except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+            pass
 
     return vote_message
 
