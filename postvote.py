@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -7,77 +6,8 @@ import traceback
 import telebot
 
 import utils
-
-sqlWorker = utils.sqlWorker
-data = utils.data
-bot = utils.bot
-
-
-class PostVote:
-    class SilentException(Exception):
-        pass
-
-    accept_text = ""
-    decline_text = ""
-    _description = ""  # Описание голосования
-    votes_counter = ""
-    is_accept = False
-    records = []
-    data_list = []
-    message_vote = None
-
-    def post_vote(self, records, message_vote):
-        self.data_list = json.loads(records[0][6])
-        self.message_vote = message_vote
-        self.votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-        if records[0][3] > records[0][4] and records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
-            self.is_accept = True
-        elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
-            self.is_accept = False
-        else:
-            self.is_accept = False
-            self.votes_counter = f"\nНедостаточно голосов (требуется как минимум {data.thresholds_get(minimum=True)})"
-        self.records = records
-        self.post_vote_child()
-        try:
-            if self.is_accept:
-                self.accept()
-            else:
-                self.decline()
-        except Exception as e:
-            logging.error(str(e) + "\n" + traceback.format_exc())
-        self.final_hook()
-
-    def post_vote_child(self):
-        return
-
-    def accept(self):
-        return
-
-    def decline(self):
-        return
-
-    def final_hook(self):
-        try:
-            bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            pass
-        try:
-            bot.reply_to(self.message_vote, "Голосование завершено!")
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
-
-    @property
-    def description(self):
-        return self._description
-
-    def change_rate(self, change):
-        if all([not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot,
-                not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status == "restricted",
-                data.rate]):
-            sqlWorker.update_rate(self.data_list[0], change)
-            return True
-        return False
+from utils import data, bot, sqlWorker
+from pool_engine import PostVote, PoolEngine
 
 
 class UserAdd(PostVote):
@@ -768,3 +698,35 @@ class CustomPoll(PostVote):
             bot.reply_to(self.message_vote, "Опрос завершён!")
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
+
+
+def post_vote_list_init():
+    post_vote_list = {
+            "invite": UserAdd(),
+            "ban": Ban(),
+            "unban": UnBan(),
+            "threshold": Threshold(),
+            "timer": Timer(),
+            "timer for ban votes": TimerBan(),
+            "delete message": DelMessage(),
+            "op": Op(),
+            "deop": Deop(),
+            "title": Title(),
+            "chat picture": ChatPic(),
+            "description": Description(),
+            "rank": Rank(),
+            "captcha": Captcha(),
+            "change rate": ChangeRate(),
+            "add allies": AddAllies(),
+            "remove allies": RemoveAllies(),
+            "timer for random cooldown": RandomCooldown(),
+            "whitelist": Whitelist(),
+            "global admin permissions": GlobalOp(),
+            "private mode": PrivateMode(),
+            "remove topic": Topic(),
+            "add rules": AddRules(),
+            "remove rules": RemoveRules(),
+            "custom poll": CustomPoll()
+        }
+
+    PoolEngine.post_vote_list.update(post_vote_list)

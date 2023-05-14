@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "1.10"
-    BUILD_DATE = "05.05.2023"
+    VERSION = "2.0"
+    BUILD_DATE = "14.05.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
@@ -57,6 +57,7 @@ class ConfigData:
                 "rate": 1,
                 "public_mode": 0,
                 "allowed_admins": __ADMIN_RECOMMENDED}
+    plugins = []
 
     def __init__(self):
 

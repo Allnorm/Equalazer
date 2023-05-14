@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 import random
 import threading
 import time
@@ -10,160 +8,9 @@ import zlib
 import telebot
 from telebot import types
 
-import postvote
 import utils
-
-post_vote_list = {
-    "invite": postvote.UserAdd(),
-    "ban": postvote.Ban(),
-    "unban": postvote.UnBan(),
-    "threshold": postvote.Threshold(),
-    "timer": postvote.Timer(),
-    "timer for ban votes": postvote.TimerBan(),
-    "delete message": postvote.DelMessage(),
-    "op": postvote.Op(),
-    "deop": postvote.Deop(),
-    "title": postvote.Title(),
-    "chat picture": postvote.ChatPic(),
-    "description": postvote.Description(),
-    "rank": postvote.Rank(),
-    "captcha": postvote.Captcha(),
-    "change rate": postvote.ChangeRate(),
-    "add allies": postvote.AddAllies(),
-    "remove allies": postvote.RemoveAllies(),
-    "timer for random cooldown": postvote.RandomCooldown(),
-    "whitelist": postvote.Whitelist(),
-    "global admin permissions": postvote.GlobalOp(),
-    "private mode": postvote.PrivateMode(),
-    "remove topic": postvote.Topic(),
-    "add rules": postvote.AddRules(),
-    "remove rules": postvote.RemoveRules(),
-    "custom poll": postvote.CustomPoll()
-}
-
-sqlWorker = utils.sqlWorker
-data = utils.data
-bot = utils.bot
-
-vote_abuse = {}
-
-
-def vote_timer(current_timer, unique_id, message_vote):
-    time.sleep(current_timer)
-    vote_abuse.clear()
-    vote_result(unique_id, message_vote)
-
-
-def vote_result(unique_id, message_vote):
-    global post_vote_list
-    records = sqlWorker.msg_chk(unique_id=unique_id)
-    if not records:
-        return
-
-    if records[0][1] != message_vote.id:
-        return
-
-    try:
-        os.remove(data.path + unique_id)
-    except IOError:
-        logging.error("Failed to clear a poll file!")
-        logging.error(traceback.format_exc())
-
-    sqlWorker.rem_rec(message_vote.id, unique_id)
-
-    try:
-        post_vote_list[records[0][2]].post_vote(records, message_vote)
-    except KeyError:
-        logging.error(traceback.format_exc())
-        bot.edit_message_text("Ошибка применения результатов голосования. Итоговая функция не найдена!",
-                              message_vote.chat.id, message_vote.id)
-
-
-class PreVote:
-    args = {}  # Dictionary of possible command arguments
-    vote_text = ""
-    user_id = ""
-    add_user = False
-    silent = False
-    unique_id = ""
-    vote_type = ""
-    vote_args = []
-    help_text = "У этой команды нет справки!"
-    reply_user_id = ""
-    reply_username = ""
-    reply_is_bot = False
-
-    def __init__(self, message):
-        if not utils.botname_checker(message):
-            return
-        self.message = message
-        self.user_id = message.from_user.id
-        if utils.extract_arg(message.text, 1) == "help":
-            self.help()
-            return
-        self.current_timer, self.current_votes = self.timer_votes_init()
-        if self.pre_return():
-            return
-        self.args = self.set_args()
-        arg = utils.extract_arg(message.text, 1)
-        if arg is None:
-            self.direct_fn()
-        else:
-            self.arg_fn(arg)
-
-    def set_args(self) -> dict:
-        """return dictionary of class functions"""
-        return {}
-
-    def pre_return(self) -> bool:
-        """Checking for conditions that will cause the command to be canceled prematurely"""
-        return False
-
-    @staticmethod
-    def timer_votes_init():
-        """timer, votes"""
-        return data.global_timer, data.thresholds_get()
-
-    def direct_fn(self):  # If the command was run without arguments
-        bot.reply_to(self.message, "Эту команду нельзя запустить без аргументов!")
-
-    def arg_fn(self, arg):  # If the command was run with arguments
-        if self.args:
-            try:
-                self.args[arg]()  # Runs a function from a dictionary by default
-            except KeyError:
-                bot.reply_to(self.message, "Данного аргумента команды не существует!")
-        else:
-            bot.reply_to(self.message, "У этой команды нет аргументов!")
-
-    def help(self):
-        bot.reply_to(self.message, self.help_text, parse_mode="html")
-
-    def is_voting_exist(self):
-        records = sqlWorker.msg_chk(unique_id=self.unique_id)
-        if utils.is_voting_exists(records, self.message, self.unique_id):
-            return True
-        return False
-
-    def get_votes_text(self):
-        return f"{self.vote_text}\nГолосование будет закрыто через {utils.formatted_timer(self.current_timer)}, " \
-               f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
-               f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
-
-    def poll_constructor(self):
-        """unique_id: str, vote_text: str, message, vote_type: str, current_timer: int, current_votes: int,
-                     vote_args: list, user_id: int, adduser=False, silent=False"""
-        vote_text = self.get_votes_text()
-        cancel = False if data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID else True
-        message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, cancel)
-        sqlWorker.add_poll(self.unique_id, message_vote, self.vote_type, int(time.time()) + self.current_timer,
-                           json.dumps(self.vote_args), self.current_votes, self.user_id)
-        utils.poll_saver(self.unique_id, message_vote)
-        threading.Thread(target=vote_timer, args=(self.current_timer, self.unique_id, message_vote)).start()
-
-    def reply_msg_target(self):
-        self.reply_user_id, self.reply_username, self.reply_is_bot = \
-            utils.reply_msg_target(self.message.reply_to_message)
+from utils import data, bot, sqlWorker
+from pool_engine import PreVote
 
 
 class Invite(PreVote):
@@ -1454,7 +1301,8 @@ class NewUserChecker(PreVote):
         self.user_id = data.bot_id
 
         if self.reply_is_bot:
-            self.for_bots()
+            if self.reply_user_id != data.bot_id:
+                self.for_bots()
             return True
 
         if self.allies_whitelist_add():

@@ -1,44 +1,23 @@
 import json
 import logging
 import os
-import pickle
 import random
-import threading
 import time
 import traceback
 
 import telebot
 
+import plugin_engine
+import postvote
 import utils
 import prevote
-from prevote import vote_abuse, post_vote_list
+from pool_engine import pool_engine
+from utils import data, bot, sqlWorker
 
-data = utils.data
-bot = utils.bot
-
-
-def auto_restart_polls():
-    time_now = int(time.time())
-    records = sqlWorker.get_all_polls()
-    for record in records:
-        try:
-            poll = open(data.path + record[0], 'rb')
-            message_vote = pickle.load(poll)
-            poll.close()
-        except (IOError, pickle.UnpicklingError):
-            logging.error(f"Failed to read a poll {record[0]}!")
-            logging.error(traceback.format_exc())
-            continue
-        if record[5] > time_now:
-            threading.Thread(target=prevote.vote_timer, args=(record[5] - time_now, record[0], message_vote)).start()
-            logging.info("Restarted poll " + record[0])
-        else:
-            prevote.vote_result(record[0], message_vote)
-
-
-sqlWorker = utils.sqlWorker
+postvote.post_vote_list_init()
+plugin_engine.Plugins()
 utils.init()
-auto_restart_polls()
+pool_engine.auto_restart_polls()
 
 
 @bot.message_handler(commands=['invite'])
@@ -242,7 +221,7 @@ def random_msg(message):
         return
 
     try:
-        abuse_vote_timer = int(vote_abuse.get("random"))
+        abuse_vote_timer = int(pool_engine.vote_abuse.get("random"))
     except TypeError:
         abuse_vote_timer = 0
 
@@ -251,7 +230,7 @@ def random_msg(message):
     if abuse_vote_timer + abuse_random > int(time.time()) or abuse_random < 0:
         return
 
-    vote_abuse.update({"random": int(time.time())})
+    pool_engine.vote_abuse.update({"random": int(time.time())})
 
     msg_id = ""
     for i in range(5):
@@ -340,9 +319,13 @@ def votes_msg(message):
         format_chat_id = "c/" + str(data.main_chat_id)[4:]
 
     for record in records:
+        try:
+            vote_type = pool_engine.post_vote_list[record[2]].description
+        except KeyError:
+            vote_type = "INVALID (не загружен плагин?)"
         poll_list = poll_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
-                                f"тип - {post_vote_list[record[2]].description}, " + \
-                    f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
+                                f"тип - {vote_type}, " \
+                                f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
         number = number + 1
 
     if poll_list == "":
@@ -411,14 +394,14 @@ def mute_user(message):
         return
 
     try:
-        abuse_vote_timer = int(vote_abuse.get("abuse" + str(message.from_user.id)))
+        abuse_vote_timer = int(pool_engine.vote_abuse.get("abuse" + str(message.from_user.id)))
     except TypeError:
         abuse_vote_timer = 0
 
     if abuse_vote_timer + 10 > int(time.time()):
         return
 
-    vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
+    pool_engine.vote_abuse.update({"abuse" + str(message.from_user.id): int(time.time())})
 
     try:
         bot.restrict_chat_member(data.main_chat_id, message.reply_to_message.from_user.id,
@@ -569,7 +552,7 @@ def cancel_vote(call_msg):
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
-    vote_abuse.clear()
+    pool_engine.vote_abuse.clear()
     sqlWorker.rem_rec(call_msg.message.id, poll[0][0])
     try:
         os.remove(data.path + poll[0][0])
@@ -617,7 +600,8 @@ def callback_inline(call_msg):
 
     def get_abuse_timer():
         try:
-            abuse_vote_timer = int(vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
+            abuse_vote_timer = int(pool_engine.vote_abuse.get(str(call_msg.message.id) + "."
+                                                              + str(call_msg.from_user.id)))
         except TypeError:
             abuse_vote_timer = None
 
@@ -629,7 +613,7 @@ def callback_inline(call_msg):
                                                + str(please_wait) + " секунд", show_alert=True)
                 return True
             else:
-                vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+                pool_engine.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
                 return False
 
     records = call_msg_chk(call_msg)
@@ -637,8 +621,8 @@ def callback_inline(call_msg):
         return
 
     if records[0][5] <= int(time.time()):
-        vote_abuse.clear()
-        prevote.vote_result(records[0][0], call_msg.message)
+        pool_engine.vote_abuse.clear()
+        pool_engine.vote_result(records[0][0], call_msg.message)
         return
 
     unique_id = records[0][0]
@@ -701,11 +685,11 @@ def callback_inline(call_msg):
         utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
 
     if counter_yes >= votes_need_current or counter_no >= votes_need_current:
-        vote_abuse.clear()
-        prevote.vote_result(unique_id, call_msg.message)
+        pool_engine.vote_abuse.clear()
+        pool_engine.vote_result(unique_id, call_msg.message)
         return
 
-    vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
+    pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
 bot.infinity_polling()
