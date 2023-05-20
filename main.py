@@ -11,7 +11,7 @@ import plugin_engine
 import postvote
 import utils
 import prevote
-from pool_engine import pool_engine
+from poll_engine import pool_engine
 from utils import data, bot, sqlWorker
 
 postvote.post_vote_list_init()

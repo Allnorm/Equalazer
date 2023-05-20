@@ -10,7 +10,7 @@ from telebot import types
 
 import utils
 from utils import data, bot, sqlWorker
-from pool_engine import PreVote
+from poll_engine import PreVote
 
 
 class Invite(PreVote):
@@ -68,7 +68,7 @@ class Invite(PreVote):
                           + utils.username_parser(self.message, True) + "</a>.\n"
                           + "Сообщение от пользователя: " + msg_from_usr + ".")
         self.vote_args = [self.message.chat.id, utils.username_parser(self.message), self.message.from_user.id]
-        self.poll_constructor()
+        self.poll_maker()
 
         warn = ""
         if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "kicked":
@@ -81,6 +81,7 @@ class Invite(PreVote):
 
 class Ban(PreVote):
     vote_type = "ban"
+    ban_reason = ""
 
     @staticmethod
     def timer_votes_init():
@@ -112,8 +113,7 @@ class Ban(PreVote):
     def arg_fn(self, arg):
         restrict_timer = utils.time_parser(utils.extract_arg(self.message.text, 1))
         if restrict_timer is None:
-            bot.reply_to(self.message,
-                         "Некорректный аргумент времени (не должно быть меньше 31 секунды и больше 365 суток).")
+            self.direct_fn()
             return
         if not 30 < restrict_timer <= 31536000:
             bot.reply_to(self.message, "Время не должно быть меньше 31 секунды и больше 365 суток.")
@@ -122,9 +122,13 @@ class Ban(PreVote):
         if 31535991 <= restrict_timer <= 31536000:
             restrict_timer = 31535990
 
+        if utils.extract_arg(self.message.text, 2) is not None:
+            self.ban_reason = self.message.text.split(maxsplit=2)[2]
         self.ban(restrict_timer, True, f"\nПредложенный срок блокировки: {utils.formatted_timer(restrict_timer)}", 1)
 
     def direct_fn(self):
+        if utils.extract_arg(self.message.text, 1) is not None:
+            self.ban_reason = self.message.text.split(maxsplit=1)[1]
         self.ban(0, False, "\nПредложенный срок блокировки: <b>перманентный</b>", 2)
 
     def ban(self, restrict_timer, kick_user, ban_timer_text, vote_type):
@@ -150,23 +154,29 @@ class Ban(PreVote):
                 date_unban = "\nДо разблокировки пользователя оставалось " \
                              + utils.formatted_timer(until_date - int(time.time()))
 
-        self.vote_text = (f"Тема голосования: {vote_theme} {self.reply_username}" + date_unban + ban_timer_text +
-                          f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.ban_reason = "" if not self.ban_reason else "\nПовод блокировки: " + self.ban_reason
+
+        self.vote_text = f"Тема голосования: {vote_theme} {self.reply_username}" + \
+                         date_unban + self.ban_reason + ban_timer_text + \
+                         f"\nИнициатор голосования: {utils.username_parser(self.message, True)}."
 
         self.vote_args = [self.reply_user_id, self.reply_username, utils.username_parser(self.message),
-                          vote_type, restrict_timer]
+                          vote_type, restrict_timer, self.ban_reason]
 
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Kick(Ban):
 
     def direct_fn(self):
+        if utils.extract_arg(self.message.text, 1) is not None:
+            self.ban_reason = self.message.text.split(maxsplit=1)[1]
         self.ban(3600, True, f"\nПредложенный срок блокировки: {utils.formatted_timer(3600)}", 1)
 
 
 class Mute(PreVote):
     vote_type = "ban"
+    ban_reason = ""
 
     @staticmethod
     def timer_votes_init():
@@ -200,13 +210,14 @@ class Mute(PreVote):
             return True
 
     def direct_fn(self):
+        if utils.extract_arg(self.message.text, 1) is not None:
+            self.ban_reason = self.message.text.split(maxsplit=1)[1]
         self.mute(0, "\nПредложенный срок ограничений: перманентно")
 
     def arg_fn(self, arg):
         restrict_timer = utils.time_parser(utils.extract_arg(self.message.text, 1))
         if restrict_timer is None:
-            bot.reply_to(self.message, "Некорректный аргумент времени "
-                                       "(должно быть меньше 31 секунды и больше 365 суток).")
+            self.direct_fn()
             return
         if not 30 < restrict_timer <= 31536000:
             bot.reply_to(self.message, "Время не должно быть меньше 31 секунды и больше 365 суток.")
@@ -215,6 +226,8 @@ class Mute(PreVote):
         if 31535991 <= restrict_timer <= 31536000:
             restrict_timer = 31535990
 
+        if utils.extract_arg(self.message.text, 2) is not None:
+            self.ban_reason = self.message.text.split(maxsplit=2)[2]
         self.mute(restrict_timer, f"\nПредложенный срок ограничений: {utils.formatted_timer(restrict_timer)}")
 
     def mute(self, restrict_timer, ban_timer_text):
@@ -236,11 +249,14 @@ class Mute(PreVote):
                 date_unban = "\nДо разблокировки пользователя оставалось " \
                              + utils.formatted_timer(until_date - int(time.time()))
 
-        self.vote_text = (f"Тема голосования: {vote_theme} {self.reply_username}" + date_unban + ban_timer_text +
+        self.ban_reason = "" if not self.ban_reason else "\nПовод блокировки: " + self.ban_reason
+
+        self.vote_text = (f"Тема голосования: {vote_theme} {self.reply_username}" +
+                          date_unban + self.ban_reason + ban_timer_text +
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.reply_user_id, self.reply_username,
-                          utils.username_parser(self.message), 0, restrict_timer]
-        self.poll_constructor()
+                          utils.username_parser(self.message), 0, restrict_timer, self.ban_reason]
+        self.poll_maker()
 
 
 class Unban(PreVote):
@@ -276,7 +292,7 @@ class Unban(PreVote):
         self.vote_text = ("Тема голосования: снятие ограничений с пользователя " + self.reply_username +
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.reply_user_id, self.reply_username, utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Thresholds(PreVote):
@@ -383,7 +399,7 @@ class Thresholds(PreVote):
                               f"на автоматически выставляемое значение"
                               f".\nИнициатор голосования: {utils.username_parser(self.message, True)}." + warn)
         self.vote_args = [thr_value, self.unique_id]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Timer(PreVote):
@@ -484,7 +500,7 @@ class Timer(PreVote):
                                        f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_type = self.unique_id
         self.vote_args = [timer_arg, self.unique_id]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Rating(PreVote):
@@ -569,7 +585,7 @@ class Rating(PreVote):
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.reply_username, self.message.reply_to_message.from_user.id,
                           mode, utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
     def top(self):
         threading.Thread(target=self.rate_top).start()
@@ -721,7 +737,7 @@ class Whitelist(PreVote):
         self.vote_text = (f"Тема голосования: {whitelist_text}.\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.reply_user_id, self.reply_username, utils.extract_arg(self.message.text, 1)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class MessageRemover(PreVote):
@@ -755,7 +771,7 @@ class MessageRemover(PreVote):
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}." + self.warn)
         self.vote_args = [self.message.reply_to_message.message_id,
                           utils.username_parser(self.message.reply_to_message), self.silent]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class MessageSilentRemover(MessageRemover):
@@ -830,7 +846,7 @@ class PrivateMode(PreVote):
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_type = self.unique_id
         self.vote_args = [chosen_mode - 1, utils.username_parser(self.message, True), chat_mode]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Op(PreVote):
@@ -905,7 +921,7 @@ class Op(PreVote):
                           f"{utils.allowed_list(binary_rules)}"
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [binary_rules]
-        self.poll_constructor()
+        self.poll_maker()
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
@@ -959,7 +975,7 @@ class Op(PreVote):
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}."
                           "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>")
         self.vote_args = [self.reply_user_id, self.reply_username, binary_rule]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class RemoveTopic(PreVote):
@@ -986,7 +1002,7 @@ class RemoveTopic(PreVote):
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.message.message_thread_id, utils.username_parser(self.message),
                           self.message.reply_to_message.forum_topic_created.name]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Rank(PreVote):
@@ -1045,7 +1061,7 @@ class Rank(PreVote):
                           utils.username_parser(self.message.reply_to_message),
                           rank_text, utils.username_parser(self.message)]
 
-        self.poll_constructor()
+        self.poll_maker()
 
     def me(self):
         if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "administrator":
@@ -1144,7 +1160,7 @@ class Deop(PreVote):
         self.vote_text = (f"Тема голосования: снятие прав администратора с {utils.html_fix(self.reply_username)}"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.reply_user_id, self.reply_username]
-        self.poll_constructor()
+        self.poll_maker()
 
     def me(self):
         if self.message.from_user.id == data.ANONYMOUS_ID:
@@ -1199,7 +1215,7 @@ class Title(PreVote):
                           + " поступило предложение сменить название чата на \""
                           + utils.html_fix(self.message.text.split(maxsplit=1)[1]) + "\".")
         self.vote_args = [self.message.text.split(maxsplit=1)[1], utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Description(PreVote):
@@ -1234,7 +1250,7 @@ class Description(PreVote):
         if self.is_voting_exist():
             return
         self.vote_args = [description_text, utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class Avatar(PreVote):
@@ -1277,7 +1293,7 @@ class Avatar(PreVote):
         self.vote_text = ("Тема голосования: смена аватарки чата"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class NewUserChecker(PreVote):
@@ -1332,7 +1348,7 @@ class NewUserChecker(PreVote):
                           + utils.username_parser(self.message, True) + ", в противном случае он будет кикнут.")
         self.current_timer = 60
         self.vote_args = [self.reply_username, self.reply_user_id, "бота"]
-        self.poll_constructor()
+        self.poll_maker()
 
     def allies_whitelist_add(self):
         allies = sqlWorker.get_allies()
@@ -1374,7 +1390,7 @@ class NewUserChecker(PreVote):
         self.vote_text = ("Требуется подтверждение вступления нового пользователя " + self.reply_username
                           + ", в противном случае он будет кикнут.")
         self.vote_args = [self.reply_username, self.reply_user_id, "пользователя"]
-        self.poll_constructor()
+        self.poll_maker()
 
     def captcha_mode(self):
         try:
@@ -1472,7 +1488,7 @@ class AlliesList(PreVote):
                           f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.message.chat.id, self.message.message_thread_id]
-        self.poll_constructor()
+        self.poll_maker()
 
         bot.reply_to(self.message, f"Голосование о {mode_text} союза отправлено в чат "
                                    f"<b>{utils.html_fix(bot.get_chat(data.main_chat_id).title)}</b>.\n"
@@ -1590,7 +1606,7 @@ class Rules(PreVote):
                           f"<b>{utils.html_fix(rules_text)}</b>"
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [rules_text, utils.username_parser(self.message)]
-        self.poll_constructor()
+        self.poll_maker()
 
 
 class CustomPoll(PreVote):
@@ -1636,4 +1652,4 @@ class CustomPoll(PreVote):
         self.vote_text = (f"Текст опроса:\n<b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
         self.vote_args = [poll_text]
-        self.poll_constructor()
+        self.poll_maker()

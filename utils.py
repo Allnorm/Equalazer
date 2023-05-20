@@ -16,8 +16,8 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "2.0"
-    BUILD_DATE = "14.05.2023"
+    VERSION = "2.0.1"
+    BUILD_DATE = "20.05.2023"
     ANONYMOUS_ID = 1087968824
     ADMIN_MAX = 0b1111111111
     ADMIN_MIN = 0b1000000000
@@ -318,7 +318,12 @@ sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
 
 def init():
     data.sql_worker_get(sqlWorker)
-    data.bot_id = bot.get_me().id
+    try:
+        data.bot_id = bot.get_me().id
+    except telebot.apihelper.ApiTelegramException:
+        logging.error("Bot was unable to get own ID and will close!")
+        logging.error(traceback.format_exc())
+        sys.exit(1)
 
     threading.Thread(target=auto_clear).start()
 

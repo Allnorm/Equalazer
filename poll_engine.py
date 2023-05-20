@@ -140,9 +140,21 @@ class PreVote:
                f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
                f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
 
-    def poll_constructor(self):
-        """unique_id: str, vote_text: str, message, vote_type: str, current_timer: int, current_votes: int,
-                     vote_args: list, user_id: int, adduser=False, silent=False"""
+    def poll_maker(self, vote_args: list = None, unique_id: str = "", vote_text: str = "", vote_type: str = "",
+                   current_timer: int = None, current_votes: int = None,
+                   user_id: int = None, add_user=False, silent=False):
+        self.vote_args = self.vote_args or vote_args
+        self.unique_id = self.unique_id or unique_id
+        self.vote_text = self.vote_text or vote_text
+        self.vote_type = self.vote_type or vote_type
+        self.current_timer = self.current_timer or current_timer
+        self.current_votes = self.current_votes or current_votes
+        self.user_id = self.user_id or user_id
+        self.add_user = add_user
+        self.silent = silent
+        self.__poll_constructor()
+
+    def __poll_constructor(self):
         vote_text = self.get_votes_text()
         cancel = False if data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID else True
         message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, cancel)

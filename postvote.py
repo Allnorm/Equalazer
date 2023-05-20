@@ -7,7 +7,7 @@ import telebot
 
 import utils
 from utils import data, bot, sqlWorker
-from pool_engine import PostVote, PoolEngine
+from poll_engine import PostVote, PoolEngine
 
 
 class UserAdd(PostVote):
@@ -81,14 +81,15 @@ class Ban(PostVote):
                 bot.ban_chat_member(self.message_vote.chat.id, self.data_list[0])
                 bot.edit_message_text("Пользователь " + self.data_list[1] + " перманентно заблокирован "
                                       + "по милости пользователя " + self.data_list[2]
-                                      + " и не сможет войти в чат до разблокировки." + self.votes_counter,
+                                      + " и не сможет войти в чат до разблокировки."
+                                      + self.data_list[5] + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
                 sqlWorker.clear_rate(self.data_list[0])
             elif self.data_list[3] == 1:
                 bot.ban_chat_member(self.message_vote.chat.id, self.data_list[0], until_date=until_date)
                 rate = "" if not self.change_rate(-10) else f"\nРейтинг {self.data_list[1]} снижен на 10 пунктов."
-                bot.edit_message_text("Пользователь " + self.data_list[1] + " заблокирован в чате "
-                                      + "по милости пользователя " + self.data_list[2] + until_text + rate
+                bot.edit_message_text(f"Пользователь {self.data_list[1]} заблокирован в чате по милости пользователя "
+                                      + self.data_list[2] + until_text + self.data_list[5] + rate
                                       + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
             elif self.data_list[3] == 0:
@@ -99,7 +100,7 @@ class Ban(PostVote):
 
                 bot.edit_message_text("Пользователь " + self.data_list[1]
                                       + " лишён права переписки в чате по милости пользователя " + self.data_list[2]
-                                      + until_text + rate + self.votes_counter,
+                                      + until_text + self.data_list[5] + rate + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
 
         except telebot.apihelper.ApiTelegramException:

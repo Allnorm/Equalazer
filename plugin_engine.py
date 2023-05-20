@@ -4,7 +4,7 @@ import logging
 import os
 import traceback
 
-from pool_engine import PoolEngine
+from poll_engine import PoolEngine
 
 
 class Plugins:
@@ -20,6 +20,8 @@ class Plugins:
         pattern = "*.py"
         for entry in files_list:
             if fnmatch.fnmatch(entry, pattern):
+                if os.path.isdir(f"{plugin_folder}/{entry}"):
+                    continue
                 plugin = entry.split(".")[0]
                 try:
                     meta = importlib.import_module(f'plugins.{plugin}').Meta
