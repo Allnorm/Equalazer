@@ -30,7 +30,7 @@ class PoolEngine:
                 logging.error(traceback.format_exc())
                 continue
             if record[5] > time_now:
-                threading.Thread(target=self.vote_timer,
+                threading.Thread(target=self.vote_timer, daemon=True,
                                  args=(record[5] - time_now, record[0], message_vote)).start()
                 logging.info("Restarted poll " + record[0])
             else:
@@ -82,6 +82,7 @@ class PreVote:
     reply_user_id = ""
     reply_username = ""
     reply_is_bot = False
+    direct = False
 
     def __init__(self, message):
         if not utils.botname_checker(message):
@@ -127,7 +128,19 @@ class PreVote:
             bot.reply_to(self.message, "У этой команды нет аргументов!")
 
     def help(self):
-        bot.reply_to(self.message, self.help_text, parse_mode="html")
+        if self.help_access_check():
+            bot.reply_to(self.message, self.help_text, parse_mode="html")
+
+    def help_access_check(self):
+        if self.message.chat.id != data.main_chat_id:
+            if self.message.chat.id == self.message.from_user.id:
+                if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in ("left", "kicked"):
+                    bot.reply_to(self.message, "У вас нет прав на просмотр справки!")
+                    return False
+            else:
+                bot.reply_to(self.message, "У вас нет прав на просмотр справки!")
+                return False
+        return True
 
     def is_voting_exist(self):
         records = sqlWorker.msg_chk(unique_id=self.unique_id)
@@ -142,7 +155,7 @@ class PreVote:
 
     def poll_maker(self, vote_args: list = None, unique_id: str = "", vote_text: str = "", vote_type: str = "",
                    current_timer: int = None, current_votes: int = None,
-                   user_id: int = None, add_user=False, silent=False):
+                   user_id: int = None, add_user=False, silent=False, direct=False):
         self.vote_args = self.vote_args or vote_args
         self.unique_id = self.unique_id or unique_id
         self.vote_text = self.vote_text or vote_text
@@ -152,16 +165,18 @@ class PreVote:
         self.user_id = self.user_id or user_id
         self.add_user = add_user
         self.silent = silent
+        self.direct = direct
         self.__poll_constructor()
 
     def __poll_constructor(self):
         vote_text = self.get_votes_text()
         cancel = False if data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID else True
-        message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, cancel)
+        message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, self.direct, cancel)
         sqlWorker.add_poll(self.unique_id, message_vote, self.vote_type, int(time.time()) + self.current_timer,
                            json.dumps(self.vote_args), self.current_votes, self.user_id)
         utils.poll_saver(self.unique_id, message_vote)
-        threading.Thread(target=pool_engine.vote_timer, args=(self.current_timer, self.unique_id, message_vote)).start()
+        threading.Thread(target=pool_engine.vote_timer, daemon=True,
+                         args=(self.current_timer, self.unique_id, message_vote)).start()
 
     def reply_msg_target(self):
         self.reply_user_id, self.reply_username, self.reply_is_bot = \

@@ -32,7 +32,17 @@ class Invite(PreVote):
                 invite_link = bot.get_chat(data.main_chat_id).invite_link
                 if invite_link is None:
                     raise telebot.apihelper.ApiTelegramException
-                bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n" + invite_link)
+                until_date = ""
+                if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "kicked":
+                    if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).until_date == 0:
+                        until_date = "Внимание! Вы бессрочно заблокированы в данном чате!\n"
+                    else:
+                        until_timer = utils.formatted_timer(bot.get_chat_member(data.main_chat_id,
+                                                                                self.message.from_user.id).until_date
+                             - int(time.time()))
+                        until_date = "Внимание! Вы заблокированы в данном чате! " \
+                                     f"До снятия ограничений осталось {until_timer}\n"
+                bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n" + until_date + invite_link)
             except telebot.apihelper.ApiTelegramException:
                 bot.reply_to(self.message, "Ошибка получения ссылки на чат. Недостаточно прав?")
             return
@@ -41,7 +51,7 @@ class Invite(PreVote):
         if self.is_voting_exist():
             return
 
-        abuse_chk = sqlWorker.abuse_check(self.message.from_user.id)
+        abuse_chk = sum(sqlWorker.abuse_check(self.message.from_user.id))
         if abuse_chk > 0:
             bot.reply_to(self.message, "Сработала защита от абуза инвайта! Вам следует подождать ещё "
                          + utils.formatted_timer(abuse_chk - int(time.time())))
@@ -806,6 +816,8 @@ class PrivateMode(PreVote):
         self.help()
 
     def help(self):
+        if not self.help_access_check():
+            return
         if data.binary_chat_mode == 0:
             chat_mode = "приватный"
         elif data.binary_chat_mode == 1:
@@ -863,8 +875,9 @@ class Op(PreVote):
             return True
 
     def help(self):
-        bot.reply_to(self.message, self.help_text.format(data.admin_fixed,
-                                                         utils.allowed_list(data.admin_allowed)), parse_mode="html")
+        if self.help_access_check():
+            bot.reply_to(self.message, self.help_text.format
+            (data.admin_fixed, utils.allowed_list(data.admin_allowed)), parse_mode="html")
 
     def arg_fn(self, arg):  # If the command was run with arguments
         try:
@@ -1219,11 +1232,19 @@ class Title(PreVote):
 class Description(PreVote):
     unique_id = "description"
     vote_type = unique_id
-    help_text = "Для установки описания чата следует реплейнуть командой по сообщению с текстом описания."
+    help_text = "Для установки описания чата следует реплейнуть командой " \
+                "по сообщению с текстом описания или ввести его как аргумент команды."
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message):
             return True
+
+    def arg_fn(self, _):
+        description_text = self.message.text.split(maxsplit=1)[1]
+        if len(description_text) > 255:
+            bot.reply_to(self.message, "Описание не должно быть длиннее 255 символов!")
+            return
+        self.description(description_text)
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is not None:
@@ -1237,7 +1258,9 @@ class Description(PreVote):
                 return
         else:
             description_text = ""
+        self.description(description_text)
 
+    def description(self, description_text):
         if bot.get_chat(data.main_chat_id).description == description_text:
             bot.reply_to(self.message, "Описание чата не может совпадать с существующим описанием!")
             return
@@ -1385,9 +1408,11 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
             return
 
-        self.vote_text = ("Требуется подтверждение вступления нового пользователя " + self.reply_username
-                          + ", в противном случае он будет кикнут.")
-        self.vote_args = [self.reply_username, self.reply_user_id, "пользователя"]
+        sqlWorker.abuse_update(self.reply_user_id, timer=300)
+        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
+        self.vote_text = (f"Требуется подтверждение вступления нового пользователя {self.reply_username}, "
+                          f"в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
+        self.vote_args = [self.reply_username, self.reply_user_id, "пользователя", until_time]
         self.poll_maker()
 
     def captcha_mode(self):
@@ -1404,33 +1429,35 @@ class NewUserChecker(PreVote):
         buttons = [types.InlineKeyboardButton(text=str(i), callback_data=f"captcha_{i}") for i in button_values]
         keyboard = types.InlineKeyboardMarkup(row_width=2)
         keyboard.add(*buttons)
+        sqlWorker.abuse_update(self.reply_user_id, timer=300)
+        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
         bot_message = bot.reply_to(self.message, "\u26a0\ufe0f <b>СТОП!</b> \u26a0\ufe0f"  # Emoji
                                                  "\nВы были остановлены антиспам-системой ДейтерБота!\n"
                                                  "Для доступа в чат вам необходимо выбрать из списка "
-                                                 "МАКСИМАЛЬНОЕ число в течении 60 секунд, "
-                                                 "иначе вы будете кикнуты на 1 минуту. Время пошло.",
+                                                 "МАКСИМАЛЬНОЕ число в течении 60 секунд, иначе вы будете "
+                                                 f"кикнуты на {utils.formatted_timer(until_time)} Время пошло.",
                                    reply_markup=keyboard, parse_mode="html")
 
         sqlWorker.captcha(bot_message.id, add=True, user_id=self.reply_user_id,
                           max_value=max_value, username=self.reply_username)
-        threading.Thread(target=self.captcha_mode_failed, args=(bot_message,)).start()
+        threading.Thread(target=self.captcha_mode_failed, daemon=True, args=(bot_message, until_time)).start()
 
     @staticmethod
-    def captcha_mode_failed(bot_message):
+    def captcha_mode_failed(bot_message, until_time):
         time.sleep(60)
         data_list = sqlWorker.captcha(bot_message.message_id)
         if not data_list:
             return
         sqlWorker.captcha(bot_message.message_id, remove=True)
         try:
-            bot.ban_chat_member(bot_message.chat.id, data_list[0][1], until_date=int(time.time()) + 60)
+            bot.ban_chat_member(bot_message.chat.id, data_list[0][1], until_date=int(time.time()) + until_time)
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Я не смог заблокировать пользователя {data_list[0][3]}! Недостаточно прав?",
                                   bot_message.chat.id, bot_message.message_id)
             return
         bot.edit_message_text(
-            f"К сожалению, пользователь {data_list[0][3]} не смог пройти капчу и был кикнут на 60 секунд.",
-            bot_message.chat.id, bot_message.message_id)
+            f"К сожалению, пользователь {data_list[0][3]} не смог пройти капчу и был кикнут на "
+            f"{utils.formatted_timer(until_time)}", bot_message.chat.id, bot_message.message_id)
 
 
 class AlliesList(PreVote):
@@ -1455,7 +1482,7 @@ class AlliesList(PreVote):
             bot.reply_to(self.message, "Данный чат уже входит в список союзников!")
             return
 
-        abuse_chk = sqlWorker.abuse_check(self.message.chat.id)
+        abuse_chk = sum(sqlWorker.abuse_check(self.message.chat.id))
         if abuse_chk > 0:
             bot.reply_to(self.message, "Сработала защита от абуза добавления в союзники! Вам следует подождать ещё "
                          + utils.formatted_timer(abuse_chk - int(time.time())))
@@ -1527,6 +1554,13 @@ class AlliesList(PreVote):
 
         bot.reply_to(self.message, allies_text)
 
+    def help_access_check(self):
+        if self.message.chat.id != data.main_chat_id and self.message.chat.id == self.message.from_user.id:
+            if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in ("left", "kicked"):
+                bot.reply_to(self.message, "У вас нет прав на просмотр справки!")
+                return False
+        return True
+
 
 class Rules(PreVote):
     unique_id = "rules"
@@ -1534,8 +1568,17 @@ class Rules(PreVote):
                 "remove - для их удаления."
 
     def pre_return(self) -> bool:
-        if utils.command_forbidden(self.message):
+        if self.message.chat.id != data.main_chat_id and self.message.chat.id != self.message.from_user.id:
+            bot.reply_to(self.message, "Данную команду можно запустить только в основном чате или в ЛС без аргументов.")
             return True
+
+        if self.message.from_user.id == self.message.chat.id:
+            if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in ("left", "kicked"):
+                bot.reply_to(self.message, "У вас нет прав использовать эту команду.")
+                return True
+            if utils.extract_arg(self.message.text, 1) is not None:
+                bot.reply_to(self.message, "Данную команду в ЛС можно запустить только без аргументов.")
+                return True
 
     def direct_fn(self):
         if data.fixed_rules:
@@ -1556,7 +1599,8 @@ class Rules(PreVote):
 
         try:
             bot.send_message(self.message.from_user.id, f"<b>Правила чата:</b>\n{rules_text}", parse_mode="html")
-            bot.reply_to(self.message, "Текст правил чата отправлен в л/с.")
+            if self.message.from_user.id != self.message.chat.id:
+                bot.reply_to(self.message, "Текст правил чата отправлен в л/с.")
         except telebot.apihelper.ApiTelegramException:
             bot.reply_to(self.message,
                          "Я не смог отправить сообщение вам в л/с. Недостаточно прав или нет личного диалога?")
@@ -1565,6 +1609,8 @@ class Rules(PreVote):
         return {"add": self.add, "remove": self.remove}
 
     def help(self):
+        if not self.help_access_check():
+            return
         if data.fixed_rules:
             bot.reply_to(self.message, "Изменение правил запрещено хостером бота.")
             return
@@ -1629,6 +1675,9 @@ class CustomPoll(PreVote):
         return f"{self.vote_text}\nОпрос будет закрыт через {utils.formatted_timer(self.current_timer)} " \
                f"или после голосования всех участников чата."
 
+    def help_access_check(self):
+        return True
+
     def arg_fn(self, arg):
         poll_timer = utils.time_parser(arg)
         if poll_timer is None:
@@ -1648,4 +1697,8 @@ class CustomPoll(PreVote):
         self.vote_text = (f"Текст опроса:\n<b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
         self.vote_args = [poll_text]
-        self.poll_maker()
+        self.poll_maker(direct=True)
+        try:
+            bot.delete_message(self.message.chat.id, self.message.id)
+        except telebot.apihelper.ApiTelegramException:
+            pass

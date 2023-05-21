@@ -77,11 +77,11 @@ class SqlWorker:
         return records
 
     @open_close_db
-    def abuse_update(self, cursor, user_id):
+    def abuse_update(self, cursor, user_id, timer=1800):
         cursor.execute("""SELECT * FROM abuse WHERE user_id = ?""", (user_id,))
         record = cursor.fetchall()
         if not record:
-            cursor.execute("""INSERT INTO abuse VALUES (?,?,?);""", (user_id, int(time.time()), 1800))
+            cursor.execute("""INSERT INTO abuse VALUES (?,?,?);""", (user_id, int(time.time()), timer))
         else:
             cursor.execute("""UPDATE abuse SET start_time = ?, timer = ? WHERE user_id = ?""",
                            (int(time.time()), record[0][2] * 2, user_id))
@@ -95,11 +95,11 @@ class SqlWorker:
         cursor.execute("""SELECT * FROM abuse WHERE user_id = ?""", (user_id,))
         record = cursor.fetchall()
         if not record:
-            return 0
+            return 0, 0
         if record[0][1] + record[0][2] < int(time.time()):
-            return 0
+            return 0, 0
         else:
-            return record[0][1] + record[0][2]
+            return record[0][1], record[0][2]
 
     @open_close_db
     def whitelist(self, cursor, user_id, add=False, remove=False):

@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 
+from packaging import version
 from telebot import types
 import sys
 import threading
@@ -16,35 +17,47 @@ import telebot
 
 
 class ConfigData:
-    VERSION = "2.0.2"
-    BUILD_DATE = "21.05.2023"
-    ANONYMOUS_ID = 1087968824
-    ADMIN_MAX = 0b1111111111
-    ADMIN_MIN = 0b1000000000
-    __ADMIN_RECOMMENDED = 0b1010010100
-    EASTER_LINK = "https://goo.su/wLZSEz1"
-    global_timer = 3600
-    global_timer_ban = 300
-    __votes_need = 0
-    __votes_need_ban = 0
-    __votes_need_min = 2
-    main_chat_id = ""  # Outside param
-    debug = False
-    vote_mode = 3
-    wait_timer = 30
-    abuse_mode = 2
-    secret_ballot = True  # Outside param
-    fixed_rules = False  # Outside param
-    rate = True
-    admin_fixed = False  # Outside param
-    admin_allowed = __ADMIN_RECOMMENDED  # Ведущий бит всегда 1, запись сделана задом наперёд
-    path = ""  # Outside param
-    token = ""  # Outside param
+    # Do not edit this section to change the parameters of the bot!
+    # DeuterBot is customizable via config file or chat voting!
+    VERSION = "2.1" # Current bot version
+    MIN_VERSION = "2.0" # The minimum version from which you can upgrade to this one without breaking the bot
+    BUILD_DATE = "21.05.2023" # Bot build date
+    ANONYMOUS_ID = 1087968824 # ID value for anonymous user tg
+    ADMIN_MAX = 0b1111111111 # The upper limit of the number for admin rights in binary form
+    # Leading bit is always 1, recorded backwards
+    ADMIN_MIN = 0b1000000000 # The lower limit of the number for admin rights in binary form
+    __ADMIN_RECOMMENDED = 0b1010010100 # Recommended value of admin rights in binary form
+    EASTER_LINK = "https://goo.su/wLZSEz1" # Link for easter eggs
+    global_timer = 3600 # Value in seconds of duration of votes
+    global_timer_ban = 300 # Value in seconds of duration of ban-votes
+    __votes_need = 0 # Required number of votes for early voting closure
+    __votes_need_ban = 0 # Required number of votes for early ban-voting closure
+    __votes_need_min = 2 # Minimum amount of votes for a vote to be accepted
+    main_chat_id = ""  # Outside param/Bot Managed Chat ID
+    debug = False # Debug mode with special presets and lack of saving parameters in the database
+    vote_mode = 3 # Sets the mode in which the voice cannot be canceled and transferred (1),
+    # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
+    wait_timer = 30 # Cooldown before being able to change or cancel voice
+    abuse_mode = 2 # Mode 0 - the /abuse command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
+    secret_ballot = True  # Outside param/If disabled, nicknames of voters are written to the database
+    fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
+    rate = True # Enables or disables the rating system
+    admin_fixed = False  # Outside param/If enabled, chat participants
+    # cannot change the admin rights allowed for issuance by voting
+    admin_allowed = __ADMIN_RECOMMENDED # Admin rights allowed for issuance in the chat
+    path = ""  # Outside param/Path to the chat data folder
+    token = ""  # Outside param/Bot token
     chat_mode = "mixed"  # Outside param
-    binary_chat_mode = 0
-    bot_id = None
-    welcome_default = "Welcome to {1}!"
-    thread_id = None
+    # Private - the chat is protected with a whitelist
+    # Mixed - the protection mode is changed by voting in the chat
+    # Public - the chat is protected by rapid voting after the participant enters the chat
+    # Captcha - chat is protected by a standard captcha
+    binary_chat_mode = 0 # Chat protection mode in binary form
+    bot_id = None # Telegram bot account ID
+    welcome_default = "Welcome to {1}!" # Default chat greeting
+    # Can be changed in the welcome.txt file, for example "{0}, welcome to {1}",
+    # where {0} is the user's nickname, {1} is the name of the chat
+    thread_id = None # Default topic ID in Telegram chat
     SQL_INIT = {"version": VERSION,
                 "votes": __votes_need,
                 "votes_ban": __votes_need_ban,
@@ -54,10 +67,10 @@ class ConfigData:
                 "vote_mode": vote_mode,
                 "wait_timer": wait_timer,
                 "abuse_mode": abuse_mode,
-                "rate": 1,
-                "public_mode": 0,
+                "rate": rate,
+                "public_mode": binary_chat_mode,
                 "allowed_admins": __ADMIN_RECOMMENDED}
-    plugins = []
+    __plugins = []
 
     def __init__(self):
 
@@ -310,11 +323,19 @@ class ConfigData:
             logging.error(traceback.format_exc())
             sys.exit(1)
 
+    @property
+    def plugins(self):
+        return self.__plugins
+
+    @plugins.setter
+    def plugins(self, value):
+        if not isinstance(value, list):
+            return
+        self.__plugins = value
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
 sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
-
 
 def init():
     data.sql_worker_get(sqlWorker)
@@ -325,16 +346,33 @@ def init():
         logging.error(traceback.format_exc())
         sys.exit(1)
 
-    threading.Thread(target=auto_clear).start()
+    threading.Thread(target=auto_clear, daemon=True).start()
+
+    get_version = sqlWorker.params("version", data.VERSION)
+    if version.parse(get_version) < version.parse(data.MIN_VERSION):
+        logging.error(f"You cannot upgrade from version {get_version} because compatibility is lost! "
+                      f"Minimum version to upgrade to version {data.VERSION} - {data.MIN_VERSION}")
+        sys.exit(1)
+    elif version.parse(get_version) < version.parse(data.VERSION):
+        change_type = "повышение"
+        logging.warning(f"Version {get_version} upgraded to version {data.VERSION}")
+    elif version.parse(get_version) > version.parse(data.VERSION):
+        logging.warning("Version downgrade detected! This can lead to unpredictable consequences for the bot!")
+        logging.warning(f"Downgraded from {get_version} to {data.VERSION}")
+        change_type = "понижение"
+    else:
+        change_type = ""
+    update_text = "" if version.parse(get_version) == version.parse(data.VERSION) \
+        else f"\nВнимание! Обнаружено {change_type} версии.\n" \
+             f"Текущая версия: {data.VERSION}\n" \
+             f"Предыдущая версия: {get_version}"
+
+    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
     if data.main_chat_id == -1:
         logging.info("WARNING! STARTED IN INIT MODE!")
         return
 
-    get_version = sqlWorker.params("version", data.VERSION)
-    update_text = "" if get_version == data.VERSION else "\nВнимание! Обнаружено изменение версии.\n" \
-                                                         f"Текущая версия: {data.VERSION}\n" \
-                                                         f"Предыдущая версия: {get_version}"
     try:
         if data.debug:
             logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
@@ -345,8 +383,6 @@ def init():
     except telebot.apihelper.ApiTelegramException:
         logging.error("I was unable to send a launch message! Possibly the wrong value for the main chat or topic?")
         logging.error(traceback.format_exc())
-
-    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
 
 def auto_clear():
@@ -505,10 +541,13 @@ def make_keyboard(counter_yes, counter_no, cancel=True):
     return keyboard
 
 
-def vote_make(text, message, adduser, silent, cancel=True):
+def vote_make(text, message, adduser, silent, direct, cancel=True):
     if adduser:
         vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard("0", "0", cancel),
                                         parse_mode="html", message_thread_id=data.thread_id)
+    elif direct:
+        vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard("0", "0", cancel),
+                                        parse_mode="html", message_thread_id=message.message_thread_id)
     else:
         vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0", cancel), parse_mode="html")
     if not silent:
@@ -666,13 +705,11 @@ def topic_reply_fix(message):  # Опять эти конченые из тг м
 
 
 def command_forbidden(message, private_dialog=False, text=None):
-    if private_dialog:
-        if message.chat.id == message.from_user.id:
+    if private_dialog and message.chat.id == message.from_user.id:
             text = text or "Данную команду невозможно запустить в личных сообщениях."
             bot.reply_to(message, text)
             return True
-    else:
-        if message.chat.id != data.main_chat_id:
+    elif message.chat.id != data.main_chat_id:
             text = text or "Данную команду можно запустить только в основном чате."
             bot.reply_to(message, text)
             return True

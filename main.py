@@ -283,7 +283,14 @@ def get_usr(message):
 
 @bot.message_handler(commands=['help'])
 def help_msg(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.botname_checker(message):
+        return
+
+    if message.from_user.id == message.chat.id:
+        if bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("left", "kicked"):
+            bot.reply_to(message, "У вас нет прав для использования этой команды.")
+            return
+    elif utils.command_forbidden(message):
         return
 
     try:
@@ -299,7 +306,8 @@ def help_msg(message):
         bot.send_message(message.from_user.id,
                          f"<b>Список всех доступных команд для ДейтерБота версии {data.VERSION}:</b>\n" +
                          help_text, parse_mode="html")
-        bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
+        if not message.from_user.id == message.chat.id:
+            bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
     except telebot.apihelper.ApiTelegramException:
         bot.reply_to(message, "Я не смог отправить сообщение вам в л/с. Недостаточно прав или нет личного диалога?")
 
@@ -476,6 +484,17 @@ def revoke(message):
                           f"Created by Allnorm aka Peter Burzec")
 
 
+@bot.message_handler(commands=['plugins'])
+def revoke(message):
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
+        return
+
+    plugin_list = "Никакие плагины сейчас не загружены."
+    if data.plugins:
+        plugin_list = "Список загруженных плагинов: " + ", ".join(data.plugins)
+    bot.reply_to(message, plugin_list)
+
+
 @bot.message_handler(commands=['niko'])
 def niko(message):
     if not utils.botname_checker(message):
@@ -525,6 +544,7 @@ def captcha_buttons(call_msg):
         return
 
     sqlWorker.captcha(call_msg.message.message_id, remove=True)
+    sqlWorker.abuse_remove(datalist[0][1])
     try:
         bot.restrict_chat_member(call_msg.message.chat.id, datalist[0][1],
                                  None, True, True, True, True, True, True, True, True)
@@ -545,13 +565,20 @@ def cancel_vote(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
         return
 
+    if bot.get_chat_member(call_msg.message.chat.id, call_msg.from_user.id).status in ("left", "kicked"):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text="Вы не являетесь участником данного чата!", show_alert=True)
+        return
+
     poll = call_msg_chk(call_msg)
     if not poll:
         return
+
     if poll[0][8] != call_msg.from_user.id:
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text='Вы не можете отменить чужое голосование!', show_alert=True)
         return
+
     pool_engine.vote_abuse.clear()
     sqlWorker.rem_rec(call_msg.message.id, poll[0][0])
     try:
@@ -596,6 +623,11 @@ def callback_inline(call_msg):
         return
 
     if call_msg.data != "yes" and call_msg.data != "no":
+        return
+
+    if bot.get_chat_member(call_msg.message.chat.id, call_msg.from_user.id).status in ("left", "kicked"):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text="Вы не являетесь участником данного чата!", show_alert=True)
         return
 
     def get_abuse_timer():

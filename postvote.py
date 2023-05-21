@@ -20,7 +20,6 @@ class UserAdd(PostVote):
 
     def accept(self):
         sqlWorker.abuse_remove(self.data_list[2])
-        sqlWorker.abuse_update(self.data_list[2])
         sqlWorker.whitelist(self.data_list[2], add=True)
         status = bot.get_chat_member(self.message_vote.chat.id, self.data_list[2]).status
         if status not in ["left", "kicked", "restricted"] \
@@ -147,6 +146,7 @@ class Captcha(PostVote):
     _description = "капча"
 
     def accept(self):
+        sqlWorker.abuse_remove(self.data_list[1])
         try:
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[1],
                                      None, True, True, True, True, True, True, True, True)
@@ -159,7 +159,8 @@ class Captcha(PostVote):
 
     def decline(self):
         try:
-            bot.ban_chat_member(self.message_vote.chat.id, self.data_list[1], until_date=int(time.time()) + 60)
+            bot.ban_chat_member(self.message_vote.chat.id, self.data_list[1],
+                                until_date=int(time.time()) + self.data_list[3])
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Я не смог заблокировать {self.data_list[2]} {self.data_list[0]}! "
                                   f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
