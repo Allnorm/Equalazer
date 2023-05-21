@@ -33,7 +33,7 @@ class Plugins:
                             version.parse(meta_info['version-max']) < version.parse(data.VERSION)]):
                         logging.error(f'Module "{entry}" need bot version {meta_info["version-min"]} '
                                       f'- {meta_info["version-max"]}, current is {data.VERSION}')
-                        raise ImportError
+                        sys.exit(1)
                     if meta_info['type'] == 'vote':
                         PoolEngine.post_vote_list.update(meta.vote_list)
                     importlib.import_module(f"{plugin_folder}.{plugin}").Handler()
