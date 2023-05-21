@@ -1467,7 +1467,7 @@ class AlliesList(PreVote):
         if utils.command_forbidden(self.message, True):
             return True
 
-        if utils.extract_arg(self.message.tex, 1) in ("add", "remove"):
+        if utils.extract_arg(self.message.text, 1) in ("add", "remove"):
             if self.message.chat.id == data.main_chat_id:
                 bot.reply_to(self.message, "Данную команду нельзя запустить в основном чате!")
                 return True
