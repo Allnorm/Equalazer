@@ -2,6 +2,7 @@ import fnmatch
 import importlib
 import logging
 import os
+import sys
 import traceback
 
 from packaging import version
@@ -40,6 +41,7 @@ class Plugins:
                 except Exception as e:
                     logging.error(f'Module "{entry}" is invalid! {e}')
                     logging.error(traceback.format_exc())
+                    sys.exit(1)
         if plugin_names:
             logging.info("Loaded plugins: " + ", ".join(plugin_names))
             data.plugins = plugin_names

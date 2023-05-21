@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.1" # Current bot version
+    VERSION = "2.1.1" # Current bot version
     MIN_VERSION = "2.0" # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "21.05.2023" # Bot build date
     ANONYMOUS_ID = 1087968824 # ID value for anonymous user tg
@@ -706,11 +706,12 @@ def topic_reply_fix(message):  # Опять эти конченые из тг м
 
 def command_forbidden(message, private_dialog=False, text=None):
     if private_dialog and message.chat.id == message.from_user.id:
-            text = text or "Данную команду невозможно запустить в личных сообщениях."
-            bot.reply_to(message, text)
-            return True
+        text = text or "Данную команду невозможно запустить в личных сообщениях."
+        bot.reply_to(message, text)
+        return True
+    elif private_dialog:
+        return False
     elif message.chat.id != data.main_chat_id:
-            text = text or "Данную команду можно запустить только в основном чате."
-            bot.reply_to(message, text)
-            return True
-    return False
+        text = text or "Данную команду можно запустить только в основном чате."
+        bot.reply_to(message, text)
+        return True
