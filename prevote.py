@@ -14,8 +14,6 @@ from poll_engine import PreVote
 
 
 class Invite(PreVote):
-    add_user = True
-    vote_type = "invite"
 
     def pre_return(self) -> bool:
         if not bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in \
@@ -68,7 +66,7 @@ class Invite(PreVote):
                           + utils.username_parser(self.message, True) + "</a>.\n"
                           + "Сообщение от пользователя: " + msg_from_usr + ".")
         self.vote_args = [self.message.chat.id, utils.username_parser(self.message), self.message.from_user.id]
-        self.poll_maker()
+        self.poll_maker(add_user=True, vote_type="invite")
 
         warn = ""
         if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "kicked":
@@ -771,7 +769,7 @@ class MessageRemover(PreVote):
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}." + self.warn)
         self.vote_args = [self.message.reply_to_message.message_id,
                           utils.username_parser(self.message.reply_to_message), self.silent]
-        self.poll_maker()
+        self.poll_maker(silent=self.silent)
 
 
 class MessageSilentRemover(MessageRemover):
@@ -1437,8 +1435,6 @@ class NewUserChecker(PreVote):
 
 class AlliesList(PreVote):
     help_text = "Поддерживаются аргументы add, remove и запуск без аргументов."
-    current_timer = 86400
-    add_user = True
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message, True):
@@ -1488,7 +1484,7 @@ class AlliesList(PreVote):
                           f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.message.chat.id, self.message.message_thread_id]
-        self.poll_maker()
+        self.poll_maker(add_user=True, current_timer=86400)
 
         bot.reply_to(self.message, f"Голосование о {mode_text} союза отправлено в чат "
                                    f"<b>{utils.html_fix(bot.get_chat(data.main_chat_id).title)}</b>.\n"
