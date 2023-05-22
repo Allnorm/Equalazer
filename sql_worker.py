@@ -29,17 +29,11 @@ class SqlWorker:
                                     unique_id TEXT NOT NULL PRIMARY KEY,
                                     message_id INTEGER UNIQUE,
                                     type TEXT NOT NULL,
-                                    counter_yes INTEGER,
-                                    counter_no INTEGER,
+                                    chat_id INTEGER,
+                                    buttons TEXT,
                                     timer INTEGER,
                                     data TEXT NOT NULL,
-                                    votes_need INTEGER,
-                                    user_id INTEGER);""")
-        cursor.execute("""CREATE TABLE if not exists users_choice (
-                                    message_id INTEGER,
-                                    user_id INTEGER,
-                                    choice TEXT,
-                                    username TEXT);""")
+                                    votes_need INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists abuse (
                                     user_id INTEGER PRIMARY KEY,
                                     start_time INTEGER,
@@ -123,55 +117,33 @@ class SqlWorker:
         return fetchall
 
     @open_close_db
-    def add_poll(self, cursor, unique_id, message_vote, poll_type, current_time, work_data, votes_need, user_id):
-        cursor.execute("""INSERT INTO current_polls VALUES (?,?,?,?,?,?,?,?,?);""",
-                       (unique_id, message_vote.id, poll_type, 0, 0, current_time, work_data, votes_need, user_id))
+    def add_poll(self, cursor, unique_id, message_vote, poll_type, chat_id, buttons_scheme,
+                 current_time, work_data, votes_need):
+        cursor.execute("""INSERT INTO current_polls VALUES (?,?,?,?,?,?,?,?);""",
+                       (unique_id, message_vote.id, poll_type, chat_id, buttons_scheme,
+                        current_time, work_data, votes_need))
 
     @open_close_db
-    def msg_chk(self, cursor, message_vote=None, unique_id=None):
-        if message_vote is not None:
-            cursor.execute("""SELECT * FROM current_polls WHERE message_id = ?""", (message_vote.message_id,))
-        elif unique_id is not None:
-            cursor.execute("""SELECT * FROM current_polls WHERE unique_id = ?""", (unique_id,))
+    def get_poll(self, cursor, message_id):
+        cursor.execute("""SELECT * FROM current_polls WHERE message_id = ?""", (message_id,))
         records = cursor.fetchall()
         return records
 
     @open_close_db
-    def rem_rec(self, cursor, message_id, unique_id=None):
-        if unique_id is not None:
-            cursor.execute("""DELETE FROM current_polls WHERE unique_id = ?""", (unique_id,))
-        cursor.execute("""DELETE FROM users_choice WHERE message_id = ?""", (message_id,))
+    def get_message_id(self, cursor, unique_id):
+        cursor.execute("""SELECT * FROM current_polls WHERE unique_id = ?""", (unique_id,))
+        records = cursor.fetchall()
+        if records:
+            return records[0][0]
+        return None
 
     @open_close_db
-    def is_user_voted(self, cursor, user_id, message_id):
-        cursor.execute("""SELECT choice FROM users_choice WHERE user_id = ? AND message_id = ?""",
-                       (user_id, message_id,))
-        fetchall = cursor.fetchall()
-        if fetchall:
-            return fetchall[0][0]
-        return fetchall
+    def update_poll_votes(self, cursor, unique_id, buttons_scheme):
+        cursor.execute("""UPDATE current_polls SET buttons = ? where unique_id = ?""", (buttons_scheme, unique_id))
 
     @open_close_db
-    def poll_update(self, cursor, counter_yes, counter_no, unique_id):
-        cursor.execute("""UPDATE current_polls SET counter_yes = ?, counter_no = ? where unique_id = ?""",
-                       (counter_yes, counter_no, unique_id))
-
-    @open_close_db
-    def user_vote_update(self, cursor, call_msg, username):
-        cursor.execute("""SELECT * FROM users_choice WHERE user_id = ? AND message_id = ?""",
-                       (call_msg.from_user.id, call_msg.message.id,))
-        record = cursor.fetchall()
-        if not record:
-            cursor.execute("""INSERT INTO users_choice VALUES (?,?,?,?)""",
-                           (call_msg.message.id, call_msg.from_user.id, call_msg.data, username))
-        else:
-            cursor.execute("""UPDATE users_choice SET choice = ? where message_id = ? AND user_id = ?""",
-                           (call_msg.data, call_msg.message.id, call_msg.from_user.id))
-
-    @open_close_db
-    def user_vote_remove(self, cursor, call_msg):
-        cursor.execute("""DELETE FROM users_choice WHERE message_id = ? AND user_id = ?""",
-                       (call_msg.message.id, call_msg.from_user.id,))
+    def rem_rec(self, cursor, unique_id):
+        cursor.execute("""DELETE FROM current_polls WHERE unique_id = ?""", (unique_id,))
 
     @open_close_db
     def get_rate(self, cursor, user_id):
@@ -259,3 +231,18 @@ class SqlWorker:
         else:
             cursor.execute("""SELECT * FROM captcha WHERE message_id = ?""", (message_id,))
             return cursor.fetchall()
+
+    # Temporary code!!!
+    @open_close_db
+    def upgrade(self, cursor):
+        cursor.execute("""DROP TABLE if exists current_polls;""")
+        cursor.execute("""DROP TABLE if exists users_choice;""")
+        cursor.execute("""CREATE TABLE if not exists current_polls (
+                                            unique_id TEXT NOT NULL PRIMARY KEY,
+                                            message_id INTEGER UNIQUE,
+                                            type TEXT NOT NULL,
+                                            chat_id INTEGER,
+                                            buttons TEXT,
+                                            timer INTEGER,
+                                            data TEXT NOT NULL,
+                                            votes_need INTEGER);""")

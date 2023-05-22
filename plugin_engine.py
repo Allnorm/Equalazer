@@ -10,6 +10,7 @@ from packaging import version
 from utils import data
 from poll_engine import PoolEngine
 
+
 class Plugins:
 
     def __init__(self):

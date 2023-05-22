@@ -19,32 +19,32 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.1.3" # Current bot version
-    MIN_VERSION = "2.0" # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "22.05.2023" # Bot build date
-    ANONYMOUS_ID = 1087968824 # ID value for anonymous user tg
-    ADMIN_MAX = 0b1111111111 # The upper limit of the number for admin rights in binary form
+    VERSION = "2.2"  # Current bot version
+    MIN_VERSION = "2.0"  # The minimum version from which you can upgrade to this one without breaking the bot
+    BUILD_DATE = "22.05.2023"  # Bot build date
+    ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
+    ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
     # Leading bit is always 1, recorded backwards
-    ADMIN_MIN = 0b1000000000 # The lower limit of the number for admin rights in binary form
-    __ADMIN_RECOMMENDED = 0b1010010100 # Recommended value of admin rights in binary form
-    EASTER_LINK = "https://goo.su/wLZSEz1" # Link for easter eggs
-    global_timer = 3600 # Value in seconds of duration of votes
-    global_timer_ban = 300 # Value in seconds of duration of ban-votes
-    __votes_need = 0 # Required number of votes for early voting closure
-    __votes_need_ban = 0 # Required number of votes for early ban-voting closure
-    __votes_need_min = 2 # Minimum amount of votes for a vote to be accepted
+    ADMIN_MIN = 0b1000000000  # The lower limit of the number for admin rights in binary form
+    __ADMIN_RECOMMENDED = 0b1010010100  # Recommended value of admin rights in binary form
+    EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
+    global_timer = 3600  # Value in seconds of duration of votes
+    global_timer_ban = 300  # Value in seconds of duration of ban-votes
+    __votes_need = 0  # Required number of votes for early voting closure
+    __votes_need_ban = 0  # Required number of votes for early ban-voting closure
+    __votes_need_min = 2  # Minimum amount of votes for a vote to be accepted
     main_chat_id = ""  # Outside param/Bot Managed Chat ID
-    debug = False # Debug mode with special presets and lack of saving parameters in the database
-    vote_mode = 3 # Sets the mode in which the voice cannot be canceled and transferred (1),
+    debug = False  # Debug mode with special presets and lack of saving parameters in the database
+    vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
-    wait_timer = 30 # Cooldown before being able to change or cancel voice
-    abuse_mode = 2 # Mode 0 - the /abuse command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
+    wait_timer = 30  # Cooldown before being able to change or cancel voice
+    abuse_mode = 2  # Mode 0 - the /abuse command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     secret_ballot = True  # Outside param/If disabled, nicknames of voters are written to the database
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
-    rate = True # Enables or disables the rating system
+    rate = True  # Enables or disables the rating system
     admin_fixed = False  # Outside param/If enabled, chat participants
     # cannot change the admin rights allowed for issuance by voting
-    admin_allowed = __ADMIN_RECOMMENDED # Admin rights allowed for issuance in the chat
+    admin_allowed = __ADMIN_RECOMMENDED  # Admin rights allowed for issuance in the chat
     path = ""  # Outside param/Path to the chat data folder
     token = ""  # Outside param/Bot token
     chat_mode = "mixed"  # Outside param
@@ -52,12 +52,12 @@ class ConfigData:
     # Mixed - the protection mode is changed by voting in the chat
     # Public - the chat is protected by rapid voting after the participant enters the chat
     # Captcha - chat is protected by a standard captcha
-    binary_chat_mode = 0 # Chat protection mode in binary form
-    bot_id = None # Telegram bot account ID
-    welcome_default = "Welcome to {1}!" # Default chat greeting
+    binary_chat_mode = 0  # Chat protection mode in binary form
+    bot_id = None  # Telegram bot account ID
+    welcome_default = "Welcome to {1}!"  # Default chat greeting
     # Can be changed in the welcome.txt file, for example "{0}, welcome to {1}",
     # where {0} is the user's nickname, {1} is the name of the chat
-    thread_id = None # Default topic ID in Telegram chat
+    thread_id = None  # Default topic ID in Telegram chat
     SQL_INIT = {"version": VERSION,
                 "votes": __votes_need,
                 "votes_ban": __votes_need_ban,
@@ -67,7 +67,7 @@ class ConfigData:
                 "vote_mode": vote_mode,
                 "wait_timer": wait_timer,
                 "abuse_mode": abuse_mode,
-                "rate": rate,
+                "rate": rate,  # It seems that this parameter is not used anywhere.
                 "public_mode": binary_chat_mode,
                 "allowed_admins": __ADMIN_RECOMMENDED}
     __plugins = []
@@ -333,9 +333,11 @@ class ConfigData:
             return
         self.__plugins = value
 
+
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
 sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
+
 
 def init():
     data.sql_worker_get(sqlWorker)
@@ -367,6 +369,24 @@ def init():
              f"Текущая версия: {data.VERSION}\n" \
              f"Предыдущая версия: {get_version}"
 
+    # Temporary code!!!!
+    if version.parse(get_version) < version.parse("2.2"):
+        logging.warning("UPDATE FROM OLD VERSION DETECTED! DB MIGRATION PROCESS WAS LAUNCHED!")
+        logging.warning("All existing polls will be cleared")
+        records = sqlWorker.get_all_polls()
+        for record in records:
+            try:
+                os.remove(data.path + record[0])
+            except IOError:
+                pass
+            logging.info('Removed poll "' + record[0] + '"')
+        try:
+            sqlWorker.upgrade()
+        except Exception as e:
+            logging.error(str(e) + "\n" + traceback.format_exc())
+            sys.exit(1)
+        logging.info("..successfully")
+
     logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
     if data.main_chat_id == -1:
@@ -390,7 +410,7 @@ def auto_clear():
         records = sqlWorker.get_all_polls()
         for record in records:
             if record[5] + 600 < int(time.time()):
-                sqlWorker.rem_rec(record[1], record[0])
+                sqlWorker.rem_rec(record[0])
                 try:
                     os.remove(data.path + record[0])
                 except IOError:
@@ -528,52 +548,32 @@ def formatted_timer(timer_in_second):
     # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
 
 
-def make_keyboard(counter_yes, counter_no, cancel=True):
-    buttons = [
-        types.InlineKeyboardButton(text="Да - " + str(counter_yes), callback_data="yes"),
-        types.InlineKeyboardButton(text="Нет - " + str(counter_no), callback_data="no"),
-        types.InlineKeyboardButton(text="Узнать мой голос", callback_data="vote")
-    ]
-    if cancel:
-        buttons.append(types.InlineKeyboardButton(text="Отмена голосования", callback_data="cancel"))
+def make_keyboard(buttons_scheme):
+    formatted_buttons = []
+    for button in buttons_scheme:
+        if button["button_type"] == "vote":
+            text = f'{button["name"]} - {len(button["user_list"])}'
+            callback_data = f'{button["button_type"]}_{button["name"]}'
+            formatted_buttons.append(types.InlineKeyboardButton(text=text, callback_data=callback_data))
+        else:
+            formatted_buttons.append(types.InlineKeyboardButton(text=button["name"],
+                                                                callback_data=button["button_type"]))
     keyboard = types.InlineKeyboardMarkup(row_width=2)
-    keyboard.add(*buttons)
+    keyboard.add(*formatted_buttons)
     return keyboard
 
 
-def vote_make(text, message, adduser, silent, direct, cancel=True):
-    if adduser:
-        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard("0", "0", cancel),
+def vote_make(text, message, buttons_scheme, add_user, direct):
+    if add_user:
+        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard(buttons_scheme),
                                         parse_mode="html", message_thread_id=data.thread_id)
     elif direct:
-        vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard("0", "0", cancel),
+        vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard(buttons_scheme),
                                         parse_mode="html", message_thread_id=message.message_thread_id)
     else:
-        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard("0", "0", cancel), parse_mode="html")
-    if not silent:
-        try:
-            bot.pin_chat_message(vote_message.chat.id, vote_message.message_id, disable_notification=True)
-        except telebot.apihelper.ApiTelegramException:
-            pass
+        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard(buttons_scheme), parse_mode="html")
 
     return vote_message
-
-
-def vote_update(counter_yes, counter_no, call, cancel=True):
-    bot.edit_message_reply_markup(call.chat.id, message_id=call.message_id,
-                                  reply_markup=make_keyboard(counter_yes, counter_no, cancel))
-
-
-def is_voting_exists(records, message, unique_id):
-    if not records:
-        return False
-    if records[0][5] <= int(time.time()):
-        sqlWorker.rem_rec("", unique_id=unique_id)
-        sqlWorker.rem_rec(records[0][1])
-        return False
-    else:
-        bot.reply_to(message, "Голосование о данном вопросе уже идёт.")
-        return True
 
 
 def botname_checker(message, get_chat=False) -> bool:

@@ -14,7 +14,6 @@ from utils import sqlWorker, data, bot
 
 class PoolEngine:
     vote_abuse = {}
-
     post_vote_list = {}
 
     def auto_restart_polls(self):
@@ -43,7 +42,7 @@ class PoolEngine:
 
     def vote_result(self, unique_id, message_vote):
 
-        records = sqlWorker.msg_chk(unique_id=unique_id)
+        records = sqlWorker.get_poll(message_vote.id)
         if not records:
             return
 
@@ -56,7 +55,7 @@ class PoolEngine:
             logging.error("Failed to clear a poll file!")
             logging.error(traceback.format_exc())
 
-        sqlWorker.rem_rec(message_vote.id, unique_id)
+        sqlWorker.rem_rec(unique_id)
 
         try:
             self.post_vote_list[records[0][2]].post_vote(records, message_vote)
@@ -64,6 +63,23 @@ class PoolEngine:
             logging.error(traceback.format_exc())
             bot.edit_message_text("Ошибка применения результатов голосования. Итоговая функция не найдена!",
                                   message_vote.chat.id, message_vote.id)
+
+    def get_abuse_timer(self, call_msg):
+        try:
+            abuse_vote_timer = int(self.vote_abuse.get(str(call_msg.message.id) + "." + str(call_msg.from_user.id)))
+        except TypeError:
+            abuse_vote_timer = None
+
+        if abuse_vote_timer is not None:
+            if abuse_vote_timer + data.wait_timer > int(time.time()):
+                please_wait = data.wait_timer - int(time.time()) + abuse_vote_timer
+                bot.answer_callback_query(callback_query_id=call_msg.id,
+                                          text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
+                                               + str(please_wait) + " секунд", show_alert=True)
+                return True
+            else:
+                pool_engine.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+                return False
 
 
 pool_engine = PoolEngine()
@@ -143,9 +159,15 @@ class PreVote:
         return True
 
     def is_voting_exist(self):
-        records = sqlWorker.msg_chk(unique_id=self.unique_id)
-        if utils.is_voting_exists(records, self.message, self.unique_id):
-            return True
+        message_id = sqlWorker.get_message_id(self.unique_id)
+        if message_id:
+            poll = sqlWorker.get_poll(message_id)
+            if poll[0][5] <= int(time.time()):
+                sqlWorker.rem_rec(poll[0][0])
+                return False
+            else:
+                bot.reply_to(self.message, "Голосование о данном вопросе уже идёт.")
+                return True
         return False
 
     def get_votes_text(self):
@@ -170,13 +192,34 @@ class PreVote:
 
     def __poll_constructor(self):
         vote_text = self.get_votes_text()
-        cancel = False if data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID else True
-        message_vote = utils.vote_make(vote_text, self.message, self.add_user, self.silent, self.direct, cancel)
-        sqlWorker.add_poll(self.unique_id, message_vote, self.vote_type, int(time.time()) + self.current_timer,
-                           json.dumps(self.vote_args), self.current_votes, self.user_id)
+        buttons_scheme = self.get_buttons_scheme()
+        message_vote = utils.vote_make(vote_text, self.message, buttons_scheme, self.add_user, self.direct)
+        sqlWorker.add_poll(self.unique_id, message_vote, self.vote_type, self.message.chat.id,
+                           json.dumps(buttons_scheme), int(time.time()) + self.current_timer,
+                           json.dumps(self.vote_args), self.current_votes)
         utils.poll_saver(self.unique_id, message_vote)
+        if not self.silent:
+            try:
+                bot.pin_chat_message(message_vote.chat.id, message_vote.message_id, disable_notification=True)
+            except telebot.apihelper.ApiTelegramException:
+                pass
         threading.Thread(target=pool_engine.vote_timer, daemon=True,
                          args=(self.current_timer, self.unique_id, message_vote)).start()
+
+    def get_buttons_scheme(self):
+        button_scheme = [{"button_type": "vote",
+                          "name": "Да",
+                          "user_list": []},
+                         {"button_type": "vote",
+                          "name": "Нет",
+                          "user_list": []},
+                         {"button_type": "my_vote",
+                          "name": "Узнать мой голос"}]
+        if not (data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID):
+            button_scheme.append({"button_type": "cancel",
+                                  "name": "Отмена голосования",
+                                  "user_id": self.user_id})
+        return button_scheme
 
     def reply_msg_target(self):
         self.reply_user_id, self.reply_username, self.reply_is_bot = \
@@ -199,10 +242,19 @@ class PostVote:
     def post_vote(self, records, message_vote):
         self.data_list = json.loads(records[0][6])
         self.message_vote = message_vote
-        self.votes_counter = "\nЗа: " + str(records[0][3]) + "\n" + "Против: " + str(records[0][4])
-        if records[0][3] > records[0][4] and records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
+        button_data = json.loads(records[0][4])
+        counters_yes = 0
+        counters_no = 0
+        for button in button_data:
+            if button["button_type"] == "vote":
+                if button["name"] == "Да":
+                    counters_yes = len(button["user_list"])
+                elif button["name"] == "Нет":
+                    counters_no = len(button["user_list"])
+        self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
+        if counters_yes > counters_no and counters_yes + counters_no >= data.thresholds_get(minimum=True):
             self.is_accept = True
-        elif records[0][3] + records[0][4] >= data.thresholds_get(minimum=True):
+        elif counters_yes + counters_no >= data.thresholds_get(minimum=True):
             self.is_accept = False
         else:
             self.is_accept = False

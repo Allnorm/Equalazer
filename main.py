@@ -144,7 +144,7 @@ def add_answer(message):
         bot.reply_to(message, "Пожалуйста, используйте эту команду как ответ на заявку на вступление")
         return
 
-    poll = sqlWorker.msg_chk(message_vote=message.reply_to_message)
+    poll = sqlWorker.get_poll(message.reply_to_message.id)
     if poll:
         if poll[0][2] != "invite":
             bot.reply_to(message, "Данное голосование не является голосованием о вступлении.")
@@ -314,19 +314,21 @@ def help_msg(message):
 
 @bot.message_handler(commands=['votes'])
 def votes_msg(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.botname_checker(message) or utils.command_forbidden(message, private_dialog=True):
         return
 
     records = sqlWorker.get_all_polls()
     poll_list = ""
     number = 1
 
-    if bot.get_chat(data.main_chat_id).username is not None:
-        format_chat_id = bot.get_chat(data.main_chat_id).username
+    if bot.get_chat(message.chat.id).username is not None:
+        format_chat_id = bot.get_chat(message.chat.id).username
     else:
-        format_chat_id = "c/" + str(data.main_chat_id)[4:]
+        format_chat_id = "c/" + str(message.chat.id)[4:]
 
     for record in records:
+        if record[3] != message.chat.id:
+            continue
         try:
             vote_type = pool_engine.post_vote_list[record[2]].description
         except KeyError:
@@ -510,9 +512,8 @@ def niko(message):
 
 
 def call_msg_chk(call_msg):
-    records = sqlWorker.msg_chk(message_vote=call_msg.message)
+    records = sqlWorker.get_poll(call_msg.message.id)
     if not records:
-        sqlWorker.rem_rec(call_msg.message.id)
         bot.edit_message_text(utils.html_fix(call_msg.message.text)
                               + "\n\n<b>Голосование не найдено в БД и закрыто.</b>",
                               call_msg.message.chat.id, call_msg.message.id, parse_mode='html')
@@ -529,32 +530,32 @@ def captcha_buttons(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
         return
 
-    datalist = sqlWorker.captcha(call_msg.message.message_id)
-    if not datalist:
+    data_list = sqlWorker.captcha(call_msg.message.message_id)
+    if not data_list:
         bot.edit_message_text("Капча не найдена в БД и закрыта.", call_msg.message.chat.id, call_msg.message.message_id)
         return
-    if datalist[0][1] != str(call_msg.from_user.id):
+    if data_list[0][1] != str(call_msg.from_user.id):
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text='Вы не можете решать чужую капчу!', show_alert=True)
         return
 
-    if int(call_msg.data.split("_")[1]) != datalist[0][2]:
+    if int(call_msg.data.split("_")[1]) != data_list[0][2]:
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text='Неправильный ответ!', show_alert=True)
         return
 
     sqlWorker.captcha(call_msg.message.message_id, remove=True)
-    sqlWorker.abuse_remove(datalist[0][1])
+    sqlWorker.abuse_remove(data_list[0][1])
     try:
-        bot.restrict_chat_member(call_msg.message.chat.id, datalist[0][1],
+        bot.restrict_chat_member(call_msg.message.chat.id, data_list[0][1],
                                  None, True, True, True, True, True, True, True, True)
     except telebot.apihelper.ApiTelegramException:
-        bot.edit_message_text(f"Я не смог снять ограничения с пользователя {datalist[0][3]}! Недостаточно прав?",
+        bot.edit_message_text(f"Я не смог снять ограничения с пользователя {data_list[0][3]}! Недостаточно прав?",
                               call_msg.message.chat.id, call_msg.message.message_id)
         return
 
     try:
-        bot.edit_message_text(utils.welcome_msg_get(datalist[0][3], call_msg.message), call_msg.message.chat.id,
+        bot.edit_message_text(utils.welcome_msg_get(data_list[0][3], call_msg.message), call_msg.message.chat.id,
                               call_msg.message.message_id)
     except telebot.apihelper.ApiTelegramException:
         pass
@@ -574,13 +575,16 @@ def cancel_vote(call_msg):
     if not poll:
         return
 
-    if poll[0][8] != call_msg.from_user.id:
-        bot.answer_callback_query(callback_query_id=call_msg.id,
-                                  text='Вы не можете отменить чужое голосование!', show_alert=True)
-        return
+    button_data = json.loads(poll[0][4])
+    for button in button_data:
+        if button["button_type"] == "cancel":
+            if button["user_id"] != call_msg.from_user.id:
+                bot.answer_callback_query(callback_query_id=call_msg.id,
+                                          text='Вы не можете отменить чужое голосование!', show_alert=True)
+                return
 
     pool_engine.vote_abuse.clear()
-    sqlWorker.rem_rec(call_msg.message.id, poll[0][0])
+    sqlWorker.rem_rec(poll[0][0])
     try:
         os.remove(data.path + poll[0][0])
     except IOError:
@@ -596,33 +600,9 @@ def cancel_vote(call_msg):
         pass
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "vote")
-def my_vote(call_msg):
+@bot.callback_query_handler(func=lambda call: call.data == "close")
+def cancel_vote(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
-        return
-
-    if not call_msg_chk(call_msg):
-        return
-
-    user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
-    if user_ch:
-        if user_ch == "yes":
-            bot.answer_callback_query(callback_query_id=call_msg.id,
-                                      text='Вы голосовали за вариант "да".', show_alert=True)
-        elif user_ch == "no":
-            bot.answer_callback_query(callback_query_id=call_msg.id,
-                                      text='Вы голосовали за вариант "нет".', show_alert=True)
-    else:
-        bot.answer_callback_query(callback_query_id=call_msg.id,
-                                  text='Вы не голосовали в данном опросе!', show_alert=True)
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call_msg):
-    if data.main_chat_id == -1:  # Проверка на init mode
-        return
-
-    if call_msg.data != "yes" and call_msg.data != "no":
         return
 
     if bot.get_chat_member(call_msg.message.chat.id, call_msg.from_user.id).status in ("left", "kicked"):
@@ -630,97 +610,122 @@ def callback_inline(call_msg):
                                   text="Вы не являетесь участником данного чата!", show_alert=True)
         return
 
-    def get_abuse_timer():
-        try:
-            abuse_vote_timer = int(pool_engine.vote_abuse.get(str(call_msg.message.id) + "."
-                                                              + str(call_msg.from_user.id)))
-        except TypeError:
-            abuse_vote_timer = None
-
-        if abuse_vote_timer is not None:
-            if abuse_vote_timer + data.wait_timer > int(time.time()):
-                please_wait = data.wait_timer - int(time.time()) + abuse_vote_timer
-                bot.answer_callback_query(callback_query_id=call_msg.id,
-                                          text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
-                                               + str(please_wait) + " секунд", show_alert=True)
-                return True
-            else:
-                pool_engine.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
-                return False
-
-    records = call_msg_chk(call_msg)
-    if not records:
+    poll = call_msg_chk(call_msg)
+    if not poll:
         return
 
-    if records[0][5] <= int(time.time()):
-        pool_engine.vote_abuse.clear()
-        pool_engine.vote_result(records[0][0], call_msg.message)
-        return
-
-    unique_id = records[0][0]
-    counter_yes = records[0][3]
-    counter_no = records[0][4]
-    votes_need_current = records[0][7]
-    cancel = False if records[0][8] == data.bot_id or records[0][8] == data.ANONYMOUS_ID else True
-
-    user_ch = sqlWorker.is_user_voted(call_msg.from_user.id, call_msg.message.id)
-    if user_ch:
-        if data.vote_mode == 1:
-            option = {"yes": "да", "no": "нет"}
-            bot.answer_callback_query(callback_query_id=call_msg.id,
-                                      text=f'Вы уже голосовали за вариант "{option[user_ch]}". '
-                                           f'Смена голоса запрещена.', show_alert=True)
-        elif data.vote_mode == 2:
-            if call_msg.data != user_ch:
-                if get_abuse_timer():
-                    return
-                if call_msg.data == "yes":
-                    counter_yes = counter_yes + 1
-                    counter_no = counter_no - 1
-                if call_msg.data == "no":
-                    counter_no = counter_no + 1
-                    counter_yes = counter_yes - 1
-                sqlWorker.poll_update(counter_yes, counter_no, unique_id)
-                sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
-                utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
-            else:
+    button_data = json.loads(poll[0][4])
+    for button in button_data:
+        if button["button_type"] == "close":
+            if button["user_id"] != call_msg.from_user.id:
                 bot.answer_callback_query(callback_query_id=call_msg.id,
-                                          text="Вы уже голосовали за этот вариант. " +
-                                               "Отмена голоса запрещена.", show_alert=True)
-        else:
-            if get_abuse_timer():
+                                          text='Вы не можете закрыть чужой опрос!', show_alert=True)
                 return
-            if call_msg.data != user_ch:
-                if call_msg.data == "yes":
-                    counter_yes = counter_yes + 1
-                    counter_no = counter_no - 1
-                if call_msg.data == "no":
-                    counter_no = counter_no + 1
-                    counter_yes = counter_yes - 1
-                sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
-            else:
-                if call_msg.data == "yes":
-                    counter_yes = counter_yes - 1
-                else:
-                    counter_no = counter_no - 1
-                sqlWorker.user_vote_remove(call_msg)
-            sqlWorker.poll_update(counter_yes, counter_no, unique_id)
-            utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
-    else:
-        if call_msg.data == "yes":
-            counter_yes = counter_yes + 1
-        if call_msg.data == "no":
-            counter_no = counter_no + 1
 
-        sqlWorker.poll_update(counter_yes, counter_no, unique_id)
-        sqlWorker.user_vote_update(call_msg, utils.private_checker(call_msg))
-        utils.vote_update(counter_yes, counter_no, call_msg.message, cancel)
+    pool_engine.vote_abuse.clear()
+    pool_engine.vote_result(poll[0][0], call_msg.message)
 
-    if counter_yes >= votes_need_current or counter_no >= votes_need_current:
-        pool_engine.vote_abuse.clear()
-        pool_engine.vote_result(unique_id, call_msg.message)
+
+@bot.callback_query_handler(func=lambda call: call.data == "my_vote")
+def my_vote(call_msg):
+    if data.main_chat_id == -1:  # Проверка на init mode
         return
 
+    poll = call_msg_chk(call_msg)
+    if not poll:
+        return
+
+    button_data = json.loads(poll[0][4])
+    for button in button_data:
+        if button["button_type"] == "vote":
+            if call_msg.from_user.id in button["user_list"]:
+                bot.answer_callback_query(callback_query_id=call_msg.id,
+                                          text=f'Вы голосовали за вариант "{button["name"]}".', show_alert=True)
+                return
+    bot.answer_callback_query(callback_query_id=call_msg.id, text='Вы не голосовали в данном опросе!', show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda call: "vote" in call.data)
+def vote_button(call_msg):
+    if data.main_chat_id == -1:  # Проверка на init mode
+        return
+
+    if bot.get_chat_member(call_msg.message.chat.id, call_msg.from_user.id).status in ("left", "kicked"):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text="Вы не являетесь участником данного чата!", show_alert=True)
+        return
+
+    poll = call_msg_chk(call_msg)
+    if not poll:
+        return
+
+    if pool_engine.get_abuse_timer(call_msg):  # Voting click check
+        return
+
+    button_data = json.loads(poll[0][4])
+    last_choice = None
+    current_choice = call_msg.data.split("_")[1]
+    for button in button_data:
+        if button["button_type"] == "vote":
+            if call_msg.from_user.id in button["user_list"]:
+                last_choice = button["name"]
+                break
+
+    # Adding data to a button
+    if data.vote_mode == 1:
+        if last_choice is not None:
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text=f'Вы уже голосовали за вариант "{last_choice}". '
+                                           f'Смена голоса запрещена.', show_alert=True)
+            return
+        else:
+            for button in button_data:
+                if button["button_type"] == "vote" and button["name"] == current_choice:
+                    button["user_list"].append(call_msg.from_user.id)
+                    break
+    elif data.vote_mode == 2:
+        if last_choice == current_choice:
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text=f'Вы уже голосовали за вариант "{last_choice}". '
+                                           f'Отмена голоса запрещена.', show_alert=True)
+            return
+        else:
+            for button in button_data:
+                if button["button_type"] == "vote" and button["name"] == current_choice:
+                    button["user_list"].append(call_msg.from_user.id)
+                if button["button_type"] == "vote" and button["name"] == last_choice:
+                    button["user_list"].remove(call_msg.from_user.id)
+    elif data.vote_mode == 3:
+        if last_choice == current_choice:
+            for button in button_data:
+                if button["button_type"] == "vote" and button["name"] == current_choice:
+                    button["user_list"].remove(call_msg.from_user.id)
+                    break
+        else:
+            for button in button_data:
+                if button["button_type"] == "vote" and button["name"] == current_choice:
+                    button["user_list"].append(call_msg.from_user.id)
+                if button["button_type"] == "vote" and button["name"] == last_choice:
+                    button["user_list"].remove(call_msg.from_user.id)
+    # Making changes to the database
+    sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
+
+    # Checking that there are enough votes to close the vote
+    voting_completed = False
+    for button in button_data:
+        if button["button_type"] == "vote":
+            if len(button["user_list"]) >= poll[0][7]:
+                voting_completed = True
+                break
+
+    if voting_completed or poll[0][5] <= int(time.time()):
+        pool_engine.vote_abuse.clear()
+        pool_engine.vote_result(poll[0][0], call_msg.message)
+        return
+
+    # Making changes to the message
+    bot.edit_message_reply_markup(call_msg.message.chat.id,
+                                  message_id=call_msg.message.id, reply_markup=utils.make_keyboard(button_data))
     pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 

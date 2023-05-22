@@ -39,7 +39,7 @@ class Invite(PreVote):
                     else:
                         until_timer = utils.formatted_timer(bot.get_chat_member(data.main_chat_id,
                                                                                 self.message.from_user.id).until_date
-                             - int(time.time()))
+                                                            - int(time.time()))
                         until_date = "Внимание! Вы заблокированы в данном чате! " \
                                      f"До снятия ограничений осталось {until_timer}\n"
                 bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n" + until_date + invite_link)
@@ -766,7 +766,7 @@ class MessageRemover(PreVote):
             return True
 
         if data.bot_id == self.message.reply_to_message.from_user.id \
-                and sqlWorker.msg_chk(self.message.reply_to_message):
+                and sqlWorker.get_poll(self.message.reply_to_message.id):
             bot.reply_to(self.message, "Вы не можете удалить голосование до его завершения!")
             return True
 
@@ -876,8 +876,8 @@ class Op(PreVote):
 
     def help(self):
         if self.help_access_check():
-            bot.reply_to(self.message, self.help_text.format
-            (data.admin_fixed, utils.allowed_list(data.admin_allowed)), parse_mode="html")
+            bot.reply_to(self.message, self.help_text.format(data.admin_fixed, utils.allowed_list(data.admin_allowed)),
+                         parse_mode="html")
 
     def arg_fn(self, arg):  # If the command was run with arguments
         try:
@@ -1672,8 +1672,8 @@ class CustomPoll(PreVote):
         self.help()
 
     def get_votes_text(self):
-        return f"{self.vote_text}\nОпрос будет закрыт через {utils.formatted_timer(self.current_timer)} " \
-               f"или после голосования всех участников чата."
+        return f"{self.vote_text}\nОпрос будет закрыт через {utils.formatted_timer(self.current_timer)}, " \
+               f"после голосования всех участников чата или при закрытии вручную."
 
     def help_access_check(self):
         return True
@@ -1694,11 +1694,26 @@ class CustomPoll(PreVote):
         self.unique_id = f"custom_{zlib.crc32(poll_text.encode('utf-8'))}_{self.message.chat.id}"
         if self.is_voting_exist():
             return
-        self.vote_text = (f"Текст опроса:\n<b>{utils.html_fix(poll_text)}</b>"
+        self.vote_text = (f"Текст опроса: <b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
-        self.vote_args = [poll_text]
+        self.vote_args = [poll_text, int(time.time())]
         self.poll_maker(direct=True)
         try:
             bot.delete_message(self.message.chat.id, self.message.id)
         except telebot.apihelper.ApiTelegramException:
             pass
+
+    def get_buttons_scheme(self):
+        button_scheme = [{"button_type": "vote",
+                          "name": "Да",
+                          "user_list": []},
+                         {"button_type": "vote",
+                          "name": "Нет",
+                          "user_list": []},
+                         {"button_type": "my_vote",
+                          "name": "Узнать мой голос"}]
+        if not self.user_id == data.ANONYMOUS_ID:
+            button_scheme.append({"button_type": "close",
+                                  "name": "Закрыть опрос",
+                                  "user_id": self.user_id})
+        return button_scheme

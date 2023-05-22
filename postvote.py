@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -177,6 +178,15 @@ class Threshold(PostVote):
     _description = "смена порога голосов"
 
     def post_vote_child(self):
+        button_data = json.loads(self.records[0][4])
+        counters_yes = 0
+        counters_no = 0
+        for button in button_data:
+            if button["button_type"] == "vote":
+                if button["name"] == "Да":
+                    counters_yes = len(button["user_list"])
+                elif button["name"] == "Нет":
+                    counters_no = len(button["user_list"])
         self.ban = True if self.data_list[1] == "threshold_ban" else False
         self.minimum = True if self.data_list[1] == "threshold_min" else False
         if self.ban:
@@ -186,8 +196,8 @@ class Threshold(PostVote):
         else:
             self.ban_text = "голосований по стандартным вопросам"
         if self.data_list[1] == "threshold_min":
-            self.votes_counter = "\nЗа: " + str(self.records[0][3]) + "\n" + "Против: " + str(self.records[0][4])
-        if self.records[0][3] > self.records[0][4] and self.data_list[1] == "threshold_min":
+            self.votes_counter = "\nЗа: " + str(counters_yes) + "\n" + "Против: " + str(counters_no)
+        if counters_yes > counters_no and self.data_list[1] == "threshold_min":
             self.is_accept = True
 
     def accept(self):
@@ -475,14 +485,24 @@ class ChangeRate(PostVote):
     _description = "изменение рейтинга"
 
     def accept(self):
+        button_data = json.loads(self.records[0][4])
+        counters_yes = 0
+        counters_no = 0
+        for button in button_data:
+            if button["button_type"] == "vote":
+                if button["name"] == "Да":
+                    counters_yes = len(button["user_list"])
+                elif button["name"] == "Нет":
+                    counters_no = len(button["user_list"])
+
         if self.data_list[2] == "up":
-            chrate = "увеличил на " + str(self.records[0][3] - self.records[0][4])
-            sqlWorker.update_rate(self.data_list[1], self.records[0][3] - self.records[0][4])
+            ch_rate = "увеличил на " + str(counters_yes - counters_no)
+            sqlWorker.update_rate(self.data_list[1], counters_yes - counters_no)
         else:
-            chrate = "уменьшил на " + str(self.records[0][3] - self.records[0][4])
-            sqlWorker.update_rate(self.data_list[1], self.records[0][4] - self.records[0][3])
+            ch_rate = "уменьшил на " + str(counters_yes - counters_no)
+            sqlWorker.update_rate(self.data_list[1], counters_no - counters_yes)
         bot.edit_message_text(f"Пользователь {self.data_list[3]} "
-                              f"{chrate} социальный рейтинг пользователя {self.data_list[0]}."
+                              f"{ch_rate} социальный рейтинг пользователя {self.data_list[0]}."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
@@ -680,15 +700,27 @@ class RemoveRules(PostVote):
 class CustomPoll(PostVote):
     _description = "пользовательский опрос"
 
-    def post_vote_child(self):
-        self.votes_counter = "\nЗа: " + str(self.records[0][3]) + "\n" + "Против: " + str(self.records[0][4])
+    def post_vote(self, records, message_vote):
+        self.data_list = json.loads(records[0][6])
+        self.message_vote = message_vote
+        button_data = json.loads(records[0][4])
+        counters_yes = 0
+        counters_no = 0
+        for button in button_data:
+            if button["button_type"] == "vote":
+                if button["name"] == "Да":
+                    counters_yes = len(button["user_list"])
+                elif button["name"] == "Нет":
+                    counters_no = len(button["user_list"])
+        self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
+        self.records = records
+        self.accept()
+        self.final_hook()
 
     def accept(self):
-        self.decline()  # Problems?)))))
-
-    def decline(self):
-        bot.edit_message_text(f"Опрос завершён. Текст опроса:\n<b>{utils.html_fix(self.data_list[0])}</b>"
-                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
+        bot.edit_message_text(f"Опрос завершён. Текст опроса: <b>{utils.html_fix(self.data_list[0])}</b>" +
+                              f"\nДлительность опроса - {utils.formatted_timer(int(time.time()) - self.data_list[1])}" +
+                              self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
                               parse_mode="html")
 
     def final_hook(self):
