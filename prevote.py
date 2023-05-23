@@ -1722,6 +1722,10 @@ class CustomPoll(PreVote):
             else:
                 poll_text += poll_str + "\n"
 
+        if len(self.options_list) > 15:
+            bot.reply_to(self.message, "Ошибка парсинга опроса! Вариантов не может быть больше 15-ти!")
+            return
+
         poll_text = poll_text[:-1]
         self.vote_text = (f"Текст опроса: <b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")

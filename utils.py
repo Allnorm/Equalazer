@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.3"  # Current bot version
+    VERSION = "2.3.1"  # Current bot version
     MIN_VERSION = "2.2"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "23.05.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
