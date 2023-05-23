@@ -706,13 +706,19 @@ class CustomPoll(PostVote):
         button_data = json.loads(records[0][4])
         counters_yes = 0
         counters_no = 0
-        for button in button_data:
-            if button["button_type"] == "vote":
-                if button["name"] == "Да":
-                    counters_yes = len(button["user_list"])
-                elif button["name"] == "Нет":
-                    counters_no = len(button["user_list"])
-        self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
+        if self.data_list[2]:
+            self.votes_counter = "\nВарианты ответа:"
+            for button in button_data:
+                if button["button_type"] == "vote":
+                    self.votes_counter += f'\n{button["name"]} - {len(button["user_list"])}'
+        else:
+            for button in button_data:
+                if button["button_type"] == "vote":
+                    if button["name"] == "Да":
+                        counters_yes = len(button["user_list"])
+                    elif button["name"] == "Нет":
+                        counters_no = len(button["user_list"])
+            self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
         self.records = records
         self.accept()
         self.final_hook()

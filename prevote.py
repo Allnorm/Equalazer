@@ -1653,15 +1653,19 @@ class Rules(PreVote):
 
 class CustomPoll(PreVote):
     vote_type = "custom poll"
-    help_text = 'Используйте эту команду для создания простых опросов с ответом только "да" и "нет".\n' \
+    help_text = 'Используйте эту команду для создания опросов в стиле ДейтерБота.\n' \
                 'Первым аргументом может быть парсимое время (подробнее см. /help).\n' \
                 'Если аргумент времени не парсится, длительность опроса будет 1 сутки.\n' \
                 'Если кроме аргумента времени текста больше нет, аргумент будет считаться текстом.\n' \
+                'Если в конце текста идёт одна или несколько строк, начинающихся с символа "#" ' \
+                'и пробела, то опрос считается кастомным, и каждая такая строка является пунктом ответа.\n' \
                 'Опрос закрывается по завершении таймера или после набора голосов всех участников.'
+    options_list: list
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message, True):
             return True
+        self.options_list = []
 
     @staticmethod
     def timer_votes_init():
@@ -1679,6 +1683,7 @@ class CustomPoll(PreVote):
         return True
 
     def arg_fn(self, arg):
+        self.options_list = []
         poll_timer = utils.time_parser(arg)
         if poll_timer is None:
             poll_text = self.message.text.split(maxsplit=1)[1]
@@ -1694,26 +1699,50 @@ class CustomPoll(PreVote):
         self.unique_id = f"custom_{zlib.crc32(poll_text.encode('utf-8'))}_{self.message.chat.id}"
         if self.is_voting_exist():
             return
+
+        parsed_text = poll_text.split(sep="\n")
+        poll_text = ""
+        for poll_str in parsed_text:
+            if poll_str.split(maxsplit=1)[0] == "#":
+                try:
+                    poll_point = poll_str.split(maxsplit=1)[1]
+                except IndexError:
+                    bot.reply_to(self.message, "Ошибка парсинга опроса! Пустой вариант в списке!")
+                    return
+                if poll_point in self.options_list:
+                    bot.reply_to(self.message, "Ошибка парсинга опроса! Дублирующий вариант в списке!")
+                    return
+                elif len(poll_point) > 30:
+                    bot.reply_to(self.message, "Ошибка парсинга опроса! Кнопка не вмещает более 30 символов!")
+                    return
+                self.options_list.append(poll_point)
+            elif self.options_list:
+                bot.reply_to(self.message, "Ошибка парсинга опроса! Варианты должны идти в конце текста!")
+                return
+            else:
+                poll_text += poll_str + "\n"
+
+        poll_text = poll_text[:-1]
         self.vote_text = (f"Текст опроса: <b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
-        self.vote_args = [poll_text, int(time.time())]
+        custom_poll = True if self.options_list else False
+        self.vote_args = [poll_text, int(time.time()), custom_poll]
         self.poll_maker(direct=True)
         try:
             bot.delete_message(self.message.chat.id, self.message.id)
         except telebot.apihelper.ApiTelegramException:
             pass
 
+    # noinspection PyTypeChecker
+    # Совсем этот пучарм обурел
+    # С++ хотя бы не пытается делать вид что он умнее прогера на нём (поскольку для кодинга на C++ нужны яйца)
     def get_buttons_scheme(self):
-        button_scheme = [{"button_type": "vote",
-                          "name": "Да",
-                          "user_list": []},
-                         {"button_type": "vote",
-                          "name": "Нет",
-                          "user_list": []},
-                         {"button_type": "my_vote",
-                          "name": "Узнать мой голос"}]
+        if not self.options_list:
+            button_scheme = [{"button_type": "vote", "name": i, "user_list": []} for i in ("Да", "Нет")]
+        else:
+            button_scheme = [{"button_type": "vote", "name": i, "user_list": []} for i in self.options_list]
+            button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
+        button_scheme.append({"button_type": "my_vote", "name": "Узнать мой голос"})
         if not self.user_id == data.ANONYMOUS_ID:
-            button_scheme.append({"button_type": "close",
-                                  "name": "Закрыть опрос",
-                                  "user_id": self.user_id})
+            button_scheme.append({"button_type": "close", "name": "Закрыть опрос", "user_id": self.user_id})
         return button_scheme

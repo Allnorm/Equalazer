@@ -724,8 +724,8 @@ def vote_button(call_msg):
         return
 
     # Making changes to the message
-    bot.edit_message_reply_markup(call_msg.message.chat.id,
-                                  message_id=call_msg.message.id, reply_markup=utils.make_keyboard(button_data))
+    bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
+                                  reply_markup=utils.make_keyboard(button_data))
     pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 

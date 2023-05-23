@@ -231,18 +231,3 @@ class SqlWorker:
         else:
             cursor.execute("""SELECT * FROM captcha WHERE message_id = ?""", (message_id,))
             return cursor.fetchall()
-
-    # Temporary code!!!
-    @open_close_db
-    def upgrade(self, cursor):
-        cursor.execute("""DROP TABLE if exists current_polls;""")
-        cursor.execute("""DROP TABLE if exists users_choice;""")
-        cursor.execute("""CREATE TABLE if not exists current_polls (
-                                            unique_id TEXT NOT NULL PRIMARY KEY,
-                                            message_id INTEGER UNIQUE,
-                                            type TEXT NOT NULL,
-                                            chat_id INTEGER,
-                                            buttons TEXT,
-                                            timer INTEGER,
-                                            data TEXT NOT NULL,
-                                            votes_need INTEGER);""")

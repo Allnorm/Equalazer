@@ -19,9 +19,9 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.2"  # Current bot version
-    MIN_VERSION = "2.0"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "22.05.2023"  # Bot build date
+    VERSION = "2.3"  # Current bot version
+    MIN_VERSION = "2.2"  # The minimum version from which you can upgrade to this one without breaking the bot
+    BUILD_DATE = "23.05.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
     # Leading bit is always 1, recorded backwards
@@ -369,24 +369,6 @@ def init():
              f"Текущая версия: {data.VERSION}\n" \
              f"Предыдущая версия: {get_version}"
 
-    # Temporary code!!!!
-    if version.parse(get_version) < version.parse("2.2"):
-        logging.warning("UPDATE FROM OLD VERSION DETECTED! DB MIGRATION PROCESS WAS LAUNCHED!")
-        logging.warning("All existing polls will be cleared")
-        records = sqlWorker.get_all_polls()
-        for record in records:
-            try:
-                os.remove(data.path + record[0])
-            except IOError:
-                pass
-            logging.info('Removed poll "' + record[0] + '"')
-        try:
-            sqlWorker.upgrade()
-        except Exception as e:
-            logging.error(str(e) + "\n" + traceback.format_exc())
-            sys.exit(1)
-        logging.info("..successfully")
-
     logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
     if data.main_chat_id == -1:
@@ -549,29 +531,33 @@ def formatted_timer(timer_in_second):
 
 
 def make_keyboard(buttons_scheme):
+    row_width = 2
     formatted_buttons = []
     for button in buttons_scheme:
         if button["button_type"] == "vote":
             text = f'{button["name"]} - {len(button["user_list"])}'
             callback_data = f'{button["button_type"]}_{button["name"]}'
             formatted_buttons.append(types.InlineKeyboardButton(text=text, callback_data=callback_data))
+        elif button["button_type"] == "row_width":
+            row_width = button["row_width"]  # Феерически убогий костыль, но мне нравится))))
         else:
-            formatted_buttons.append(types.InlineKeyboardButton(text=button["name"],
-                                                                callback_data=button["button_type"]))
-    keyboard = types.InlineKeyboardMarkup(row_width=2)
+            formatted_buttons.append(types.InlineKeyboardButton(
+                text=button["name"], callback_data=button["button_type"]))
+    keyboard = types.InlineKeyboardMarkup(row_width=row_width)
     keyboard.add(*formatted_buttons)
     return keyboard
 
 
 def vote_make(text, message, buttons_scheme, add_user, direct):
     if add_user:
-        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard(buttons_scheme),
-                                        parse_mode="html", message_thread_id=data.thread_id)
+        vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard(
+            buttons_scheme), parse_mode="html", message_thread_id=data.thread_id)
     elif direct:
-        vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard(buttons_scheme),
-                                        parse_mode="html", message_thread_id=message.message_thread_id)
+        vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard(
+            buttons_scheme), parse_mode="html", message_thread_id=message.message_thread_id)
     else:
-        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard(buttons_scheme), parse_mode="html")
+        vote_message = bot.reply_to(message, text, reply_markup=make_keyboard(
+            buttons_scheme), parse_mode="html")
 
     return vote_message
 
