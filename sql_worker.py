@@ -134,7 +134,7 @@ class SqlWorker:
         cursor.execute("""SELECT * FROM current_polls WHERE unique_id = ?""", (unique_id,))
         records = cursor.fetchall()
         if records:
-            return records[0][0]
+            return records[0][1]
         return None
 
     @open_close_db
@@ -213,12 +213,12 @@ class SqlWorker:
         return record[0][1]
 
     @open_close_db
-    def params(self, cursor, key, value=None, default_return=None):
+    def params(self, cursor, key, rewrite_value=None, default_return=None):
         cursor.execute(f"""SELECT * FROM params""")
         record: dict = json.loads(cursor.fetchall()[0][0])
         return_value = record.get(key, default_return)
-        if value is not None:
-            record.update({key: value})
+        if rewrite_value is not None:
+            record.update({key: rewrite_value})
             cursor.execute(f"""UPDATE params SET params = ?""", (json.dumps(record),))
         return return_value
 

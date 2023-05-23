@@ -1713,7 +1713,8 @@ class CustomPoll(PreVote):
                     bot.reply_to(self.message, "Ошибка парсинга опроса! Дублирующий вариант в списке!")
                     return
                 elif len(poll_point) > 30:
-                    bot.reply_to(self.message, "Ошибка парсинга опроса! Кнопка не вмещает более 30 символов!")
+                    bot.reply_to(self.message, "Ошибка парсинга опроса! Кнопка не вмещает более 30 символов!\n"
+                                               f"(строка {poll_point})")
                     return
                 self.options_list.append(poll_point)
             elif self.options_list:
@@ -1725,7 +1726,9 @@ class CustomPoll(PreVote):
         if len(self.options_list) > 15:
             bot.reply_to(self.message, "Ошибка парсинга опроса! Вариантов не может быть больше 15-ти!")
             return
-
+        if poll_text == "":
+            bot.reply_to(self.message, "Ошибка парсинга опроса! Отсутствует заголовок опроса!")
+            return
         poll_text = poll_text[:-1]
         self.vote_text = (f"Текст опроса: <b>{utils.html_fix(poll_text)}</b>"
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")

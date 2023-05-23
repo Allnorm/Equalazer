@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.3.1"  # Current bot version
+    VERSION = "2.3.2"  # Current bot version
     MIN_VERSION = "2.2"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "23.05.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -350,7 +350,7 @@ def init():
 
     threading.Thread(target=auto_clear, daemon=True).start()
 
-    get_version = sqlWorker.params("version", data.VERSION)
+    get_version = sqlWorker.params("version", default_return=data.VERSION)
     if version.parse(get_version) < version.parse(data.MIN_VERSION):
         logging.error(f"You cannot upgrade from version {get_version} because compatibility is lost! "
                       f"Minimum version to upgrade to version {data.VERSION} - {data.MIN_VERSION}")
@@ -369,6 +369,7 @@ def init():
              f"Текущая версия: {data.VERSION}\n" \
              f"Предыдущая версия: {get_version}"
 
+    sqlWorker.params("version", rewrite_value=data.VERSION)
     logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
 
     if data.main_chat_id == -1:
