@@ -1365,10 +1365,13 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Ошибка блокировки нового бота. Недостаточно прав?")
             return
 
+        sqlWorker.abuse_update(self.reply_user_id, timer=60)
+        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
         self.vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем "
-                          + utils.username_parser(self.message, True) + ", в противном случае он будет кикнут.")
+                          + utils.username_parser(self.message, True) +
+                          f", в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
         self.current_timer = 60
-        self.vote_args = [self.reply_username, self.reply_user_id, "бота"]
+        self.vote_args = [self.reply_username, self.reply_user_id, "бота", until_time]
         self.poll_maker()
 
     def allies_whitelist_add(self):
@@ -1507,9 +1510,9 @@ class AlliesList(PreVote):
         self.unique_id = str(self.message.chat.id) + "_allies"
         if self.is_voting_exist():
             return
-        self.vote_text = (f"Тема голосования: {vote_type_text} союзных отношений с чатом "
-                          f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}"
-                          f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.vote_text = (f"Тема голосования: {vote_type_text} союзных отношений с чатом " +
+                          f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}\n" +
+                          f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.message.chat.id, self.message.message_thread_id]
         self.poll_maker(add_user=True, current_timer=86400)
 
@@ -1734,11 +1737,7 @@ class CustomPoll(PreVote):
                           f"\nИнициатор опроса: {utils.username_parser(self.message, True)}.")
         custom_poll = True if self.options_list else False
         self.vote_args = [poll_text, int(time.time()), custom_poll]
-        self.poll_maker(direct=True)
-        try:
-            bot.delete_message(self.message.chat.id, self.message.id)
-        except telebot.apihelper.ApiTelegramException:
-            pass
+        self.poll_maker()
 
     # noinspection PyTypeChecker
     # Совсем этот пучарм обурел

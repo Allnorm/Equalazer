@@ -166,8 +166,9 @@ class Captcha(PostVote):
             bot.edit_message_text(f"Я не смог заблокировать {self.data_list[2]} {self.data_list[0]}! "
                                   f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
             return
-        bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} отклонено."
-                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+        bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} отклонено.\n" +
+                              f"Следующая попытка будет возможна через {utils.formatted_timer(self.data_list[3])}" +
+                              self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
 class Threshold(PostVote):
