@@ -56,7 +56,7 @@ class SqlWorker:
                                     max_value INTEGER,
                                     username TEXT);""")
         cursor.execute("""DELETE FROM captcha""")
-        cursor.execute(f"""SELECT * FROM params""")
+        cursor.execute("""SELECT * FROM params""")
         records = cursor.fetchall()
         if not records:
             cursor.execute("""INSERT INTO params VALUES (?)""", (json.dumps(recommended),))
@@ -217,12 +217,12 @@ class SqlWorker:
 
     @open_close_db
     def params(self, cursor, key, rewrite_value=None, default_return=None):
-        cursor.execute(f"""SELECT * FROM params""")
+        cursor.execute("""SELECT * FROM params""")
         record: dict = json.loads(cursor.fetchall()[0][0])
         return_value = record.get(key, default_return)
         if rewrite_value is not None:
             record.update({key: rewrite_value})
-            cursor.execute(f"""UPDATE params SET params = ?""", (json.dumps(record),))
+            cursor.execute("""UPDATE params SET params = ?""", (json.dumps(record),))
         return return_value
 
     @open_close_db

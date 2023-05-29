@@ -1406,7 +1406,7 @@ class NewUserChecker(PreVote):
         until_date = int(time.time()) + 86400
         ban_text = "Пользователя нет в вайтлисте, он заблокирован на 1 сутки."
         if sqlWorker.whitelist(self.reply_user_id):
-            sqlWorker.abuse_update(self.message.from_user.id, timer=300, force=True)
+            sqlWorker.abuse_update(self.message.from_user.id, timer=3600, force=True)
             bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
             return
         try:
