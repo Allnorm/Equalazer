@@ -1339,8 +1339,10 @@ class NewUserChecker(PreVote):
         self.abuse_time = sqlWorker.abuse_check(self.reply_user_id, True)
         if sum(self.abuse_time) > int(time.time()):
             bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
-            bot.reply_to(self.message, f"Сработала защита от абуза инвайта! Повторная попытка возможна через "
-                                       f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}")
+            bot.reply_to(self.message, f"\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от "
+                                       "абуза инвайта! Повторная попытка возможна через "
+                                       f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
+                         parse_mode="html")
             return True
 
         if self.reply_is_bot:
@@ -1397,6 +1399,7 @@ class NewUserChecker(PreVote):
                     if usr_status not in ["left", "kicked"]:
                         if data.binary_chat_mode == 0:
                             sqlWorker.whitelist(self.reply_user_id, add=True)
+                        sqlWorker.abuse_update(self.reply_user_id, force=True)
                         bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
                         return True
                 except telebot.apihelper.ApiTelegramException:
