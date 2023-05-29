@@ -71,26 +71,29 @@ class SqlWorker:
         return records
 
     @open_close_db
-    def abuse_update(self, cursor, user_id, timer=1800):
+    def abuse_update(self, cursor, user_id, timer=1800, force=False):
         cursor.execute("""SELECT * FROM abuse WHERE user_id = ?""", (user_id,))
         record = cursor.fetchall()
         if not record:
             cursor.execute("""INSERT INTO abuse VALUES (?,?,?);""", (user_id, int(time.time()), timer))
-        else:
+        elif not force:
             cursor.execute("""UPDATE abuse SET start_time = ?, timer = ? WHERE user_id = ?""",
                            (int(time.time()), record[0][2] * 2, user_id))
+        else:
+            cursor.execute("""UPDATE abuse SET start_time = ?, timer = ? WHERE user_id = ?""",
+                           (int(time.time()), timer, user_id))
 
     @open_close_db
     def abuse_remove(self, cursor, user_id):
         cursor.execute("""DELETE FROM abuse WHERE user_id = ?""", (user_id,))
 
     @open_close_db
-    def abuse_check(self, cursor, user_id):
+    def abuse_check(self, cursor, user_id, force=False):
         cursor.execute("""SELECT * FROM abuse WHERE user_id = ?""", (user_id,))
         record = cursor.fetchall()
         if not record:
             return 0, 0
-        if record[0][1] + record[0][2] < int(time.time()):
+        if record[0][1] + record[0][2] < int(time.time()) and not force:
             return 0, 0
         else:
             return record[0][1], record[0][2]
@@ -228,6 +231,9 @@ class SqlWorker:
             cursor.execute("""INSERT INTO captcha VALUES (?, ?, ?, ?)""", (message_id, user_id, max_value, username))
         elif remove:
             cursor.execute("""DELETE FROM captcha WHERE message_id = ?""", (message_id,))
+        elif user_id:
+            cursor.execute("""SELECT * FROM captcha WHERE user_id = ?""", (user_id,))
+            return cursor.fetchall()
         else:
             cursor.execute("""SELECT * FROM captcha WHERE message_id = ?""", (message_id,))
             return cursor.fetchall()

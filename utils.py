@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.3.3"  # Current bot version
+    VERSION = "2.3.4"  # Current bot version
     MIN_VERSION = "2.2"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "29.05.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -38,8 +38,7 @@ class ConfigData:
     vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
     wait_timer = 30  # Cooldown before being able to change or cancel voice
-    abuse_mode = 2  # Mode 0 - the /abuse command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
-    secret_ballot = True  # Outside param/If disabled, nicknames of voters are written to the database
+    kill_mode = 2  # Mode 0 - the /kill command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
     rate = True  # Enables or disables the rating system
     admin_fixed = False  # Outside param/If enabled, chat participants
@@ -66,8 +65,8 @@ class ConfigData:
                 "min_vote": __votes_need_min,
                 "vote_mode": vote_mode,
                 "wait_timer": wait_timer,
-                "abuse_mode": abuse_mode,
-                "rate": rate,  # It seems that this parameter is not used anywhere.
+                "kill_mode": kill_mode,
+                "rate": rate,  # It seems that this parameter is not used anywhere?
                 "public_mode": binary_chat_mode,
                 "allowed_admins": __ADMIN_RECOMMENDED}
     __plugins = []
@@ -107,7 +106,7 @@ class ConfigData:
                 self.token = config["Chat"]["token"]
                 self.vote_mode = int(config["Chat"]["votes-mode"])
                 self.wait_timer = int(config["Chat"]["wait-timer"])
-                self.abuse_mode = int(config["Chat"]["abuse-mode"])
+                # self.kill_mode = int(config["Chat"]["kill-mode"])
                 self.fixed_rules = self.bool_init(config["Chat"]["fixed-rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
@@ -126,6 +125,23 @@ class ConfigData:
                     self.remake_conf()
                 else:
                     sys.exit(0)
+
+        # temporary code!!!
+        try:
+            self.kill_mode = int(config["Chat"]["kill-mode"])
+        except KeyError:
+            self.kill_mode = int(config["Chat"]["abuse-mode"])
+            try:
+                conf_file = open(self.path + "config.ini", encoding="utf-8")
+                conf_text = conf_file.read().replace("abuse-mode", "kill-mode")
+                conf_file.close()
+                conf_file = open(self.path + "config.ini", 'w', encoding="utf-8")
+                conf_file.write(conf_text)
+                conf_file.close()
+                logging.warning("Configuration file update was successful")
+            except Exception:
+                logging.error(traceback.format_exc())
+                sys.exit(1)
 
         if self.chat_mode not in ["private", "mixed", "public", "captcha"]:
             self.chat_mode = "mixed"
@@ -146,11 +162,6 @@ class ConfigData:
 
         try:
             self.debug = self.bool_init(config["Chat"]["debug"])
-        except (KeyError, TypeError):
-            pass
-
-        try:
-            self.secret_ballot = self.bool_init(config["Chat"]["secret-ballots"])
         except (KeyError, TypeError):
             pass
 
@@ -308,7 +319,7 @@ class ConfigData:
         config.set("Chat", "chatid", chat_id)
         config.set("Chat", "votes-mode", "3")
         config.set("Chat", "wait-timer", "30")
-        config.set("Chat", "abuse-mode", "2")
+        config.set("Chat", "kill-mode", "2")
         config.set("Chat", "fixed-rules", "false")
         config.set("Chat", "rate", "true")
         config.set("Chat", "admin-fixed", "false")
@@ -343,8 +354,8 @@ def init():
     data.sql_worker_get(sqlWorker)
     try:
         data.bot_id = bot.get_me().id
-    except telebot.apihelper.ApiTelegramException:
-        logging.error("Bot was unable to get own ID and will close!")
+    except Exception as e:
+        logging.error(f"Bot was unable to get own ID and will close - {e}")
         logging.error(traceback.format_exc())
         sys.exit(1)
 
@@ -484,6 +495,11 @@ def reply_msg_target(message):
         user_id = message.json.get("new_chat_participant").get("id")
         username = username_parser_invite(message)
         is_bot = message.json.get("new_chat_participant").get("is_bot")
+    elif message.left_chat_member is not None:
+        user_id = message.left_chat_member.id
+        is_bot = message.left_chat_member.is_bot
+        message.from_user = message.left_chat_member  # Какие ж смешные костыли))0)))
+        username = username_parser(message)
     else:
         user_id = message.from_user.id
         username = username_parser(message)
@@ -581,13 +597,6 @@ def botname_checker(message, get_chat=False) -> bool:
         return True
     else:
         return False
-
-
-def private_checker(message):  # Проверка на то, можно ли сохранять имя пользователя в БД SQLite в данных о голосовании
-    if not data.secret_ballot:
-        return username_parser(message)
-    else:
-        return "none"
 
 
 def poll_saver(unique_id, message_vote):

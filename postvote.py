@@ -121,6 +121,7 @@ class UnBan(PostVote):
         try:
             if data.binary_chat_mode == 0:
                 sqlWorker.whitelist(self.data_list[0], add=True)
+            sqlWorker.abuse_remove(self.data_list[0])
             bot.unban_chat_member(self.message_vote.chat.id, self.data_list[0], True)
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0], can_send_messages=True,
                                      can_change_info=True, can_invite_users=True, can_pin_messages=True,
@@ -147,7 +148,7 @@ class Captcha(PostVote):
     _description = "капча"
 
     def accept(self):
-        sqlWorker.abuse_remove(self.data_list[1])
+        sqlWorker.abuse_update(self.data_list[1], timer=3600, force=True)
         try:
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[1],
                                      None, True, True, True, True, True, True, True, True)
@@ -159,6 +160,7 @@ class Captcha(PostVote):
                               self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
+        sqlWorker.abuse_update(self.data_list[1], timer=self.data_list[3])
         try:
             bot.ban_chat_member(self.message_vote.chat.id, self.data_list[1],
                                 until_date=int(time.time()) + self.data_list[3])
@@ -515,8 +517,7 @@ class AddAllies(PostVote):
     _description = "добавление союзного чата"
 
     def accept(self):
-        sqlWorker.abuse_remove(self.data_list[0])
-        sqlWorker.abuse_update(self.data_list[0])
+        sqlWorker.abuse_update(self.data_list[0], force=True)
         sqlWorker.add_ally(self.data_list[0])
         try:
             ally_title = bot.get_chat(self.data_list[0]).title

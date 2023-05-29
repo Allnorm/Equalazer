@@ -210,9 +210,14 @@ def status(message):
                          str(utils.formatted_timer(bot.get_chat_member(data.main_chat_id, user_id)
                                                    .until_date - int(time.time())))
 
-    bot.reply_to(message, f"Текущий статус пользователя {username}"
-                          f" - {statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}"
-                          f"\nНаличие в вайтлисте: {whitelist_status}{until_date}")
+    abuse_text = ""
+    abuse_chk = sum(sqlWorker.abuse_check(user_id))
+    if abuse_chk > 0:
+        abuse_text = f"\nТаймаут абуза инвайта для пользователя: {utils.formatted_timer(abuse_chk - int(time.time()))}"
+
+    bot.reply_to(message, f"Текущий статус пользователя {username}: "
+                          f"{statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}"
+                          f"\nНаличие в вайтлисте: {whitelist_status}{until_date}{abuse_text}")
 
 
 @bot.message_handler(commands=['random', 'redrum'])
@@ -245,14 +250,27 @@ def random_msg(message):
     bot.reply_to(message, "Ошибка взятия рандомного сообщения с номером {}!".format(msg_id))
 
 
-@bot.message_handler(commands=['reset'])
-def reset(message):
+@bot.message_handler(commands=['pardon'])
+def pardon(message):
     if not utils.botname_checker(message):
         return
 
-    if data.debug:
+    if all([message.reply_to_message is not None,
+            bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("administrator", "creator"),
+            message.chat.id == data.main_chat_id]):
+        user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
+        sqlWorker.abuse_remove(user_id)
+        bot.reply_to(message, f"Абуз инвайта для {username} сброшен!")
+        return
+
+    if message.chat.id == data.main_chat_id:
+        bot.reply_to(message, "Данная команда не может быть запущена в основном чате не администраторами!")
+    elif data.debug:
         sqlWorker.abuse_remove(message.chat.id)
-        bot.reply_to(message, "Абуз инвайта и союзников сброшен.")
+        user = "пользователя" if message.chat.id == message.from_user.id else "чата"
+        bot.reply_to(message, f"Абуз инвайта и союзников сброшен для текущего {user}.")
+    else:
+        bot.reply_to(message, "Данная команда не может быть запущена в обычном режиме вне основного чата!")
 
 
 @bot.message_handler(commands=['getchat'])
@@ -302,10 +320,18 @@ def help_msg(message):
         bot.reply_to(message, "Файл help.txt не читается")
         return
 
+    datetime_help = "\nФормат времени (не зависит от регистра):\n" \
+                    "без аргумента или s - секунды\n"\
+                    "m - минуты\n" \
+                    "h - часы\n" \
+                    "d - дни\n" \
+                    "w - недели\n" \
+                    "Примеры использования: /abuse 12h30s, /timer 3600, /kickuser 30m12d12d"
+
     try:
         bot.send_message(message.from_user.id,
                          f"<b>Список всех доступных команд для ДейтерБота версии {data.VERSION}:</b>\n" +
-                         help_text, parse_mode="html")
+                         "\n".join(sorted(help_text.split(sep="\n"))) + datetime_help, parse_mode="html")
         if not message.from_user.id == message.chat.id:
             bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
     except telebot.apihelper.ApiTelegramException:
@@ -346,18 +372,18 @@ def votes_msg(message):
     bot.reply_to(message, poll_list)
 
 
-@bot.message_handler(commands=['abyss'])
+@bot.message_handler(commands=['kill'])
 def mute_user(message):
     if not utils.botname_checker(message) or utils.command_forbidden(message):
         return
 
-    if data.abuse_mode == 0:
-        bot.reply_to(message, "Команда /abyss отключена в файле конфигурации бота.")
+    if data.kill_mode == 0:
+        bot.reply_to(message, "Команда /kill отключена в файле конфигурации бота.")
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
 
-        if data.abuse_mode == 2:
+        if data.kill_mode == 2:
             only_for_admins = "\nВ текущем режиме команду могут применять только администраторы чата."
         else:
             only_for_admins = ""
@@ -377,7 +403,7 @@ def mute_user(message):
         bot.reply_to(message, "Я не могу ограничить анонимного пользователя!")
         return
 
-    if message.from_user.id != message.reply_to_message.from_user.id and data.abuse_mode == 2:
+    if message.from_user.id != message.reply_to_message.from_user.id and data.kill_mode == 2:
         if bot.get_chat_member(data.main_chat_id, message.from_user.id).status != "administrator" and \
                 bot.get_chat_member(data.main_chat_id, message.from_user.id).status != "creator":
             bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
@@ -545,7 +571,7 @@ def captcha_buttons(call_msg):
         return
 
     sqlWorker.captcha(call_msg.message.message_id, remove=True)
-    sqlWorker.abuse_remove(data_list[0][1])
+    sqlWorker.abuse_update(data_list[0][1], timer=3600, force=True)
     try:
         bot.restrict_chat_member(call_msg.message.chat.id, data_list[0][1],
                                  None, True, True, True, True, True, True, True, True)

@@ -27,12 +27,13 @@ class Invite(PreVote):
 
     def direct_fn(self):
 
-        if data.binary_chat_mode != 0:  # 0 - mode with whitelist
+        if data.binary_chat_mode != 0 or sqlWorker.whitelist(self.message.from_user.id):  # 0 - mode with whitelist
             try:
                 invite_link = bot.get_chat(data.main_chat_id).invite_link
                 if invite_link is None:
                     raise telebot.apihelper.ApiTelegramException
                 until_date = ""
+                abuse_chk = sum(sqlWorker.abuse_check(self.message.from_user.id))
                 if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "kicked":
                     if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).until_date == 0:
                         until_date = "Внимание! Вы бессрочно заблокированы в данном чате!\n"
@@ -42,7 +43,12 @@ class Invite(PreVote):
                                                             - int(time.time()))
                         until_date = "Внимание! Вы заблокированы в данном чате! " \
                                      f"До снятия ограничений осталось {until_timer}\n"
-                bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n" + until_date + invite_link)
+                elif abuse_chk > 0:
+                    until_date = until_date + "Внимание! Вы находитесь под ограничением абуза инвайта! " \
+                                              f"Вам следует подождать ещё " \
+                                              f"{utils.formatted_timer(abuse_chk - int(time.time()))}, " \
+                                              f"в противном случае при попытке входа в чат вы будете заблокированы."
+                bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n{invite_link}\n{until_date}")
             except telebot.apihelper.ApiTelegramException:
                 bot.reply_to(self.message, "Ошибка получения ссылки на чат. Недостаточно прав?")
             return
@@ -55,15 +61,6 @@ class Invite(PreVote):
         if abuse_chk > 0:
             bot.reply_to(self.message, "Сработала защита от абуза инвайта! Вам следует подождать ещё "
                          + utils.formatted_timer(abuse_chk - int(time.time())))
-            return
-
-        if sqlWorker.whitelist(self.message.from_user.id):
-            sqlWorker.abuse_remove(self.message.from_user.id)
-            sqlWorker.abuse_update(self.message.from_user.id)
-            invite_link = bot.create_chat_invite_link(data.main_chat_id, expire_date=int(time.time()) + 86400)
-            bot.reply_to(self.message,
-                         f"Вы получили личную ссылку для вступления в чат, так как находитесь в вайтлисте.\n"
-                         "Ссылка истечёт через 1 сутки.\n" + invite_link.invite_link)
             return
 
         try:
@@ -275,7 +272,8 @@ class Unban(PreVote):
             return True
 
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
-            bot.reply_to(self.message, "Ответьте на имя пользователя, которого требуется размутить или разбанить.")
+            bot.reply_to(self.message, "Ответьте на имя пользователя, которого требуется "
+                                       "размутить, разбанить или обнулить значение абуза инвайта.")
             return True
 
         self.reply_msg_target()
@@ -288,7 +286,8 @@ class Unban(PreVote):
             bot.reply_to(self.message, data.EASTER_LINK, disable_web_page_preview=True)
             return True
 
-        if bot.get_chat_member(data.main_chat_id, self.reply_user_id).status not in ("restricted", "kicked"):
+        if bot.get_chat_member(data.main_chat_id, self.reply_user_id).status not in ("restricted", "kicked") and \
+                sum(sqlWorker.abuse_check(self.reply_user_id)) == 0:
             bot.reply_to(self.message, "Данный пользователь не ограничен.")
             return True
 
@@ -1319,6 +1318,7 @@ class Avatar(PreVote):
 
 class NewUserChecker(PreVote):
     vote_type = "captcha"
+    abuse_time = [0, 0]
 
     def pre_return(self) -> bool:
         if data.main_chat_id == -1:  # Проверка на init mode
@@ -1330,18 +1330,23 @@ class NewUserChecker(PreVote):
         self.reply_username = utils.username_parser_invite(self.message)
         self.reply_user_id = self.message.json.get("new_chat_participant").get("id")
         self.reply_is_bot = self.message.json.get("new_chat_participant").get("is_bot")
+        self.user_id = data.bot_id
 
         if bot.get_chat_member(data.main_chat_id, self.reply_user_id).status == "creator":
             bot.reply_to(self.message, "Приветствую вас, Владыка.")
             return True
 
-        self.user_id = data.bot_id
+        self.abuse_time = sqlWorker.abuse_check(self.reply_user_id, True)
+        if sum(self.abuse_time) > int(time.time()):
+            bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
+            bot.reply_to(self.message, f"Сработала защита от абуза инвайта! Повторная попытка возможна через "
+                                       f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}")
+            return True
 
         if self.reply_is_bot:
             if self.reply_user_id != data.bot_id:
                 self.for_bots()
             return True
-
         if self.allies_whitelist_add():
             return True
         if data.binary_chat_mode == 0:
@@ -1351,6 +1356,18 @@ class NewUserChecker(PreVote):
         else:
             self.captcha_mode()
         return True  # direct_fn() не выполняется
+
+    def is_voting_exist(self):
+        message_id = sqlWorker.get_message_id(self.unique_id)
+        if message_id:
+            poll = sqlWorker.get_poll(message_id)
+            if poll[0][5] <= int(time.time()):
+                sqlWorker.rem_rec(poll[0][0])
+                return False
+            else:
+                bot.reply_to(self.message, "Голосование о добавлении участника уже существует.")
+                return True
+        return False
 
     def for_bots(self):
         self.unique_id = str(self.reply_user_id) + "_new_usr"
@@ -1365,14 +1382,11 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Ошибка блокировки нового бота. Недостаточно прав?")
             return
 
-        sqlWorker.abuse_update(self.reply_user_id, timer=60)
-        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
-        self.vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем "
-                          + utils.username_parser(self.message, True) +
+        until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 60
+        self.vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем " +
+                          utils.username_parser(self.message, True) +
                           f", в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
-        self.current_timer = 60
-        self.vote_args = [self.reply_username, self.reply_user_id, "бота", until_time]
-        self.poll_maker()
+        self.poll_maker(current_timer=60, vote_args=[self.reply_username, self.reply_user_id, "бота", until_time])
 
     def allies_whitelist_add(self):
         allies = sqlWorker.get_allies()
@@ -1389,15 +1403,18 @@ class NewUserChecker(PreVote):
                     sqlWorker.remove_ally(i[0])
 
     def whitelist_mode(self):
+        until_date = int(time.time()) + 86400
+        ban_text = "Пользователя нет в вайтлисте, он заблокирован на 1 сутки."
         if sqlWorker.whitelist(self.reply_user_id):
+            sqlWorker.abuse_update(self.message.from_user.id, timer=300, force=True)
             bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
-        else:
-            try:
-                bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=int(time.time()) + 86400)
-                bot.reply_to(self.message, "Пользователя нет в вайтлисте, он заблокирован на 1 сутки.")
-            except telebot.apihelper.ApiTelegramException:
-                logging.error(traceback.format_exc())
-                bot.reply_to(self.message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
+            return
+        try:
+            bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=until_date)
+            bot.reply_to(self.message, ban_text)
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            bot.reply_to(self.message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
 
     def vote_mode(self):
         self.unique_id = str(self.reply_user_id) + "_new_usr"
@@ -1411,12 +1428,10 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
             return
 
-        sqlWorker.abuse_update(self.reply_user_id, timer=300)
-        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
+        until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 300
         self.vote_text = (f"Требуется подтверждение вступления нового пользователя {self.reply_username}, "
                           f"в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
-        self.vote_args = [self.reply_username, self.reply_user_id, "пользователя", until_time]
-        self.poll_maker()
+        self.poll_maker(vote_args=[self.reply_username, self.reply_user_id, "пользователя", until_time])
 
     def captcha_mode(self):
         try:
@@ -1427,23 +1442,28 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
             return
 
+        data_list = sqlWorker.captcha(self.message.message_id, user_id=self.message.from_user.id)
+        if data_list:
+            bot.reply_to(self.message, "Капча уже существует.")
+            return
+
         button_values = [random.randint(1000, 9999) for _ in range(3)]
         max_value = max(button_values)
         buttons = [types.InlineKeyboardButton(text=str(i), callback_data=f"captcha_{i}") for i in button_values]
         keyboard = types.InlineKeyboardMarkup(row_width=2)
         keyboard.add(*buttons)
-        sqlWorker.abuse_update(self.reply_user_id, timer=300)
-        until_time = sqlWorker.abuse_check(self.reply_user_id)[1]
+        until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 300
         bot_message = bot.reply_to(self.message, "\u26a0\ufe0f <b>СТОП!</b> \u26a0\ufe0f"  # Emoji
                                                  "\nВы были остановлены антиспам-системой ДейтерБота!\n"
-                                                 "Для доступа в чат вам необходимо выбрать из списка "
-                                                 "МАКСИМАЛЬНОЕ число в течении 60 секунд, иначе вы будете "
-                                                 f"кикнуты на {utils.formatted_timer(until_time)} Время пошло.",
+                                                 "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ "
+                                                 "число в течении 60 секунд, иначе доступ в чат будет ограничен на "
+                                                 f"срок {utils.formatted_timer(until_time)} Время пошло.",
                                    reply_markup=keyboard, parse_mode="html")
 
         sqlWorker.captcha(bot_message.id, add=True, user_id=self.reply_user_id,
                           max_value=max_value, username=self.reply_username)
-        threading.Thread(target=self.captcha_mode_failed, daemon=True, args=(bot_message, until_time)).start()
+        threading.Thread(target=self.captcha_mode_failed, daemon=True,
+                         args=(bot_message, until_time)).start()
 
     @staticmethod
     def captcha_mode_failed(bot_message, until_time):
@@ -1452,15 +1472,16 @@ class NewUserChecker(PreVote):
         if not data_list:
             return
         sqlWorker.captcha(bot_message.message_id, remove=True)
+        sqlWorker.abuse_update(data_list[0][1], until_time)
         try:
             bot.ban_chat_member(bot_message.chat.id, data_list[0][1], until_date=int(time.time()) + until_time)
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Я не смог заблокировать пользователя {data_list[0][3]}! Недостаточно прав?",
                                   bot_message.chat.id, bot_message.message_id)
             return
-        bot.edit_message_text(
-            f"К сожалению, пользователь {data_list[0][3]} не смог пройти капчу и был кикнут на "
-            f"{utils.formatted_timer(until_time)}", bot_message.chat.id, bot_message.message_id)
+        bot.edit_message_text(f"К сожалению, пользователь {data_list[0][3]} не смог пройти капчу и сможет войти в чат "
+                              f"только через {utils.formatted_timer(until_time)}",
+                              bot_message.chat.id, bot_message.message_id)
 
 
 class AlliesList(PreVote):
