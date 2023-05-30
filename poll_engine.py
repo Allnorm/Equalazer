@@ -175,16 +175,16 @@ class PreVote:
                f"для досрочного завершения требуется голосов за один из пунктов: {str(self.current_votes)}.\n" \
                f"Минимальный порог голосов для принятия решения: {data.thresholds_get(minimum=True)}."
 
-    def poll_maker(self, vote_args: list = None, unique_id: str = "", vote_text: str = "", vote_type: str = "",
+    def poll_maker(self, vote_args: list = None, unique_id: str = None, vote_text: str = None, vote_type: str = None,
                    current_timer: int = None, current_votes: int = None,
                    user_id: int = None, add_user=False, silent=False, direct=False):
-        self.vote_args = self.vote_args or vote_args
-        self.unique_id = self.unique_id or unique_id
-        self.vote_text = self.vote_text or vote_text
-        self.vote_type = self.vote_type or vote_type
-        self.current_timer = self.current_timer or current_timer
-        self.current_votes = self.current_votes or current_votes
-        self.user_id = self.user_id or user_id
+        self.vote_args = vote_args or self.vote_args
+        self.unique_id = unique_id or self.unique_id
+        self.vote_text = vote_text or self.vote_text
+        self.vote_type = vote_type or self.vote_type
+        self.current_timer = current_timer or self.current_timer
+        self.current_votes = current_votes or self.current_votes
+        self.user_id = user_id or self.user_id
         self.add_user = add_user
         self.silent = silent
         self.direct = direct
