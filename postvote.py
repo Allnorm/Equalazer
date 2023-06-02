@@ -564,9 +564,10 @@ class RemoveAllies(PostVote):
         sqlWorker.remove_ally(self.data_list[0])
         try:
             ally_title = f" <b>{utils.html_fix(bot.get_chat(self.data_list[0]).title)}</b> "
-            bot.send_message(self.data_list[0],
-                             f"Cоюз с чатом <b>{utils.html_fix(self.message_vote.chat.title)}</b> разорван."
-                             + self.votes_counter, parse_mode="html", message_thread_id=self.data_list[1])
+            if self.data_list[2]:
+                bot.send_message(self.data_list[0],
+                                 f"Cоюз с чатом <b>{utils.html_fix(self.message_vote.chat.title)}</b> разорван." +
+                                 self.votes_counter, parse_mode="html", message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException:
             ally_title = " "
         bot.edit_message_text(f"Союзные отношения с чатом{ally_title}разорваны." + self.votes_counter,
@@ -577,8 +578,9 @@ class RemoveAllies(PostVote):
             bot.edit_message_text(f"Вопрос разрыва союзных отношений с чатом "
                                   f"{bot.get_chat(self.data_list[0]).title} отклонён."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            bot.send_message(self.data_list[0], f"Вопрос разрыва союзных отношения с чатом "
-                                                f"{self.message_vote.chat.title} отклонён." + self.votes_counter)
+            if self.data_list[2]:
+                bot.send_message(self.data_list[0], f"Вопрос разрыва союзных отношения с чатом "
+                                                    f"{self.message_vote.chat.title} отклонён." + self.votes_counter)
         except telebot.apihelper.ApiTelegramException:
             bot.edit_message_text(f"Вопрос разрыва союзных отношения с чатом отклонён."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
@@ -699,6 +701,25 @@ class RemoveRules(PostVote):
                               self.message_vote.chat.id, self.message_vote.message_id)
 
 
+class Shield(PostVote):
+    _description = "перенастройка защиты чата"
+
+    def accept(self):
+        sqlWorker.params("shield", rewrite_value=int(time.time()) + self.data_list[0])
+        if self.data_list[0] == 0:
+            bot.edit_message_text(f"Пользователь {self.data_list[1]} отключил режим защиты чата."
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+        else:
+            bot.edit_message_text(f"Пользователь {self.data_list[1]} включил режим защиты чата на срок "
+                                  f"{utils.formatted_timer(self.data_list[0])}"
+                                  + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        vote_type = "отключения" if self.data_list[0] == 0 else "включения"
+        bot.edit_message_text(f"Вопрос {vote_type} режима защиты чата отклонён!"
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+
 class CustomPoll(PostVote):
     _description = "пользовательский опрос"
 
@@ -768,7 +789,8 @@ def post_vote_list_init():
             "remove topic": Topic(),
             "add rules": AddRules(),
             "remove rules": RemoveRules(),
-            "custom poll": CustomPoll()
+            "custom poll": CustomPoll(),
+            "shield": Shield()
         }
 
     PoolEngine.post_vote_list.update(post_vote_list)

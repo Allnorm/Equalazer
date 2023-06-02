@@ -28,6 +28,10 @@ class Invite(PreVote):
     def direct_fn(self):
 
         if data.binary_chat_mode != 0 or sqlWorker.whitelist(self.message.from_user.id):  # 0 - mode with whitelist
+            if sqlWorker.params("shield", default_return=0) > int(time.time()) and data.binary_chat_mode != 0:
+                bot.reply_to(self.message, "В режиме защиты инвайт-ссылка на чат не выдаётся!")
+                return
+
             try:
                 invite_link = bot.get_chat(data.main_chat_id).invite_link
                 if invite_link is None:
@@ -1336,6 +1340,19 @@ class NewUserChecker(PreVote):
             bot.reply_to(self.message, "Приветствую вас, Владыка.")
             return True
 
+        if sqlWorker.params("shield", default_return=0) > int(time.time()):
+            if sqlWorker.whitelist(self.reply_user_id) and data.binary_chat_mode == 0:
+                sqlWorker.abuse_update(self.message.from_user.id, timer=3600, force=True)
+                bot.reply_to(self.message, "Данный участник есть в вайтлисте и не будет заблокирован в режиме защиты!")
+            else:
+                try:
+                    bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=int(time.time() + 3600))
+                    bot.delete_message(self.message.chat.id, self.message.id)
+                    bot.delete_message(self.message.chat.id, self.message.id + 1)
+                except telebot.apihelper.ApiTelegramException:
+                    pass
+            return True
+
         self.abuse_time = sqlWorker.abuse_check(self.reply_user_id, True)
         if sum(self.abuse_time) > int(time.time()):
             bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
@@ -1399,7 +1416,7 @@ class NewUserChecker(PreVote):
                     if usr_status not in ["left", "kicked"]:
                         if data.binary_chat_mode == 0:
                             sqlWorker.whitelist(self.reply_user_id, add=True)
-                        sqlWorker.abuse_update(self.reply_user_id, force=True)
+                        sqlWorker.abuse_update(self.reply_user_id, force=True, timer=3600)
                         bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
                         return True
                 except telebot.apihelper.ApiTelegramException:
@@ -1495,9 +1512,10 @@ class AlliesList(PreVote):
         if utils.command_forbidden(self.message, True):
             return True
 
-        if utils.extract_arg(self.message.text, 1) in ("add", "remove"):
-            if self.message.chat.id == data.main_chat_id:
-                bot.reply_to(self.message, "Данную команду нельзя запустить в основном чате!")
+        arg = utils.extract_arg(self.message.text, 1)
+        if arg in ("add", "remove") and self.message.chat.id == data.main_chat_id:
+            if arg == "add" or arg == "remove" and utils.extract_arg(self.message.text, 2) is None:
+                bot.reply_to(self.message, "Команду с таким аргументом нельзя запустить в основном чате!")
                 return True
 
         self.user_id = data.bot_id
@@ -1525,11 +1543,52 @@ class AlliesList(PreVote):
         self.pre_vote("установка", invite_link, "создании")
 
     def remove(self):
-        if sqlWorker.get_ally(self.message.chat.id) is None:
+        if utils.extract_arg(self.message.text, 2) is not None and self.message.chat.id == data.main_chat_id:
+            self.index_remove()
+            return
+        elif sqlWorker.get_ally(self.message.chat.id) is None:
             bot.reply_to(self.message, "Данный чат не входит в список союзников!")
             return
+        invite_link = bot.get_chat(self.message.chat.id).invite_link
+        if invite_link is None:
+            invite_link = "\nИнвайт-ссылка на данный чат отсутствует."
+        else:
+            invite_link = f"\nИнвайт-ссылка на данный чат: {invite_link}."
         self.vote_type = "remove allies"
-        self.pre_vote("разрыв", "", "разрыве")
+        self.pre_vote("разрыв", invite_link, "разрыве")
+
+    def index_remove(self):
+        allies = sqlWorker.get_allies()
+        if not allies:
+            bot.reply_to(self.message, "Список союзников данного чата пуст!")
+            return
+
+        try:
+            index = int(utils.extract_arg(self.message.text, 2)) - 1
+            if index < 0:
+                raise ValueError
+        except ValueError:
+            bot.reply_to(self.message, "Индекс должен быть больше нуля.")
+            return
+
+        try:
+            ally_id = allies[0][index]
+        except IndexError:
+            bot.reply_to(self.message, "Чат с данным индексом не найден в списке союзников!")
+            return
+
+        self.unique_id = f"{ally_id}_allies"
+        if self.is_voting_exist():
+            return
+        invite_link = bot.get_chat(ally_id).invite_link
+        if invite_link is None:
+            invite_link = "\nИнвайт-ссылка на данный чат отсутствует."
+        else:
+            invite_link = f"\nИнвайт-ссылка на данный чат: {invite_link}."
+        self.vote_text = (f"Тема голосования: разрыв союзных отношений с чатом " +
+                          f"<b>{utils.html_fix(bot.get_chat(ally_id).title)}</b>{invite_link}\n" +
+                          f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.poll_maker(vote_type = "remove allies", vote_args = [ally_id, None, False])
 
     def pre_vote(self, vote_type_text, invite_link, mode_text):
         self.unique_id = str(self.message.chat.id) + "_allies"
@@ -1538,20 +1597,23 @@ class AlliesList(PreVote):
         self.vote_text = (f"Тема голосования: {vote_type_text} союзных отношений с чатом " +
                           f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}\n" +
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
-        self.vote_args = [self.message.chat.id, self.message.message_thread_id]
-        self.poll_maker(add_user=True, current_timer=86400)
+        self.poll_maker(add_user=True, vote_args=[self.message.chat.id, self.message.message_thread_id, True])
 
         bot.reply_to(self.message, f"Голосование о {mode_text} союза отправлено в чат "
-                                   f"<b>{utils.html_fix(bot.get_chat(data.main_chat_id).title)}</b>.\n"
-                                   f"Оно завершится через 24 часа или ранее в зависимости от количества голосов.",
+                                   f"<b>{utils.html_fix(bot.get_chat(data.main_chat_id).title)}</b>.\nОно завершится "
+                                   f"через {utils.formatted_timer(self.current_timer)} "
+                                   f"или ранее в зависимости от количества голосов.",
                      parse_mode="html")
         return
 
     def direct_fn(self):
         if sqlWorker.get_ally(self.message.chat.id) is not None:
-            bot.reply_to(self.message, "Данный чат является союзным чатом для "
-                         + bot.get_chat(data.main_chat_id).title + ", ссылка для инвайта - "
-                         + bot.get_chat(data.main_chat_id).invite_link)
+            if sqlWorker.params("shield", default_return=0) > int(time.time()):
+                bot.reply_to(self.message, "В режиме защиты инвайт-ссылка на основной чат не выдаётся!")
+            else:
+                bot.reply_to(self.message, "Данный чат является союзным чатом для "
+                             + bot.get_chat(data.main_chat_id).title + ", ссылка для инвайта - "
+                             + bot.get_chat(data.main_chat_id).invite_link)
             return
 
         if utils.command_forbidden(self.message, text="Данную команду без аргументов можно "
@@ -1677,6 +1739,76 @@ class Rules(PreVote):
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [rules_text, utils.username_parser(self.message)]
         self.poll_maker()
+
+
+class Shield(PreVote):
+    vote_type = "shield"
+    unique_id = vote_type
+    help_text = 'Эта команда включает режим защиты чата - Раскрытый Зонтик. В этом режиме бот блокирует входящих ' \
+                'пользователей при попытке входа из союзного чата и напрямую, а так же ботов при попытке их ' \
+                'добавить. В режиме чата "приватный" войти в чат всё ещё будет возможно по вайтлисту.\n' \
+                'Аргумент "force", доступный только администраторам, позволит включить режим защиты чата на срок от ' \
+                '1 до 24 часов, по умолчанию на 12 часов. Аргумент "enable" и "disable" позволит голосованием ' \
+                'включить (обновить таймер) и отключить режим защиты чата на срок от 1 часа до 30 дней.\n' \
+                'В режиме защиты бот удаляет сообщение о входе пользователя, не оставляя следов при флуд-атаке.\n'
+
+    def pre_return(self) -> bool:
+        if utils.command_forbidden(self.message):
+            return True
+
+    def help(self):
+        shield_timer = sqlWorker.params("shield", default_return=0)
+        if shield_timer < int(time.time()):
+            status = "<b>Текущий статус защиты</b>: отключена."
+        else:
+            status = f"<b>Текущий статус защиты</b>: включена.\n<b>До отключения осталось:</b> " \
+                     f"{utils.formatted_timer(shield_timer - int(time.time()))}"
+        bot.reply_to(self.message, self.help_text + status, parse_mode="html")
+
+    def direct_fn(self):
+        self.help()
+
+    def set_args(self) -> dict:
+        return {"force": self.force, "enable": self.enable, "disable": self.disable}
+
+    def force(self):
+        if not bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in ("creator", "administrator"):
+            bot.reply_to(self.message, "Не-администратор не может использовать эту команду!")
+            return
+        shield_timer = sqlWorker.params("shield", default_return=0)
+        if shield_timer > int(time.time()):
+            bot.reply_to(self.message, "Защита уже включена! До отключения осталось "
+                                       f"{utils.formatted_timer(shield_timer - int(time.time()))}")
+            return
+        timer = utils.time_parser(utils.extract_arg(self.message.text, 2))
+        if timer is None:
+            timer = 43200
+        if not 3600 <= timer <= 86400:
+            bot.reply_to(self.message, "Значение таймера защиты может быть от 1 до 24 часов!")
+            return
+        sqlWorker.params("shield", rewrite_value=int(time.time()) + timer)
+        bot.reply_to(self.message, f"Защита чата успешно включена на {utils.formatted_timer(timer)} "
+                                   "Теперь добавление новых участников временно невозможно!")
+
+    def enable(self):
+        timer = utils.time_parser(utils.extract_arg(self.message.text, 2))
+        if timer is None:
+            timer = 43200
+        if not 3600 <= timer <= 2592000:
+            bot.reply_to(self.message, "Значение таймера защиты может быть от 1 часа до 30 дней!")
+            return
+        self.create_vote("включение/обновление таймера", timer)
+
+    def disable(self):
+        self.create_vote("отключение", 0)
+
+    def create_vote(self, vote_type, timer):
+        if self.is_voting_exist():
+            return
+        timer_text = "." if timer == 0 else f" на {utils.formatted_timer(timer)}"
+        self.vote_text = (f"Тема голосования: {vote_type} режима защиты чата от атак{timer_text}\n"
+                          f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.poll_maker(vote_args=[timer, utils.username_parser(self.message, True)])
 
 
 class CustomPoll(PreVote):

@@ -125,6 +125,11 @@ def allies_list(message):
     prevote.AlliesList(message)
 
 
+@bot.message_handler(commands=['shield'])
+def shield(message):
+    prevote.Shield(message)
+
+
 @bot.message_handler(commands=['rules'])
 def rules_msg(message):
     prevote.Rules(message)
