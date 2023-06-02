@@ -809,7 +809,7 @@ class PrivateMode(PreVote):
                 "(команда /private 1/2/3), в противном случае хостер бота устанавливает режим работы " \
                 "самостоятельно.\n<b>Текущие настройки чата:</b>" \
                 "\nНастройки заблокированы хостером: {}" \
-                "\nТекущий режим чата: {}"
+                "\nТекущий режим чата: {}{}"
 
     def pre_return(self) -> bool:
         if utils.command_forbidden(self.message):
@@ -829,7 +829,12 @@ class PrivateMode(PreVote):
             chat_mode = "публичный (с капчёй)"
 
         chat_mode_locked = "да" if data.chat_mode != "mixed" else "нет"
-        bot.reply_to(self.message, self.help_text.format(chat_mode_locked, chat_mode), parse_mode="html")
+        shield_info = ""
+        shield_timer = sqlWorker.params("shield", default_return=0)
+        if shield_timer > int(time.time()):
+            shield_info = "\n<b>Внимание! Включён режим защиты чата (подробнее - /shield)</b>\n" \
+                          f"До отключения осталось {utils.formatted_timer(shield_timer - int(time.time()))}"
+        bot.reply_to(self.message, self.help_text.format(chat_mode_locked, chat_mode, shield_info), parse_mode="html")
 
     def arg_fn(self, arg):
         if data.chat_mode != "mixed":
@@ -1800,6 +1805,10 @@ class Shield(PreVote):
         self.create_vote("включение/обновление таймера", timer)
 
     def disable(self):
+        shield_timer = sqlWorker.params("shield", default_return=0)
+        if shield_timer < int(time.time()):
+            bot.reply_to(self.message, "Защита чата уже отключена!")
+            return
         self.create_vote("отключение", 0)
 
     def create_vote(self, vote_type, timer):

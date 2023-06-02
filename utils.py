@@ -19,8 +19,8 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.4"  # Current bot version
-    MIN_VERSION = "2.2"  # The minimum version from which you can upgrade to this one without breaking the bot
+    VERSION = "2.4.1"  # Current bot version
+    MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "29.05.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
@@ -106,7 +106,7 @@ class ConfigData:
                 self.token = config["Chat"]["token"]
                 self.vote_mode = int(config["Chat"]["votes-mode"])
                 self.wait_timer = int(config["Chat"]["wait-timer"])
-                # self.kill_mode = int(config["Chat"]["kill-mode"])
+                self.kill_mode = int(config["Chat"]["kill-mode"])
                 self.fixed_rules = self.bool_init(config["Chat"]["fixed-rules"])
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
@@ -125,23 +125,6 @@ class ConfigData:
                     self.remake_conf()
                 else:
                     sys.exit(0)
-
-        # temporary code!!!
-        try:
-            self.kill_mode = int(config["Chat"]["kill-mode"])
-        except KeyError:
-            self.kill_mode = int(config["Chat"]["abuse-mode"])
-            try:
-                conf_file = open(self.path + "config.ini", encoding="utf-8")
-                conf_text = conf_file.read().replace("abuse-mode", "kill-mode")
-                conf_file.close()
-                conf_file = open(self.path + "config.ini", 'w', encoding="utf-8")
-                conf_file.write(conf_text)
-                conf_file.close()
-                logging.warning("Configuration file update was successful")
-            except Exception:
-                logging.error(traceback.format_exc())
-                sys.exit(1)
 
         if self.chat_mode not in ["private", "mixed", "public", "captcha"]:
             self.chat_mode = "mixed"
