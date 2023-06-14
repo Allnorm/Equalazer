@@ -1360,11 +1360,16 @@ class NewUserChecker(PreVote):
 
         self.abuse_time = sqlWorker.abuse_check(self.reply_user_id, True)
         if sum(self.abuse_time) > int(time.time()):
-            bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
-            bot.reply_to(self.message, f"\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от "
-                                       "абуза инвайта! Повторная попытка возможна через "
-                                       f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
+            try:
+                bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
+                bot.reply_to(self.message, f"\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от "
+                                           "абуза инвайта! Повторная попытка возможна через "
+                                           f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
                          parse_mode="html")
+            except telebot.apihelper.ApiTelegramException:
+                logging.error(traceback.format_exc())
+                bot.reply_to(self.message, "Ошибка блокировки вошедшего в режиме защиты пользователя!"
+                                           "Информация сохранена в логах бота!")
             return True
 
         if self.reply_is_bot:
@@ -1872,7 +1877,9 @@ class CustomPoll(PreVote):
         parsed_text = poll_text.split(sep="\n")
         poll_text = ""
         for poll_str in parsed_text:
-            if poll_str.split(maxsplit=1)[0] == "#":
+            if not poll_str.split(maxsplit=1):
+                continue
+            elif poll_str.split(maxsplit=1)[0] == "#":
                 try:
                     poll_point = poll_str.split(maxsplit=1)[1]
                 except IndexError:

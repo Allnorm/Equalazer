@@ -19,9 +19,9 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.4.1"  # Current bot version
+    VERSION = "2.4.2"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "29.05.2023"  # Bot build date
+    BUILD_DATE = "14.06.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
     # Leading bit is always 1, recorded backwards
