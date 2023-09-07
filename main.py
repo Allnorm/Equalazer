@@ -547,12 +547,20 @@ def cremate(message):
 def calc_(calc_text, message):
     try:
         result = eval(calc_text.replace(',', '.'))
+        if isinstance(result, float):
+            if result.is_integer():
+                result = int(result)
+            else:
+                result = round(result, 5)
     except SyntaxError:
         bot.reply_to(message, "Неверно введено выражение для вычисления.")
         return
     except ZeroDivisionError:
+        traceback.print_exc()
         bot.reply_to(message, f"{calc_text}\n=деление на 0")
         return
+    if calc_text.count(',') >= calc_text.count('.'):
+        result = str(result).replace('.', ',')
     bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
 
 
