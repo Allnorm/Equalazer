@@ -548,10 +548,9 @@ def calc_(calc_text, message):
     try:
         result = eval(calc_text.replace(',', '.'))
         if isinstance(result, float):
+            result = round(result, 10)
             if result.is_integer():
                 result = int(result)
-            else:
-                result = round(result, 5)
     except SyntaxError:
         bot.reply_to(message, "Неверно введено выражение для вычисления.")
         return
