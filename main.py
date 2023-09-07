@@ -546,7 +546,7 @@ def cremate(message):
 
 def calc_(calc_text, message):
     try:
-        result = eval(calc_text.replace(',', '.'))
+        result = eval(calc_text.replace(',', '.').replace('^','**'))
         if isinstance(result, float):
             result = round(result, 10)
             if result.is_integer():
@@ -584,7 +584,7 @@ def calc(message):
         bot.reply_to(message, "В выражении должно быть не более 50 полезных символов.")
         return
     for i in calc_text:
-        if i not in "1234567890 */+-().,":
+        if i not in "1234567890 */+-().,^":
             bot.reply_to(message, "Неверно введено выражение для вычисления.")
             return
 
