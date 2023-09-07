@@ -1,5 +1,6 @@
 import json
 import logging
+import multiprocessing
 import os
 import random
 import time
@@ -13,11 +14,6 @@ import utils
 import prevote
 from poll_engine import pool_engine
 from utils import data, bot, sqlWorker
-
-postvote.post_vote_list_init()
-plugin_engine.Plugins()
-utils.init()
-pool_engine.auto_restart_polls()
 
 
 @bot.message_handler(commands=['invite'])
@@ -370,7 +366,7 @@ def votes_msg(message):
         number = number + 1
 
     if poll_list == "":
-        poll_list = "У вас нет активных голосований!"
+        poll_list = "В этом чате нет активных голосований!"
     else:
         poll_list = "Список активных голосований:\n" + poll_list
 
@@ -505,8 +501,92 @@ def revoke(message):
         bot.revoke_chat_invite_link(data.main_chat_id, bot.get_chat(data.main_chat_id).invite_link)
         bot.reply_to(message, "Пригласительная ссылка на основной чат успешно сброшена.")
     except telebot.apihelper.ApiTelegramException:
+        logging.error(traceback.format_exc())
         bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
 
+
+@bot.message_handler(commands=['cremate'])
+def cremate(message):
+    if not utils.botname_checker(message) or utils.command_forbidden(message):
+        return
+
+    if message.reply_to_message is not None:
+        user_id = message.reply_to_message.from_user.id
+    elif utils.extract_arg(message.text, 1) is not None:
+        user_id = utils.extract_arg(message.text, 1)
+    else:
+        bot.reply_to(message, "Требуется реплейнуть сообщение удалённого аккаунта "
+                              "или ввести ID аккаунта аргументом команды.")
+        return
+
+    if user_id == data.bot_id:
+        bot.reply_to(message, data.EASTER_LINK, disable_web_page_preview=True)
+        return
+
+    try:
+        first_name = bot.get_chat_member(data.main_chat_id, user_id).user.first_name
+    except telebot.apihelper.ApiTelegramException as e:
+        if "invalid user_id specified" in str(e):
+            bot.reply_to(message, "Указан неверный User ID.")
+        else:
+            logging.error(traceback.format_exc())
+            bot.reply_to(message, "Неизвестная ошибка Telegram API. Информация сохранена в логи бота.")
+        return
+
+    if first_name == '':
+        try:
+            bot.ban_chat_member(data.main_chat_id, user_id, int(time.time()) + 60)
+            bot.reply_to(message, "Удалённый аккаунт успешно кремирован.")
+        except telebot.apihelper.ApiTelegramException:
+            logging.error(traceback.format_exc())
+            bot.reply_to(message, "Ошибка кремации удалённого аккаунта. Недостаточно прав?")
+    else:
+        bot.reply_to(message, "Данный участник не является удалённым аккаунтом.")
+
+
+def calc_(calc_text, message):
+    try:
+        result = eval(calc_text)
+    except SyntaxError:
+        bot.reply_to(message, "Неверно введено выражение для вычисления.")
+        return
+    except ZeroDivisionError:
+        bot.reply_to(message, f"{calc_text}\n=деление на 0")
+        return
+    bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
+
+
+@bot.message_handler(commands=['calc'])
+def calc(message):
+
+    if not utils.botname_checker(message):
+        return
+
+    is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
+    if not is_allies:
+        if utils.command_forbidden(message, text="Данную команду можно запустить только "
+                                                 "в основном чате или в союзных чатах."):
+            return
+
+    if utils.extract_arg(message.text, 1) is None:
+        bot.reply_to(message, "Данная команда не может быть запущена без аргумента.")
+        return
+
+    calc_text = message.text.split(maxsplit=1)[1]
+    if len(calc_text.replace(" ", "")) > 50:
+        bot.reply_to(message, "В выражении должно быть не более 50 полезных символов.")
+        return
+    for i in calc_text:
+        if i not in "1234567890 */+-()":
+            bot.reply_to(message, "Неверно введено выражение для вычисления.")
+            return
+
+    process = multiprocessing.Process(target=calc_, args=(calc_text, message))
+    process.start()
+    process.join(timeout=5)
+    if process.is_alive():
+        process.terminate()
+        bot.reply_to(message, "Время вычисления превысило таймаут. Отменено.")
 
 @bot.message_handler(commands=['version'])
 def revoke(message):
@@ -760,4 +840,9 @@ def vote_button(call_msg):
     pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
-bot.infinity_polling()
+if __name__ == "__main__":
+    postvote.post_vote_list_init()
+    plugin_engine.Plugins()
+    utils.init()
+    pool_engine.auto_restart_polls()
+    bot.infinity_polling()
