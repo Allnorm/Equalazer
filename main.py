@@ -405,8 +405,7 @@ def mute_user(message):
         return
 
     if message.from_user.id != message.reply_to_message.from_user.id and data.kill_mode == 2:
-        if bot.get_chat_member(data.main_chat_id, message.from_user.id).status != "administrator" and \
-                bot.get_chat_member(data.main_chat_id, message.from_user.id).status != "creator":
+        if bot.get_chat_member(data.main_chat_id, message.from_user.id).status not in ("administrator", "creator"):
             bot.reply_to(message, "В текущем режиме команду могут применять только администраторы чата.")
             return
 
@@ -414,8 +413,7 @@ def mute_user(message):
         bot.reply_to(message, "Он и так в муте, не увеличивайте его страдания.")
         return
 
-    if bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).status == "kicked" \
-            or bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).status == "left":
+    if bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).status in ("kicked", "left"):
         bot.reply_to(message, "Данный пользователь не состоит в чате.")
         return
 
@@ -533,7 +531,9 @@ def cremate(message):
             bot.reply_to(message, "Неизвестная ошибка Telegram API. Информация сохранена в логи бота.")
         return
 
-    if first_name == '':
+    if bot.get_chat_member(data.main_chat_id, user_id).status in ('left', 'kicked'):
+        bot.reply_to(message, "Данный участник не находится в чате.")
+    elif first_name == '':
         try:
             bot.ban_chat_member(data.main_chat_id, user_id, int(time.time()) + 60)
             bot.reply_to(message, "Удалённый аккаунт успешно кремирован.")
@@ -546,7 +546,7 @@ def cremate(message):
 
 def calc_(calc_text, message):
     try:
-        result = eval(calc_text)
+        result = eval(calc_text.replace(',', '.'))
     except SyntaxError:
         bot.reply_to(message, "Неверно введено выражение для вычисления.")
         return
@@ -577,7 +577,7 @@ def calc(message):
         bot.reply_to(message, "В выражении должно быть не более 50 полезных символов.")
         return
     for i in calc_text:
-        if i not in "1234567890 */+-()":
+        if i not in "1234567890 */+-().,":
             bot.reply_to(message, "Неверно введено выражение для вычисления.")
             return
 
