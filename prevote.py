@@ -1365,7 +1365,7 @@ class NewUserChecker(PreVote):
                 bot.reply_to(self.message, f"\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от "
                                            "абуза инвайта! Повторная попытка возможна через "
                                            f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
-                         parse_mode="html")
+                             parse_mode="html")
             except telebot.apihelper.ApiTelegramException:
                 logging.error(traceback.format_exc())
                 bot.reply_to(self.message, "Ошибка блокировки вошедшего в режиме защиты пользователя!"
@@ -1598,7 +1598,7 @@ class AlliesList(PreVote):
         self.vote_text = (f"Тема голосования: разрыв союзных отношений с чатом " +
                           f"<b>{utils.html_fix(bot.get_chat(ally_id).title)}</b>{invite_link}\n" +
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
-        self.poll_maker(vote_type = "remove allies", vote_args = [ally_id, None, False])
+        self.poll_maker(vote_type="remove allies", vote_args=[ally_id, None, False])
 
     def pre_vote(self, vote_type_text, invite_link, mode_text):
         self.unique_id = str(self.message.chat.id) + "_allies"
@@ -1633,6 +1633,7 @@ class AlliesList(PreVote):
         allies_text = "Список союзных чатов: \n"
         allies = sqlWorker.get_allies()
         if allies is not None:
+            ally_counter = 0
             for i in allies:
                 try:
                     bot.get_chat_member(i[0], data.bot_id).status
@@ -1642,17 +1643,21 @@ class AlliesList(PreVote):
                     continue
                 try:
                     invite_link = bot.get_chat(i[0]).invite_link
+                    ally_counter += 1
                     if invite_link is None:
-                        invite_link = "инвайт-ссылка отсутствует"
-                    allies_text = allies_text + f"{bot.get_chat(i[0]).title} - {invite_link}\n"
+                        allies_text = allies_text + \
+                                      f'{ally_counter}. <a href="{invite_link}">{bot.get_chat(i[0]).title}</a>\n'
+                    else:
+                        allies_text = allies_text + \
+                                      f"{ally_counter}. {bot.get_chat(i[0]).title} " \
+                                      f"(пригласительная ссылка отсутствует)\n"
                 except telebot.apihelper.ApiTelegramException:
                     logging.error(traceback.format_exc())
 
-        if allies is None:
+        if allies is None:  # Не исправлять!!!! Так надо на случай, если список полностью пуст после прохода!
             bot.reply_to(self.message, "В настоящее время у вас нет союзников.")
-            return
-
-        bot.reply_to(self.message, allies_text, disable_web_page_preview=True)
+        else:
+            bot.reply_to(self.message, allies_text, disable_web_page_preview=True)
 
     def help_access_check(self):
         if self.message.chat.id != data.main_chat_id and self.message.chat.id == self.message.from_user.id:

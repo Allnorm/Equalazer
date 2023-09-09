@@ -16,8 +16,7 @@ class UserAdd(PostVote):
     mention = ""
 
     def post_vote_child(self):
-        self.mention = "<a href=\"tg://user?id=" + str(self.data_list[0]) + "\">" \
-                       + utils.html_fix(self.data_list[1]) + "</a>"
+        self.mention = f'<a href="tg://user?id={self.data_list[0]}">{utils.html_fix(self.data_list[1])}</a>'
 
     def accept(self):
         sqlWorker.abuse_remove(self.data_list[2])
@@ -345,8 +344,8 @@ class Op(PostVote):
             logging.error(traceback.format_exc())
         try:
             if self.is_accept and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
-                bot.reply_to(self.message_vote, "Голосование завершено! <a href =\"tg://user?id="
-                             + str(self.data_list[0]) + "\">" + utils.html_fix(self.data_list[1])
+                bot.reply_to(self.message_vote, f'Голосование завершено! <a href ="tg://user?id={self.data_list[0]}">'
+                             + utils.html_fix(self.data_list[1])
                              + "</a>, пожалуйста, не забудь сменить звание!", parse_mode="html")
             else:
                 bot.reply_to(self.message_vote, "Голосование завершено!")
