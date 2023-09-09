@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.4.6.2"  # Current bot version
+    VERSION = "2.4.6.3"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "14.06.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -364,15 +364,21 @@ def init():
              f"Предыдущая версия: {get_version}"
 
     sqlWorker.params("version", rewrite_value=data.VERSION)
-    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} HAS BEEN STARTED!###")
+    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} LAUNCHED SUCCESSFULLY!###")
 
     if data.main_chat_id == -1:
-        logging.info("WARNING! STARTED IN INIT MODE!")
+        logging.warning("WARNING! BOT LAUNCHED IN INIT MODE!\n***\n"
+                        "You need to add DeuterBot to your chat and use the /getchat command.\n"
+                        "The bot will automatically write information about the ID of this chat\n"
+                        "(and topic, if necessary) to the configuration file.\n"
+                        "Restart the bot and work with it as usual.\n***")
         return
 
     try:
         if data.debug:
-            logging.info("LAUNCH IN DEBUG MODE! IGNORE CONFIGURE!")
+            logging.warning("BOT LAUNCHED IN DEBUG MODE!\n***\n"
+                            "The bot will ignore the configuration of some parameters "
+                            "and will not record changes to them.\n***")
             bot.send_message(data.main_chat_id, f"Бот запущен в режиме отладки!" + update_text,
                              message_thread_id=data.thread_id)
         else:
