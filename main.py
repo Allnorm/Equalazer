@@ -542,15 +542,21 @@ def calc_(calc_text, message):
             result = round(result, 10)
             if result.is_integer():
                 result = int(result)
+        result = str(result)
     except SyntaxError:
         bot.reply_to(message, "Неверно введено выражение для вычисления.")
         return
     except ZeroDivisionError:
-        traceback.print_exc()
         bot.reply_to(message, f"{calc_text}\n=деление на 0")
         return
-    if calc_text.count(',') >= calc_text.count('.'):
-        result = str(result).replace('.', ',')
+    except ValueError as e:
+        if 'Exceeds the limit' in str(e):
+            bot.reply_to(message, "Число слишком большое для конвертации.")
+        else:
+            logging.error(traceback.format_exc())
+            bot.reply_to(message, "Неизвестная ошибка вычисления! Информация сохранена в логи бота.")
+        return
+    result = result.replace('.', ',') if calc_text.count(',') >= calc_text.count('.') else result
     bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
 
 
@@ -570,8 +576,8 @@ def calc(message):
         return
 
     calc_text = message.text.split(maxsplit=1)[1]
-    if len(calc_text.replace(" ", "")) > 50:
-        bot.reply_to(message, "В выражении должно быть не более 50 полезных символов.")
+    if len(calc_text.replace(" ", "")) > 500:
+        bot.reply_to(message, "В выражении должно быть не более 500 полезных символов.")
         return
     for i in calc_text:
         if i not in "1234567890 */+-().,^":
