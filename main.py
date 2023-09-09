@@ -551,13 +551,17 @@ def calc_(calc_text, message):
         return
     except ValueError as e:
         if 'Exceeds the limit' in str(e):
-            bot.reply_to(message, "Число слишком большое для конвертации.")
+            bot.reply_to(message, "Результат слишком большой для отправки.")
         else:
             logging.error(traceback.format_exc())
             bot.reply_to(message, "Неизвестная ошибка вычисления! Информация сохранена в логи бота.")
         return
     result = result.replace('.', ',') if calc_text.count(',') >= calc_text.count('.') else result
-    bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
+    try:
+        bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
+    except telebot.apihelper.ApiTelegramException as e:
+        if 'message is too long' in str(e):
+            bot.reply_to(message, "Результат слишком большой для отправки.")
 
 
 @bot.message_handler(commands=['calc'])
