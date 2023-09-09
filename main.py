@@ -216,9 +216,10 @@ def status(message):
     if abuse_chk > 0:
         abuse_text = f"\nТаймаут абуза инвайта для пользователя: {utils.formatted_timer(abuse_chk - int(time.time()))}"
 
-    bot.reply_to(message, f"Текущий статус пользователя {username}: "
-                          f"{statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}"
-                          f"\nНаличие в вайтлисте: {whitelist_status}{until_date}{abuse_text}")
+    bot.reply_to(message, f"Текущий статус пользователя {utils.html_fix(username)}: "
+                          f"{statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}\n"
+                          f"ID пользователя: <code>{user_id}</code>\n"
+                          f"Наличие в вайтлисте: {whitelist_status}{until_date}{abuse_text}", parse_mode='html')
 
 
 @bot.message_handler(commands=['random', 'redrum'])
@@ -290,16 +291,6 @@ def get_id(message):
     utils.write_init_chat(message)
 
 
-@bot.message_handler(commands=['getuser'])
-def get_usr(message):
-    if not utils.botname_checker(message):
-        return
-
-    if data.debug and utils.topic_reply_fix(message.reply_to_message) is not None:
-        user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
-        bot.reply_to(message, f"ID пользователя {username} - {user_id}")
-
-
 @bot.message_handler(commands=['help'])
 def help_msg(message):
     if not utils.botname_checker(message):
@@ -322,7 +313,7 @@ def help_msg(message):
         return
 
     datetime_help = "\nФормат времени (не зависит от регистра):\n" \
-                    "без аргумента или s - секунды\n"\
+                    "без аргумента или s - секунды\n" \
                     "m - минуты\n" \
                     "h - часы\n" \
                     "d - дни\n" \
@@ -546,7 +537,7 @@ def cremate(message):
 
 def calc_(calc_text, message):
     try:
-        result = eval(calc_text.replace(',', '.').replace('^','**'))
+        result = eval(calc_text.replace(',', '.').replace('^', '**'))
         if isinstance(result, float):
             result = round(result, 10)
             if result.is_integer():
@@ -565,7 +556,6 @@ def calc_(calc_text, message):
 
 @bot.message_handler(commands=['calc'])
 def calc(message):
-
     if not utils.botname_checker(message):
         return
 
@@ -594,6 +584,7 @@ def calc(message):
     if process.is_alive():
         process.terminate()
         bot.reply_to(message, "Время вычисления превысило таймаут. Отменено.")
+
 
 @bot.message_handler(commands=['version'])
 def revoke(message):
