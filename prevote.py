@@ -1652,7 +1652,7 @@ class AlliesList(PreVote):
             bot.reply_to(self.message, "В настоящее время у вас нет союзников.")
             return
 
-        bot.reply_to(self.message, allies_text)
+        bot.reply_to(self.message, allies_text, disable_web_page_preview=True)
 
     def help_access_check(self):
         if self.message.chat.id != data.main_chat_id and self.message.chat.id == self.message.from_user.id:
