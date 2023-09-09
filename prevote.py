@@ -1644,7 +1644,7 @@ class AlliesList(PreVote):
                 try:
                     invite_link = bot.get_chat(i[0]).invite_link
                     ally_counter += 1
-                    if invite_link is None:
+                    if invite_link is not None:
                         allies_text = allies_text + \
                                       f'{ally_counter}. <a href="{invite_link}">{bot.get_chat(i[0]).title}</a>\n'
                     else:
