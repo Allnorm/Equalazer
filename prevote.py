@@ -1646,10 +1646,11 @@ class AlliesList(PreVote):
                     ally_counter += 1
                     if invite_link is not None:
                         allies_text = allies_text + \
-                                      f'{ally_counter}. <a href="{invite_link}">{bot.get_chat(i[0]).title}</a>\n'
+                                      f'{ally_counter}. <a href="{invite_link}">' \
+                                      f'{utils.html_fix(bot.get_chat(i[0]).title)}</a>\n'
                     else:
                         allies_text = allies_text + \
-                                      f"{ally_counter}. {bot.get_chat(i[0]).title} " \
+                                      f"{ally_counter}. {utils.html_fix(bot.get_chat(i[0]).title)} " \
                                       f"(пригласительная ссылка отсутствует)\n"
                 except telebot.apihelper.ApiTelegramException:
                     logging.error(traceback.format_exc())
@@ -1657,7 +1658,7 @@ class AlliesList(PreVote):
         if allies is None:  # Не исправлять!!!! Так надо на случай, если список полностью пуст после прохода!
             bot.reply_to(self.message, "В настоящее время у вас нет союзников.")
         else:
-            bot.reply_to(self.message, allies_text, disable_web_page_preview=True)
+            bot.reply_to(self.message, allies_text, disable_web_page_preview=True, parse_mode='html')
 
     def help_access_check(self):
         if self.message.chat.id != data.main_chat_id and self.message.chat.id == self.message.from_user.id:
