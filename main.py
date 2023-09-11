@@ -566,6 +566,9 @@ def calc_(calc_text, message):
 
 @bot.message_handler(commands=['calc'])
 def calc(message):
+
+    return  # This is an emergency patch until the circumstances of the problem are clarified.
+
     if not utils.botname_checker(message):
         return
 
