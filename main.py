@@ -535,7 +535,7 @@ def cremate(message):
         bot.reply_to(message, "Данный участник не является удалённым аккаунтом.")
 
 
-def calc_(calc_text, message):
+def calc_(calc_text, to_send):
     try:
         result = eval(calc_text.replace(',', '.').replace('^', '**'))
         if isinstance(result, float):
@@ -544,30 +544,26 @@ def calc_(calc_text, message):
                 result = int(result)
         result = str(result)
     except SyntaxError:
-        bot.reply_to(message, "Неверно введено выражение для вычисления.")
+        to_send.put("Неверно введено выражение для вычисления.")
         return
     except ZeroDivisionError:
-        bot.reply_to(message, f"{calc_text}\n=деление на 0")
+        to_send.put(f"{calc_text}\n=деление на 0")
         return
     except ValueError as e:
         if 'Exceeds the limit' in str(e):
-            bot.reply_to(message, "Результат слишком большой для отправки.")
+            to_send.put("Результат слишком большой для отправки.")
         else:
             logging.error(traceback.format_exc())
-            bot.reply_to(message, "Неизвестная ошибка вычисления! Информация сохранена в логи бота.")
+            to_send.put("Неизвестная ошибка вычисления! Информация сохранена в логи бота.")
         return
     result = result.replace('.', ',') if calc_text.count(',') >= calc_text.count('.') else result
-    try:
-        bot.reply_to(message, f"{calc_text}\n=<code>{result}</code>", parse_mode='html')
-    except telebot.apihelper.ApiTelegramException as e:
-        if 'message is too long' in str(e):
-            bot.reply_to(message, "Результат слишком большой для отправки.")
+    to_send.put(f"{calc_text}\n=<code>{result}</code>")
 
 
 @bot.message_handler(commands=['calc'])
 def calc(message):
 
-    return  # This is an emergency patch until the circumstances of the problem are clarified.
+    # return  # This is an emergency patch until the circumstances of the problem are clarified.
 
     if not utils.botname_checker(message):
         return
@@ -591,12 +587,20 @@ def calc(message):
             bot.reply_to(message, "Неверно введено выражение для вычисления.")
             return
 
-    process = multiprocessing.Process(target=calc_, args=(calc_text, message))
+    to_send = multiprocessing.Queue()
+    process = multiprocessing.Process(target=calc_, args=(calc_text, to_send))
     process.start()
     process.join(timeout=5)
     if process.is_alive():
         process.terminate()
         bot.reply_to(message, "Время вычисления превысило таймаут. Отменено.")
+        return
+
+    try:
+        bot.reply_to(message, to_send.get(), parse_mode='html')
+    except telebot.apihelper.ApiTelegramException as e:
+        if 'message is too long' in str(e):
+            bot.reply_to(message, "Результат слишком большой для отправки.")
 
 
 @bot.message_handler(commands=['version'])

@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.4.6.6"  # Current bot version
+    VERSION = "2.4.6.7"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "14.06.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -330,6 +330,9 @@ class ConfigData:
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
+telebot.TeleBot(data.token)
+telebot.TeleBot(data.token)
+telebot.TeleBot(data.token)
 sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
 
 
