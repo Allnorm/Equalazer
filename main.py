@@ -891,7 +891,7 @@ def vote_button(call_msg):
                 voting_completed = True
                 break
 
-    if poll_sum >= bot.get_chat_member_count(data.main_chat_id) - 1:  # The bot itself will not be counted
+    if poll_sum >= bot.get_chat_member_count(call_msg.message.chat.id) - 1:  # The bot itself will not be counted
         voting_completed = True
 
     if voting_completed or poll[0][5] <= int(time.time()):
