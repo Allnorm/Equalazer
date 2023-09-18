@@ -19,7 +19,7 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.4.6.7"  # Current bot version
+    VERSION = "2.5"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "14.06.2023"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -200,7 +200,11 @@ class ConfigData:
 
     def auto_thresholds_get(self, ban=False, minimum=False):
 
-        member_count = bot.get_chat_members_count(self.main_chat_id)
+        try:
+            member_count = bot.get_chat_members_count(self.main_chat_id)
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(e)
+            member_count = 2
 
         if ban:
             if member_count > 15:
@@ -386,9 +390,9 @@ def init():
                              message_thread_id=data.thread_id)
         else:
             bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text, message_thread_id=data.thread_id)
-    except telebot.apihelper.ApiTelegramException:
-        logging.error("I was unable to send a launch message! Possibly the wrong value for the main chat or topic?")
-        logging.error(traceback.format_exc())
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f"I was unable to send a launch message! "
+                      f"Possibly the wrong value for the main chat or topic?\n{e}")
 
 
 def auto_clear():

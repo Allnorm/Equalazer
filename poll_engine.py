@@ -74,8 +74,8 @@ class PoolEngine:
             if abuse_vote_timer + data.wait_timer > int(time.time()):
                 please_wait = data.wait_timer - int(time.time()) + abuse_vote_timer
                 bot.answer_callback_query(callback_query_id=call_msg.id,
-                                          text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё "
-                                               + str(please_wait) + " секунд", show_alert=True)
+                                          text="Вы слишком часто нажимаете кнопку. Пожалуйста, подождите ещё " +
+                                               f"{please_wait}с.", show_alert=True)
                 return True
             else:
                 pool_engine.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
@@ -202,8 +202,8 @@ class PreVote:
         if not self.silent:
             try:
                 bot.pin_chat_message(message_vote.chat.id, message_vote.message_id, disable_notification=True)
-            except telebot.apihelper.ApiTelegramException:
-                pass
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f"I can't pin message in chat {message_vote.chat.id}!\n{e}")
         threading.Thread(target=pool_engine.vote_timer, daemon=True,
                          args=(self.current_timer, self.unique_id, message_vote)).start()
 
@@ -267,9 +267,16 @@ class PostVote:
                 self.accept()
             else:
                 self.decline()
+            self.final_hook(False)
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error in poll {records[0][0]} with type "{records[0][2]}", '
+                          f'chat ID {records[0][3]} and message ID {records[0][1]}\n{e}')
+            self.final_hook(True)
         except Exception as e:
-            logging.error(str(e) + "\n" + traceback.format_exc())
-        self.final_hook()
+            logging.error(f'Unknown error in poll "{records[0][0]}" with type "{records[0][2]}", '
+                          f'chat ID "{records[0][3]}" and message ID "{records[0][1]}"\n{e}')
+            logging.error(traceback.format_exc())
+            self.final_hook(True)
 
     def post_vote_child(self):
         return
@@ -280,13 +287,16 @@ class PostVote:
     def decline(self):
         return
 
-    def final_hook(self):
+    def final_hook(self, error=False):
         try:
             bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            pass
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f"I can't unpin message in chat {self.message_vote.chat.id}!\n{e}")
         try:
-            bot.reply_to(self.message_vote, "Голосование завершено!")
+            if error:
+                bot.reply_to(self.message_vote, "Голосование завершено с ошибками. Информация сохранена в логи бота.")
+            else:
+                bot.reply_to(self.message_vote, "Голосование завершено!")
         except telebot.apihelper.ApiTelegramException:
             logging.error(traceback.format_exc())
 

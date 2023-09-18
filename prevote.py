@@ -35,7 +35,8 @@ class Invite(PreVote):
             try:
                 invite_link = bot.get_chat(data.main_chat_id).invite_link
                 if invite_link is None:
-                    raise telebot.apihelper.ApiTelegramException
+                    bot.reply_to(self.message, "Ошибка получения ссылки на чат. Недостаточно прав?")
+                    return
                 until_date = ""
                 abuse_chk = sum(sqlWorker.abuse_check(self.message.from_user.id))
                 if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "kicked":
@@ -53,7 +54,8 @@ class Invite(PreVote):
                                               f"{utils.formatted_timer(abuse_chk - int(time.time()))}, " \
                                               f"в противном случае при попытке входа в чат вы будете заблокированы."
                 bot.reply_to(self.message, f"Ссылка на администрируемый мной чат:\n{invite_link}\n{until_date}")
-            except telebot.apihelper.ApiTelegramException:
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'Error when trying to issue a link to a new participant!\n{e}')
                 bot.reply_to(self.message, "Ошибка получения ссылки на чат. Недостаточно прав?")
             return
 
@@ -633,7 +635,10 @@ class Whitelist(PreVote):
     vote_type = "whitelist"
 
     def pre_return(self) -> bool:
-        if data.binary_chat_mode != 0 or utils.command_forbidden(self.message):
+        if utils.command_forbidden(self.message):
+            return True
+        if data.binary_chat_mode != 0:
+            bot.reply_to(self.message, "Вайтлист в данном режиме отключён (см. команду /private).")
             return True
         if utils.extract_arg(self.message.text, 1) in ("add", "remove"):
             if utils.topic_reply_fix(self.message.reply_to_message) is not None:
@@ -660,8 +665,8 @@ class Whitelist(PreVote):
                 if username == "":
                     sqlWorker.whitelist(user[0], remove=True)
                     continue
-            except telebot.apihelper.ApiTelegramException:
-                logging.error(traceback.format_exc())
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'Error when assembling whitelist!\n{e}')
                 sqlWorker.whitelist(user[0], remove=True)
                 user_whitelist.remove(user)
                 continue
@@ -669,12 +674,13 @@ class Whitelist(PreVote):
             counter = counter + 1
 
         if not user_whitelist:
-            bot.reply_to(self.message, "Вайтлист данного чата пуст!")
+            bot.edit_message_text("Вайтлист данного чата пуст!",
+                                  chat_id=whitelist_msg.chat.id, message_id=whitelist_msg.id, parse_mode='html')
             return
 
-        bot.edit_message_text(
-            user_list + "Узнать подробную информацию о конкретном пользователе можно командой /status",
-            chat_id=whitelist_msg.chat.id, message_id=whitelist_msg.id, parse_mode='html')
+        bot.edit_message_text(f"{user_list}Узнать подробную информацию о "
+                              f"конкретном пользователе можно командой /status",
+                              chat_id=whitelist_msg.chat.id, message_id=whitelist_msg.id, parse_mode='html')
 
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
@@ -732,8 +738,8 @@ class Whitelist(PreVote):
                 sqlWorker.whitelist(self.reply_user_id, remove=True)
                 bot.reply_to(self.message, "Удалена некорректная запись!")
                 return
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error when deleting a member from the whitelist by index!\n{e}')
             sqlWorker.whitelist(self.reply_user_id, remove=True)
             bot.reply_to(self.message, "Удалена некорректная запись!")
             return
@@ -1099,7 +1105,7 @@ class Rank(PreVote):
                 if "ADMIN_RANK_EMOJI_NOT_ALLOWED" in str(e):
                     bot.reply_to(self.message, "В звании не поддерживаются эмодзи.")
                     return
-                logging.error(traceback.format_exc())
+                logging.error(f'Error when changing administrator title!\n{e}')
                 bot.reply_to(self.message, "Не удалось сменить звание.")
             return
         elif bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "creator":
@@ -1201,8 +1207,8 @@ class Deop(PreVote):
             bot.reply_to(self.message, "Пользователь " + utils.username_parser(self.message) +
                          " добровольно ушёл в отставку.\nСпасибо за верную службу!")
             return
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error when changing administrator rights!\n{e}')
             bot.reply_to(self.message, "Я не могу изменить ваши права!")
             return
 
@@ -1366,8 +1372,8 @@ class NewUserChecker(PreVote):
                                            "абуза инвайта! Повторная попытка возможна через "
                                            f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
                              parse_mode="html")
-            except telebot.apihelper.ApiTelegramException:
-                logging.error(traceback.format_exc())
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'Error blocking a new participant!\n{e}')
                 bot.reply_to(self.message, "Ошибка блокировки вошедшего в режиме защиты пользователя!"
                                            "Информация сохранена в логах бота!")
             return True
@@ -1406,8 +1412,8 @@ class NewUserChecker(PreVote):
             bot.restrict_chat_member(data.main_chat_id, self.reply_user_id, can_send_messages=False,
                                      can_change_info=False, can_invite_users=False, can_pin_messages=False,
                                      until_date=int(time.time()) + 60)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error blocking a new bot!\n{e}')
             bot.reply_to(self.message, "Ошибка блокировки нового бота. Недостаточно прав?")
             return
 
@@ -1442,8 +1448,8 @@ class NewUserChecker(PreVote):
         try:
             bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=until_date)
             bot.reply_to(self.message, ban_text)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error blocking a new participant!\n{e}')
             bot.reply_to(self.message, "Ошибка блокировки вошедшего пользователя. Недостаточно прав?")
 
     def vote_mode(self):
@@ -1453,8 +1459,8 @@ class NewUserChecker(PreVote):
         try:
             bot.restrict_chat_member(data.main_chat_id, self.reply_user_id, can_send_messages=False,
                                      can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error blocking a new participant!\n{e}')
             bot.reply_to(self.message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
             return
 
@@ -1468,8 +1474,8 @@ class NewUserChecker(PreVote):
         try:
             bot.restrict_chat_member(data.main_chat_id, self.reply_user_id, can_send_messages=False,
                                      can_change_info=False, can_invite_users=False, can_pin_messages=False)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error blocking a new participant!\n{e}')
             bot.reply_to(self.message, "Ошибка блокировки нового пользователя. Недостаточно прав?")
             return
 
@@ -1506,7 +1512,8 @@ class NewUserChecker(PreVote):
         sqlWorker.abuse_update(data_list[0][1], until_time)
         try:
             bot.ban_chat_member(bot_message.chat.id, data_list[0][1], until_date=int(time.time()) + until_time)
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Error blocking a new participant!\n{e}')
             bot.edit_message_text(f"Я не смог заблокировать пользователя {data_list[0][3]}! Недостаточно прав?",
                                   bot_message.chat.id, bot_message.message_id)
             return
@@ -1621,44 +1628,56 @@ class AlliesList(PreVote):
             if sqlWorker.params("shield", default_return=0) > int(time.time()):
                 bot.reply_to(self.message, "В режиме защиты инвайт-ссылка на основной чат не выдаётся!")
             else:
-                bot.reply_to(self.message, "Данный чат является союзным чатом для "
-                             + bot.get_chat(data.main_chat_id).title + ", ссылка для инвайта - "
-                             + bot.get_chat(data.main_chat_id).invite_link)
+                invite_link = bot.get_chat(data.main_chat_id).invite_link
+                if invite_link is None:
+                    invite_link = "отсутствует (недостаточно прав для выдачи?)"
+                else:
+                    invite_link = f"- {invite_link}"
+                bot.reply_to(self.message, "Данный чат является союзным чатом для " +
+                             f"{bot.get_chat(data.main_chat_id).title}.\nСсылка для вступления {invite_link}")
             return
 
         if utils.command_forbidden(self.message, text="Данную команду без аргументов можно "
                                                       "запустить только в основном чате или в союзных чатах."):
             return
 
-        allies_text = "Список союзных чатов: \n"
         allies = sqlWorker.get_allies()
-        if allies is not None:
-            ally_counter = 0
-            for i in allies:
-                try:
-                    bot.get_chat_member(i[0], data.bot_id).status
-                except telebot.apihelper.ApiTelegramException:
-                    sqlWorker.remove_ally(i[0])
-                    allies.remove(i)
-                    continue
-                try:
-                    invite_link = bot.get_chat(i[0]).invite_link
-                    ally_counter += 1
-                    if invite_link is not None:
-                        allies_text = allies_text + \
-                                      f'{ally_counter}. <a href="{invite_link}">' \
-                                      f'{utils.html_fix(bot.get_chat(i[0]).title)}</a>\n'
-                    else:
-                        allies_text = allies_text + \
-                                      f"{ally_counter}. {utils.html_fix(bot.get_chat(i[0]).title)} " \
-                                      f"(пригласительная ссылка отсутствует)\n"
-                except telebot.apihelper.ApiTelegramException:
-                    logging.error(traceback.format_exc())
+        if allies is None:
+            bot.reply_to(self.message, "В настоящее время у вас нет союзников.")
+            return
+        threading.Thread(target=self.allies_building, args=(allies,)).start()
+
+    def allies_building(self, allies):
+        allies_msg = bot.reply_to(self.message, "Сборка списка союзных чатов, ожидайте...")
+        allies_text = "Список союзных чатов: \n"
+        ally_counter = 0
+        for i in allies:
+            try:
+                bot.get_chat_member(i[0], data.bot_id).status
+            except telebot.apihelper.ApiTelegramException:
+                sqlWorker.remove_ally(i[0])
+                allies.remove(i)
+                continue
+            try:
+                invite_link = bot.get_chat(i[0]).invite_link
+                ally_counter += 1
+                if invite_link is not None:
+                    allies_text = allies_text + \
+                                  f'{ally_counter}. <a href="{invite_link}">' \
+                                  f'{utils.html_fix(bot.get_chat(i[0]).title)}</a>\n'
+                else:
+                    allies_text = allies_text + \
+                                  f"{ally_counter}. {utils.html_fix(bot.get_chat(i[0]).title)} " \
+                                  f"(пригласительная ссылка отсутствует)\n"
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'Error while assembling the list of allies!\n{e}')
 
         if allies is None:  # Не исправлять!!!! Так надо на случай, если список полностью пуст после прохода!
-            bot.reply_to(self.message, "В настоящее время у вас нет союзников.")
+            bot.edit_message_text("В настоящее время у вас нет союзников.",
+                                  chat_id=allies_msg.chat.id, message_id=allies_msg.id, parse_mode='html')
         else:
-            bot.reply_to(self.message, allies_text, disable_web_page_preview=True, parse_mode='html')
+            bot.edit_message_text(allies_text, disable_web_page_preview=True, parse_mode='html',
+                                  chat_id=allies_msg.chat.id, message_id=allies_msg.id)
 
     def help_access_check(self):
         if self.message.chat.id != data.main_chat_id and self.message.chat.id == self.message.from_user.id:
@@ -1850,7 +1869,7 @@ class CustomPoll(PreVote):
     @staticmethod
     def timer_votes_init():
         """timer, votes"""
-        return 86400, bot.get_chat_member_count(data.main_chat_id)
+        return 86400, 0  # For custom poll, the upper threshold of votes is the sum of participants
 
     def direct_fn(self):
         self.help()

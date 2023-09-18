@@ -32,18 +32,17 @@ class UserAdd(PostVote):
 
         try:
             invite = bot.create_chat_invite_link(self.message_vote.chat.id, expire_date=int(time.time()) + 86400)
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка создания инвайт-ссылки для пользователя " + self.mention
                                   + "! Недостаточно прав?" + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id, parse_mode="html")
             bot.send_message(self.data_list[0], "Ошибка создания инвайт-ссылки для вступления.")
-            logging.error(traceback.format_exc())
-            return
+            raise e
 
         try:
             bot.unban_chat_member(self.message_vote.chat.id, self.data_list[2], only_if_banned=True)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'In func postvote.UserAdd.accept: {e}')
 
         bot.edit_message_text(f"Создана инвайт-ссылка и отправлена запросившему кандидату {self.mention}.\n"
                               f"Ссылка истечёт через 1 сутки." + self.votes_counter,
@@ -102,10 +101,10 @@ class Ban(PostVote):
                                       + until_text + self.data_list[5] + rate + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
 
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка блокировки пользователя " + self.data_list[1] + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
+            raise e
 
     def decline(self):
         solution = ("ограничения", "кика", "блокировки")
@@ -132,11 +131,11 @@ class UnBan(PostVote):
             bot.edit_message_text("Пользователю " + self.data_list[1] + " восстановлено право переписки в чате "
                                   + "по милости пользователя " + self.data_list[2] + rate
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Я не смог вынести из мута пользователя " + self.data_list[1]
                                   + ".  Недостаточно прав?" + self.votes_counter, self.message_vote.chat.id,
                                   self.message_vote.message_id)
+            raise e
 
     def decline(self):
         bot.edit_message_text("Вопрос снятия ограничений с пользователя " + self.data_list[1] + " отклонён."
@@ -151,10 +150,10 @@ class Captcha(PostVote):
         try:
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[1],
                                      None, True, True, True, True, True, True, True, True)
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(f"Я не смог снять ограничения с {self.data_list[2]} {self.data_list[0]}! "
                                   f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
         bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} одобрено!" + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
 
@@ -163,10 +162,10 @@ class Captcha(PostVote):
         try:
             bot.ban_chat_member(self.message_vote.chat.id, self.data_list[1],
                                 until_date=int(time.time()) + self.data_list[3])
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(f"Я не смог заблокировать {self.data_list[2]} {self.data_list[0]}! "
                                   f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
         bot.edit_message_text(f"Вступление {self.data_list[2]} {self.data_list[0]} отклонено.\n" +
                               f"Следующая попытка будет возможна через {utils.formatted_timer(self.data_list[3])}" +
                               self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
@@ -252,7 +251,6 @@ class DelMessage(PostVote):
         try:
             bot.delete_message(self.message_vote.chat.id, self.data_list[0])
         except telebot.apihelper.ApiTelegramException as e:
-            logging.error(traceback.format_exc())
             if "message to delete not found" in str(e):
                 bot.edit_message_text("Сообщение, которое требуется удалить, не найдено." + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
@@ -260,13 +258,13 @@ class DelMessage(PostVote):
                 bot.edit_message_text("Ошибка удаления сообщения по голосованию." + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
             self.data_list[2] = False  # Disable silent mode
-            return
+            raise e
 
         if self.data_list[2]:
             try:
                 bot.delete_message(self.message_vote.chat.id, self.message_vote.message_id)
-            except telebot.apihelper.ApiTelegramException:
-                logging.error(traceback.format_exc())
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'In func postvote.DelMessage.accept: {e}')
         else:
             bot.edit_message_text("Сообщение пользователя " + self.data_list[1] + " удалено успешно."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
@@ -275,10 +273,10 @@ class DelMessage(PostVote):
         bot.edit_message_text("Вопрос удаления сообщения отклонён." + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
 
-    def final_hook(self):
+    def final_hook(self, error=False):
         if self.data_list[2]:
             return
-        super().final_hook()
+        super().final_hook(error)
 
 
 class GlobalOp(PostVote):
@@ -317,12 +315,12 @@ class Op(PostVote):
         try:
             bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0],
                                     can_manage_chat=True, **utils.get_promote_args(self.data_list[2]))
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+            sqlWorker.whitelist(self.data_list[0], add=True)
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(
                 f"Ошибка назначения администратора {self.data_list[1]}. Недостаточно прав?" + self.votes_counter,
                 self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
 
         rate = ""
         if status != "administrator":
@@ -337,13 +335,15 @@ class Op(PostVote):
             "Вопрос назначения " + self.data_list[1] + " администратором отклонён." + self.votes_counter,
             self.message_vote.chat.id, self.message_vote.message_id)
 
-    def final_hook(self):
+    def final_hook(self, error=False):
         try:
             bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f"I can't unpin message in chat {self.message_vote.chat.id}!\n{e}")
         try:
-            if self.is_accept and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
+            if error:
+                bot.reply_to(self.message_vote, "Голосование завершено с ошибками. Информация сохранена в логи бота.")
+            elif self.is_accept and not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
                 bot.reply_to(self.message_vote, f'Голосование завершено! <a href ="tg://user?id={self.data_list[0]}">'
                              + utils.html_fix(self.data_list[1])
                              + "</a>, пожалуйста, не забудь сменить звание!", parse_mode="html")
@@ -370,14 +370,12 @@ class Rank(PostVote):
                                           + " - в звании не поддерживаются эмодзи." + self.votes_counter,
                                           self.message_vote.chat.id, self.message_vote.message_id)
                     return
-                logging.error(traceback.format_exc())
                 bot.edit_message_text("Ошибка смены звания для бота " + self.data_list[1] + "." + self.votes_counter,
                                       self.message_vote.chat.id, self.message_vote.message_id)
-            return
+                raise e
         else:
             bot.edit_message_text("Бот " + self.data_list[1] + " не является администратором. Смена звания невозможна."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            return
 
     def decline(self):
         bot.edit_message_text("Вопрос смены звания бота " + self.data_list[1] + " отклонён." + self.votes_counter,
@@ -397,11 +395,10 @@ class Deop(PostVote):
                                      None, can_send_messages=True)
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
                                      None, True, True, True, True, True, True, True, True)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка снятия администратора " + self.data_list[1] + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
 
         rate = "" if not self.change_rate(-3) else f"\nРейтинг {self.data_list[1]} снижен на 3 пункта."
 
@@ -419,11 +416,10 @@ class Title(PostVote):
     def accept(self):
         try:
             bot.set_chat_title(self.message_vote.chat.id, self.data_list[0])
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка установки названия чата. Недостаточно прав?" + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
         bot.edit_message_text("Название чата успешно сменено на \"" + self.data_list[0]
                               + "\" пользователем " + self.data_list[1] + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
@@ -439,10 +435,10 @@ class Description(PostVote):
     def accept(self):
         try:
             bot.set_chat_description(self.message_vote.chat.id, self.data_list[0])
-        except telebot.apihelper.ApiTelegramException:
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка установки описания чата. Недостаточно прав?" + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
         if self.data_list[0] == "":
             bot.edit_message_text("Описание чата успешно сменено на пустое пользователем "
                                   + self.data_list[1] + self.votes_counter,
@@ -466,21 +462,20 @@ class ChatPic(PostVote):
             bot.edit_message_text("Фотография чата успешно изменена пользователем " + self.data_list[0]
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
         except Exception as e:
-            logging.error((str(e)))
-            logging.error(traceback.format_exc())
             bot.edit_message_text("Ошибка установки новой фотографии чата." + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
+            raise e
 
     def decline(self):
         bot.edit_message_text("Вопрос смены фотографии чата отклонён."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
-    def final_hook(self):
+    def final_hook(self, error=False):
         try:
             os.remove(data.path + "tmp_img")
         except IOError:
-            pass
-        super().final_hook()
+            logging.error(traceback.format_exc())
+        super().final_hook(error)
 
 
 class ChangeRate(PostVote):
@@ -530,11 +525,10 @@ class AddAllies(PostVote):
                                                 f"Ссылка для упрощённого перехода: "
                                                 f"{bot.get_chat(self.message_vote.chat.id).invite_link}.",
                              parse_mode="html", message_thread_id=self.data_list[1])
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка установки союзных отношений с чатом! Информация сохранена в логах бота."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
 
         bot.edit_message_text(f"Установлены союзные отношения с чатом "
                               f"<b>{utils.html_fix(ally_title)}!</b>\n{invite}"
@@ -656,11 +650,10 @@ class Topic(PostVote):
     def accept(self):
         try:
             bot.delete_forum_topic(data.main_chat_id, self.data_list[0])
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка удаления топика! Информация сохранена в логах бота."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise e
         try:
             bot.send_message(data.main_chat_id, f"Пользователь {self.data_list[1]} удалил топик {self.data_list[2]}."
                              + self.votes_counter, message_thread_id=data.thread_id)
@@ -751,11 +744,11 @@ class CustomPoll(PostVote):
                               self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
                               parse_mode="html")
 
-    def final_hook(self):
+    def final_hook(self, error=False):
         try:
             bot.unpin_chat_message(self.message_vote.chat.id, self.message_vote.message_id)
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f"I can't unpin message in chat {self.message_vote.chat.id}!\n{e}")
         try:
             bot.reply_to(self.message_vote, "Опрос завершён!")
         except telebot.apihelper.ApiTelegramException:

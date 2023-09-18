@@ -160,13 +160,13 @@ def add_answer(message):
         bot.reply_to(message, "Ответ не может быть пустым.")
         return
 
-    datalist = json.loads(poll[0][6])
+    data_list = json.loads(poll[0][6])
 
     try:
-        bot.send_message(datalist[0], "Сообщение на вашу заявку от участника чата - \"" + msg_from_usr + "\"")
+        bot.send_message(data_list[0], "Сообщение на вашу заявку от участника чата - \"" + msg_from_usr + "\"")
         bot.reply_to(message, "Сообщение пользователю отправлено успешно.")
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f'Error sending message to applicant for membership!\n{e}')
         bot.reply_to(message, "Ошибка отправки сообщению пользователю.")
 
 
@@ -245,11 +245,13 @@ def random_msg(message):
             msg_id = random.randint(1, message.id)
             bot.forward_message(message.chat.id, message.chat.id, msg_id)
             return
-        except telebot.apihelper.ApiTelegramException:
-            pass
-
-    logging.error(traceback.format_exc())
-    bot.reply_to(message, "Ошибка взятия рандомного сообщения с номером {}!".format(msg_id))
+        except telebot.apihelper.ApiTelegramException as e:
+            if "message has protected content and can't be forwarded" in str(e):
+                bot.reply_to(message, "Пересылка рандомных сообщений невозможна, чат защищён от копирования.")
+                return
+            elif i == 4:
+                logging.error(f'Error forwarding random message with number {msg_id} in chat {message.chat.id}!\n{e}')
+                bot.reply_to(message, f"Ошибка взятия рандомного сообщения с номером {msg_id}!")
 
 
 @bot.message_handler(commands=['pardon'])
@@ -257,22 +259,26 @@ def pardon(message):
     if not utils.botname_checker(message):
         return
 
-    if all([message.reply_to_message is not None,
-            bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("administrator", "creator"),
-            message.chat.id == data.main_chat_id]):
-        user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
-        sqlWorker.abuse_remove(user_id)
-        bot.reply_to(message, f"Абуз инвайта для {username} сброшен!")
-        return
-
     if message.chat.id == data.main_chat_id:
-        bot.reply_to(message, "Данная команда не может быть запущена в основном чате не администраторами!")
+        if bot.get_chat_member(data.main_chat_id, message.from_user.id).status not in ("administrator", "creator"):
+            bot.reply_to(message, "Данная команда не может быть запущена в основном чате не администраторами.")
+        elif message.reply_to_message is None:
+            bot.reply_to(message, "Требуется реплейнуть сообщение участника, которому вы хотите сбросить абуз инвайта.")
+        elif message.reply_to_message.from_user.id == data.bot_id:
+            bot.reply_to(message, data.EASTER_LINK, disable_web_page_preview=True)
+        else:
+            user_id, username, _ = utils.reply_msg_target(message.reply_to_message)
+            sqlWorker.abuse_remove(user_id)
+            bot.reply_to(message, f"Абуз инвайта для {username} сброшен!")
+            return
     elif data.debug:
         sqlWorker.abuse_remove(message.chat.id)
+        target = "инвайт" if message.chat.id == message.from_user.id else "добавление в союзники"
         user = "пользователя" if message.chat.id == message.from_user.id else "чата"
-        bot.reply_to(message, f"Абуз инвайта и союзников сброшен для текущего {user}.")
+        bot.reply_to(message, f"Абуз заявки на {target} сброшен для текущего {user}.")
+        return
     else:
-        bot.reply_to(message, "Данная команда не может быть запущена в обычном режиме вне основного чата!")
+        bot.reply_to(message, "Данная команда не может быть запущена в обычном режиме вне основного чата.")
 
 
 @bot.message_handler(commands=['getchat'])
@@ -446,8 +452,8 @@ def mute_user(message):
         if not bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
                 and data.rate:
             sqlWorker.update_rate(message.reply_to_message.from_user.id, -5)
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f'Error restricting attacked user with /kill command!\n{e}')
         bot.reply_to(message, "Я не смог снять права данного пользователя. Не имею права.")
         return
 
@@ -458,8 +464,8 @@ def mute_user(message):
         if not bot.get_chat_member(data.main_chat_id, message.reply_to_message.from_user.id).user.is_bot \
                 and data.rate:
             sqlWorker.update_rate(message.from_user.id, -5)
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f'Error restricting initiator user with /kill command!\n{e}')
         bot.reply_to(message, "Я смог снять права данного пользователя на "
                      + utils.formatted_timer(timer_mute) + ", но не смог снять права автора заявки.")
         return
@@ -489,8 +495,8 @@ def revoke(message):
     try:
         bot.revoke_chat_invite_link(data.main_chat_id, bot.get_chat(data.main_chat_id).invite_link)
         bot.reply_to(message, "Пригласительная ссылка на основной чат успешно сброшена.")
-    except telebot.apihelper.ApiTelegramException:
-        logging.error(traceback.format_exc())
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f'Error resetting invitation link!\n{e}')
         bot.reply_to(message, "Ошибка сброса основной пригласительной ссылки! Подробная информация в логах бота.")
 
 
@@ -518,7 +524,7 @@ def cremate(message):
         if "invalid user_id specified" in str(e):
             bot.reply_to(message, "Указан неверный User ID.")
         else:
-            logging.error(traceback.format_exc())
+            logging.error(f'Error getting account information when trying to cremate!\n{e}')
             bot.reply_to(message, "Неизвестная ошибка Telegram API. Информация сохранена в логи бота.")
         return
 
@@ -528,8 +534,8 @@ def cremate(message):
         try:
             bot.ban_chat_member(data.main_chat_id, user_id, int(time.time()) + 60)
             bot.reply_to(message, "Удалённый аккаунт успешно кремирован.")
-        except telebot.apihelper.ApiTelegramException:
-            logging.error(traceback.format_exc())
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f'Account cremation error!\n{e}')
             bot.reply_to(message, "Ошибка кремации удалённого аккаунта. Недостаточно прав?")
     else:
         bot.reply_to(message, "Данный участник не является удалённым аккаунтом.")
@@ -601,6 +607,44 @@ def calc(message):
     except telebot.apihelper.ApiTelegramException as e:
         if 'message is too long' in str(e):
             bot.reply_to(message, "Результат слишком большой для отправки.")
+
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    if not utils.botname_checker(message):
+        return
+
+    if data.main_chat_id == -1:
+        if message.chat.id != message.from_user.id:  # Проверка на init mode
+            bot.reply_to(message, "В init режиме функции бота не работают. "
+                                  "Используйте команду /getchat, которая автоматически сохранит информацию о "
+                                  "данном чате и топике в файл конфигурации бота. Перезапустите бота. "
+                                  "После этого его настройка будет завершена.")
+        else:
+            bot.reply_to(message, "В init режиме функции бота в личных сообщениях не работают.")
+    elif message.chat.id == data.main_chat_id:
+        bot.reply_to(message, data.EASTER_LINK, disable_web_page_preview=True)
+    elif message.chat.id == message.from_user.id:
+        if bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "left":
+            bot.reply_to(message, "Бот работает. Вы можете продолжить, если уверены в своих действиях.")
+        elif bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "kicked":
+            bot.reply_to(message, "Сейчас вы заблокированы в администрируемом мной чате. "
+                                  "Вы можете продолжить, если уверены в своих действиях.")
+        elif bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "restricted":
+            bot.reply_to(message, "Сейчас вы имеете ограничения в администрируемом мной чате. "
+                                  "Вы можете продолжить, если уверены в своих действиях.")
+        elif bot.get_chat_member(data.main_chat_id, message.from_user.id).status == "creator":
+            bot.reply_to(message, "Владыка, давайте без формальностей, пожалуйста.")
+        else:
+            bot.reply_to(message, "Вам больше ничего не нужно делать, вы уже в чате.")
+    else:
+        is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
+        if not is_allies:
+            bot.reply_to(message, "Возможности данного бота ограничены вне основного и союзных чатов. "
+                                  "Доступны команды /poll, /random и некоторые другие.")
+        else:
+            bot.reply_to(message, f"Благодарим за установление союзных отношений "
+                                  f"с нашим чатом {bot.get_chat(data.main_chat_id).title}!")
 
 
 @bot.message_handler(commands=['version'])
@@ -838,11 +882,17 @@ def vote_button(call_msg):
 
     # Checking that there are enough votes to close the vote
     voting_completed = False
+    poll_sum = 0
     for button in button_data:
         if button["button_type"] == "vote":
-            if len(button["user_list"]) >= poll[0][7]:
+            if poll[0][2] == 'custom poll':
+                poll_sum += len(button["user_list"])
+            elif len(button["user_list"]) >= poll[0][7]:
                 voting_completed = True
                 break
+
+    if poll_sum >= bot.get_chat_member_count(data.main_chat_id) - 1:  # The bot itself will not be counted
+        voting_completed = True
 
     if voting_completed or poll[0][5] <= int(time.time()):
         pool_engine.vote_abuse.clear()
