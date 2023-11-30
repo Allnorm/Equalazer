@@ -612,7 +612,8 @@ def calc(message):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    if not utils.botname_checker(message):
+    cmd_text = message.text.split()[0]
+    if not ("@" in cmd_text and "@" + bot.get_me().username in cmd_text) and ("@" in cmd_text):
         return
 
     if data.main_chat_id == -1:
