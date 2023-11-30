@@ -424,6 +424,13 @@ class Timer(PreVote):
         if utils.command_forbidden(self.message, private_dialog=True):
             return True
 
+    def help(self):
+        if self.message.chat.id != data.main_chat_id:
+            bot.reply_to(self.message, "Использовать как  /timer [время|0 (без кулдауна)|off|disable] random.\n"
+                                       "Подробнее о парсинге времени - см. команду /help.,", parse_mode="html")
+        elif self.help_access_check():
+            bot.reply_to(self.message, self.help_text, parse_mode="html")
+
     def direct_fn(self):
         timer_text = ""
         if self.message.chat.id == data.main_chat_id:
@@ -495,6 +502,22 @@ class Timer(PreVote):
         elif timer_arg == sqlWorker.abuse_random(self.message.chat.id):
             bot.reply_to(self.message, "Это значение установлено сейчас!")
             return
+
+        if self.message.chat.id != data.main_chat_id:
+            user_status = bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status
+            if user_status not in ("creator", "administrator"):
+                bot.reply_to(self.message, "Не-администратор не может использовать эту команду!")
+                return
+            sqlWorker.abuse_random(self.message.chat.id, timer_arg)
+            if timer_arg == -1:
+                bot.reply_to(self.message, "Команда /random отключена.")
+            elif timer_arg == 0:
+                bot.reply_to(self.message, "Кулдаун команды /random отключён.")
+            else:
+                bot.reply_to(self.message, "Установлен порог кулдауна команды "
+                                           f"/random на значение {utils.formatted_timer(timer_arg)}")
+            return
+
         if timer_arg == 0:
             vote_text = (f"Тема голосования: отключение кулдауна команды /random."
                          f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")

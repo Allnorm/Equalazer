@@ -575,9 +575,10 @@ def calc(message):
         return
 
     is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
-    if not is_allies:
-        if utils.command_forbidden(message, text="Данную команду можно запустить только "
-                                                 "в основном чате или в союзных чатах."):
+    user_status = bot.get_chat_member(data.main_chat_id, message.from_user.id).status
+    if not (is_allies or user_status in ("creator", "administrator", "member")):
+        if utils.command_forbidden(message, text="Данную команду можно запустить только в основном чате, "
+                                                 "участникам основного чата или в союзных чатах."):
             return
 
     if utils.extract_arg(message.text, 1) is None:
