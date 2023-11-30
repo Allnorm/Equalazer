@@ -520,10 +520,13 @@ class AddAllies(PostVote):
                 invite = "Инвайт-ссылка на данный чат отсутствует."
             else:
                 invite = f"Инвайт ссылка на данный чат: {invite}."
-            bot.send_message(self.data_list[0], f"Установлены союзные отношения с чатом "
-                                                f"<b>{utils.html_fix(self.message_vote.chat.title)}</b>!\n"
-                                                f"Ссылка для упрощённого перехода: "
-                                                f"{bot.get_chat(self.message_vote.chat.id).invite_link}.",
+            invite_main = bot.get_chat(self.message_vote.chat.id).invite_link
+            if invite_main is None:
+                invite_main = "Ссылка для упрощённого перехода отсутствует (недостаточно прав в основном чате?)"
+            else:
+                invite_main = f"Ссылка для упрощённого перехода: {invite_main}"
+            bot.send_message(self.data_list[0], f"Установлены союзные отношения с чатом <b>"
+                                                f"{utils.html_fix(self.message_vote.chat.title)}</b>!\n{invite_main}",
                              parse_mode="html", message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка установки союзных отношений с чатом! Информация сохранена в логах бота."
