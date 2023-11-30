@@ -1103,7 +1103,7 @@ class Rank(PreVote):
 
         self.vote_text = ("Тема голосования: смена звания бота " +
                           utils.username_parser(self.message.reply_to_message, True) +
-                          f"на \"{utils.html_fix(rank_text)}\""
+                          f" на \"{utils.html_fix(rank_text)}\""
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [self.message.reply_to_message.from_user.id,
                           utils.username_parser(self.message.reply_to_message),
