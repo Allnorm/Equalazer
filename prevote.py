@@ -504,7 +504,7 @@ class Timer(PreVote):
             return
 
         if self.message.chat.id != data.main_chat_id:
-            user_status = bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status
+            user_status = bot.get_chat_member(self.message.chat.id, self.message.from_user.id).status
             if user_status not in ("creator", "administrator"):
                 bot.reply_to(self.message, "Не-администратор не может использовать эту команду!")
                 return
@@ -1554,11 +1554,15 @@ class AlliesList(PreVote):
 
         arg = utils.extract_arg(self.message.text, 1)
         if arg in ("add", "remove") and self.message.chat.id == data.main_chat_id:
-            if arg == "add" or arg == "remove" and utils.extract_arg(self.message.text, 2) is None:
+            if arg == "add":
                 bot.reply_to(self.message, "Команду с таким аргументом нельзя запустить в основном чате!")
                 return True
-
-        self.user_id = data.bot_id
+            elif arg == "remove" and utils.extract_arg(self.message.text, 2) is None:
+                bot.reply_to(self.message, "Команду с аргументом remove без указания "
+                                           "индекса нельзя запустить в основном чате!")
+                return True
+        else:
+            self.user_id = data.bot_id
 
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
@@ -1612,7 +1616,7 @@ class AlliesList(PreVote):
             return
 
         try:
-            ally_id = allies[0][index]
+            ally_id = allies[index]
         except IndexError:
             bot.reply_to(self.message, "Чат с данным индексом не найден в списке союзников!")
             return
