@@ -569,8 +569,6 @@ def calc_(calc_text, to_send):
 @bot.message_handler(commands=['calc'])
 def calc(message):
 
-    # return  # This is an emergency patch until the circumstances of the problem are clarified.
-
     if not utils.botname_checker(message):
         return
 
@@ -807,10 +805,12 @@ def my_vote(call_msg):
     if not poll:
         return
 
+    user_hash = utils.get_hash(call_msg.from_user.id, call_msg.chat_instance)
+
     button_data = json.loads(poll[0][4])
     for button in button_data:
         if button["button_type"] == "vote":
-            if call_msg.from_user.id in button["user_list"]:
+            if user_hash in button["user_list"]:
                 bot.answer_callback_query(callback_query_id=call_msg.id,
                                           text=f'Вы голосовали за вариант "{button["name"]}".', show_alert=True)
                 return
@@ -834,12 +834,14 @@ def vote_button(call_msg):
     if pool_engine.get_abuse_timer(call_msg):  # Voting click check
         return
 
+    user_hash = utils.get_hash(call_msg.from_user.id, call_msg.chat_instance)
+
     button_data = json.loads(poll[0][4])
     last_choice = None
     current_choice = call_msg.data.split("_")[1]
     for button in button_data:
         if button["button_type"] == "vote":
-            if call_msg.from_user.id in button["user_list"]:
+            if user_hash in button["user_list"]:
                 last_choice = button["name"]
                 break
 
@@ -853,7 +855,7 @@ def vote_button(call_msg):
         else:
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
-                    button["user_list"].append(call_msg.from_user.id)
+                    button["user_list"].append(user_hash)
                     break
     elif data.vote_mode == 2:
         if last_choice == current_choice:
@@ -864,21 +866,21 @@ def vote_button(call_msg):
         else:
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
-                    button["user_list"].append(call_msg.from_user.id)
+                    button["user_list"].append(user_hash)
                 if button["button_type"] == "vote" and button["name"] == last_choice:
-                    button["user_list"].remove(call_msg.from_user.id)
+                    button["user_list"].remove(user_hash)
     elif data.vote_mode == 3:
         if last_choice == current_choice:
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
-                    button["user_list"].remove(call_msg.from_user.id)
+                    button["user_list"].remove(user_hash)
                     break
         else:
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
-                    button["user_list"].append(call_msg.from_user.id)
+                    button["user_list"].append(user_hash)
                 if button["button_type"] == "vote" and button["name"] == last_choice:
-                    button["user_list"].remove(call_msg.from_user.id)
+                    button["user_list"].remove(user_hash)
     # Making changes to the database
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
 

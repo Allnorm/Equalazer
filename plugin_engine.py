@@ -33,7 +33,7 @@ class Plugins:
                     if any([version.parse(meta_info['version-min']) > version.parse(data.VERSION),
                             version.parse(meta_info['version-max']) < version.parse(data.VERSION)]):
                         logging.error(f'Module "{entry}" need bot version {meta_info["version-min"]} '
-                                      f'- {meta_info["version-max"]}, current is {data.VERSION}. Bot will close.')
+                                      f'- {meta_info["version-max"]}, current is {data.VERSION}. Bot will closed.')
                         sys.exit(1)
                     if meta_info['type'] == 'vote':
                         PoolEngine.post_vote_list.update(meta.vote_list)

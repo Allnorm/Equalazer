@@ -1,4 +1,5 @@
 import configparser
+import hashlib
 import logging
 import os
 import pickle
@@ -19,9 +20,9 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.5.2.3"  # Current bot version
+    VERSION = "2.5.3"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "30.11.2023"  # Bot build date
+    BUILD_DATE = "17.04.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
     # Leading bit is always 1, recorded backwards
@@ -391,8 +392,9 @@ def init():
         else:
             bot.send_message(data.main_chat_id, f"Бот перезапущен." + update_text, message_thread_id=data.thread_id)
     except telebot.apihelper.ApiTelegramException as e:
-        logging.error(f"I was unable to send a launch message! "
+        logging.error(f"Bot was unable to send a launch message and will be closed! "
                       f"Possibly the wrong value for the main chat or topic?\n{e}")
+        sys.exit(1)
 
 
 def auto_clear():
@@ -709,3 +711,8 @@ def command_forbidden(message, private_dialog=False, text=None):
         text = text or "Данную команду можно запустить только в основном чате."
         bot.reply_to(message, text)
         return True
+
+
+def get_hash(user_id, chat_instance) -> str:
+    return hashlib.pbkdf2_hmac('sha256', str(user_id).encode('utf-8'),
+                               chat_instance.encode('utf-8'), 100000, 16).hex()

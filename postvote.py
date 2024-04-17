@@ -54,7 +54,7 @@ class UserAdd(PostVote):
 
     def decline(self):
         sqlWorker.abuse_update(self.data_list[0])
-        bot.edit_message_text(f"К сожалению, запрос вступления пользователя {self.mention} отклонён."
+        bot.edit_message_text(f"Запрос вступления пользователя {self.mention} был отклонён."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id,
                               parse_mode="html")
 
