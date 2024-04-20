@@ -1034,11 +1034,21 @@ class RemoveTopic(PreVote):
         return 86400, data.thresholds_get()
 
     def pre_return(self) -> bool:
+
         if utils.command_forbidden(self.message):
             return True
 
-        if self.message.message_thread_id is None:
+        if not self.message.chat.is_forum:
+            bot.reply_to(self.message, "Данный чат НЕ является форумом!")
+            return True
+
+        if self.message.message_thread_id is None or not self.message.is_topic_message:
             bot.reply_to(self.message, "Данный чат НЕ является топиком или является основным топиком!")
+            return True
+
+        if not self.message.reply_to_message.forum_topic_created:
+            bot.reply_to(self.message, "Пожалуйста, не используйте реплей при использовании этой команды. "
+                                       "Из-за особенностей Telegram API она обрабатывается некорректно.")
             return True
 
     def direct_fn(self):
@@ -1638,10 +1648,11 @@ class AlliesList(PreVote):
         self.unique_id = str(self.message.chat.id) + "_allies"
         if self.is_voting_exist():
             return
+        thread_id = self.message.message_thread_id if self.message.is_topic_message else None
         self.vote_text = (f"Тема голосования: {vote_type_text} союзных отношений с чатом " +
                           f"<b>{utils.html_fix(bot.get_chat(self.message.chat.id).title)}</b>{invite_link}\n" +
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
-        self.poll_maker(add_user=True, vote_args=[self.message.chat.id, self.message.message_thread_id, True])
+        self.poll_maker(add_user=True, vote_args=[self.message.chat.id, thread_id, True])
 
         bot.reply_to(self.message, f"Голосование о {mode_text} союза отправлено в чат "
                                    f"<b>{utils.html_fix(bot.get_chat(data.main_chat_id).title)}</b>.\nОно завершится "

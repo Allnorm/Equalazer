@@ -544,7 +544,7 @@ class AddAllies(PostVote):
             bot.edit_message_text(f"Вопрос установки союзных отношения с чатом "
                                   f"{bot.get_chat(self.data_list[0]).title} отклонён."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            bot.send_message(self.data_list[0], f"Вопрос установки союзных отношения с чатом "
+            bot.send_message(self.data_list[0], f"Вопрос установки союзных отношений с чатом "
                                                 f"{self.message_vote.chat.title} отклонён." + self.votes_counter,
                              message_thread_id=self.data_list[1])
         except telebot.apihelper.ApiTelegramException:
