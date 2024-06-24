@@ -20,9 +20,10 @@ import telebot
 class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
-    VERSION = "2.5.4"  # Current bot version
+    # It is possible to access sqlWorker.params directly for parameters that are stored in the database
+    VERSION = "2.6"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "17.04.2024"  # Bot build date
+    BUILD_DATE = "24.06.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
     # Leading bit is always 1, recorded backwards
@@ -38,6 +39,7 @@ class ConfigData:
     debug = False  # Debug mode with special presets and lack of saving parameters in the database
     vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
+    vote_privacy = "private"  # When switching to "public", the voting progress will be public for everyone
     wait_timer = 30  # Cooldown before being able to change or cancel voice
     kill_mode = 2  # Mode 0 - the /kill command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
@@ -64,12 +66,13 @@ class ConfigData:
                 "timer": global_timer,
                 "timer_ban": global_timer_ban,
                 "min_vote": __votes_need_min,
-                "vote_mode": vote_mode,
-                "wait_timer": wait_timer,
-                "kill_mode": kill_mode,
+                "vote_mode": vote_mode,  # Now taken from config.ini
+                "wait_timer": wait_timer,  # Now taken from config.ini
+                "kill_mode": kill_mode,  # Now taken from config.ini
                 "rate": rate,  # It seems that this parameter is not used anywhere?
                 "public_mode": binary_chat_mode,
-                "allowed_admins": __ADMIN_RECOMMENDED}
+                "allowed_admins": __ADMIN_RECOMMENDED,
+                "vote_privacy": vote_privacy}
     __plugins = []
 
     def __init__(self):
@@ -167,21 +170,22 @@ class ConfigData:
         if self.debug:
             self.wait_timer = 0
 
-    def sql_worker_get(self, sql_worker_):
-        self.__votes_need = sql_worker_.params("votes")
-        self.__votes_need_ban = sql_worker_.params("votes_ban")
-        self.__votes_need_min = sql_worker_.params("min_vote")
-        self.global_timer = sql_worker_.params("timer")
-        self.global_timer_ban = sql_worker_.params("timer_ban")
+    def sql_worker_get(self):
+        self.__votes_need = sqlWorker.params("votes")  # Обращение к глобальной переменной((((
+        self.__votes_need_ban = sqlWorker.params("votes_ban")
+        self.__votes_need_min = sqlWorker.params("min_vote")
+        self.global_timer = sqlWorker.params("timer")
+        self.global_timer_ban = sqlWorker.params("timer_ban")
+        self.vote_privacy = sqlWorker.params("vote_privacy") or self.vote_privacy  # Backwards compatible
         if not self.admin_fixed:
-            self.admin_allowed = sql_worker_.params("allowed_admins")
+            self.admin_allowed = sqlWorker.params("allowed_admins")
             if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
                 self.admin_allowed = self.__ADMIN_RECOMMENDED
                 sqlWorker.params("allowed_admins", self.admin_allowed)
                 logging.warning(f"Incorrect admin-allowed value, reset to default ("
                                 + f"{self.admin_allowed:b}"[:0:-1] + ")!")
         if self.chat_mode == "mixed":
-            self.binary_chat_mode = sql_worker_.params("public_mode")
+            self.binary_chat_mode = sqlWorker.params("public_mode")
 
         if self.debug:
             self.global_timer = 20
@@ -342,7 +346,7 @@ sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
 
 
 def init():
-    data.sql_worker_get(sqlWorker)
+    data.sql_worker_get()
     try:
         data.bot_id = bot.get_me().id
     except Exception as e:

@@ -711,7 +711,22 @@ class Shield(PostVote):
 
     def decline(self):
         vote_type = "отключения" if self.data_list[0] == 0 else "включения"
-        bot.edit_message_text(f"Вопрос {vote_type} режима защиты чата отклонён!"
+        bot.edit_message_text(f"Предложение {vote_type} режима защиты чата отклонено!"
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+
+class VotePrivacy(PostVote):
+    _description = "изменение типа приватности голосований"
+
+    def accept(self):
+        sqlWorker.params("vote_privacy", rewrite_value=self.data_list[0])
+        vote_type = "отключил" if self.data_list[0] == "public" else "включил"
+        bot.edit_message_text(f"Пользователь {self.data_list[1]} {vote_type} приватность голосований."
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        vote_type = "отключения" if self.data_list[0] == "public" else "включения"
+        bot.edit_message_text(f"Предложение {vote_type} приватности голосований отклонено."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
@@ -760,32 +775,33 @@ class CustomPoll(PostVote):
 
 def post_vote_list_init():
     post_vote_list = {
-            "invite": UserAdd(),
-            "ban": Ban(),
-            "unban": UnBan(),
-            "threshold": Threshold(),
-            "timer": Timer(),
-            "timer for ban votes": TimerBan(),
-            "delete message": DelMessage(),
-            "op": Op(),
-            "deop": Deop(),
-            "title": Title(),
-            "chat picture": ChatPic(),
-            "description": Description(),
-            "rank": Rank(),
-            "captcha": Captcha(),
-            "change rate": ChangeRate(),
-            "add allies": AddAllies(),
-            "remove allies": RemoveAllies(),
-            "timer for random cooldown": RandomCooldown(),
-            "whitelist": Whitelist(),
-            "global admin permissions": GlobalOp(),
-            "private mode": PrivateMode(),
-            "remove topic": Topic(),
-            "add rules": AddRules(),
-            "remove rules": RemoveRules(),
-            "custom poll": CustomPoll(),
-            "shield": Shield()
-        }
+        "invite": UserAdd(),
+        "ban": Ban(),
+        "unban": UnBan(),
+        "threshold": Threshold(),
+        "timer": Timer(),
+        "timer for ban votes": TimerBan(),
+        "delete message": DelMessage(),
+        "op": Op(),
+        "deop": Deop(),
+        "title": Title(),
+        "chat picture": ChatPic(),
+        "description": Description(),
+        "rank": Rank(),
+        "captcha": Captcha(),
+        "change rate": ChangeRate(),
+        "add allies": AddAllies(),
+        "remove allies": RemoveAllies(),
+        "timer for random cooldown": RandomCooldown(),
+        "whitelist": Whitelist(),
+        "global admin permissions": GlobalOp(),
+        "private mode": PrivateMode(),
+        "remove topic": Topic(),
+        "add rules": AddRules(),
+        "remove rules": RemoveRules(),
+        "custom poll": CustomPoll(),
+        "shield": Shield(),
+        "vote_privacy": VotePrivacy()
+    }
 
     PoolEngine.post_vote_list.update(post_vote_list)

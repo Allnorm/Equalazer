@@ -136,6 +136,11 @@ def custom_poll(message):
     prevote.CustomPoll(message)
 
 
+@bot.message_handler(commands=['votes'])
+def custom_poll(message):
+    prevote.Votes(message)
+
+
 @bot.message_handler(commands=['answer'])
 def add_answer(message):
     if not utils.botname_checker(message) or utils.command_forbidden(message):
@@ -334,40 +339,6 @@ def help_msg(message):
             bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
     except telebot.apihelper.ApiTelegramException:
         bot.reply_to(message, "Я не смог отправить сообщение вам в л/с. Недостаточно прав или нет личного диалога?")
-
-
-@bot.message_handler(commands=['votes'])
-def votes_msg(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message, private_dialog=True):
-        return
-
-    records = sqlWorker.get_all_polls()
-    poll_list = ""
-    number = 1
-
-    if bot.get_chat(message.chat.id).username is not None:
-        format_chat_id = bot.get_chat(message.chat.id).username
-    else:
-        format_chat_id = "c/" + str(message.chat.id)[4:]
-
-    for record in records:
-        if record[3] != message.chat.id:
-            continue
-        try:
-            vote_type = pool_engine.post_vote_list[record[2]].description
-        except KeyError:
-            vote_type = "INVALID (не загружен плагин?)"
-        poll_list = poll_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
-                                f"тип - {vote_type}, " \
-                                f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
-        number = number + 1
-
-    if poll_list == "":
-        poll_list = "В этом чате нет активных голосований!"
-    else:
-        poll_list = "Список активных голосований:\n" + poll_list
-
-    bot.reply_to(message, poll_list)
 
 
 @bot.message_handler(commands=['kill'])
@@ -834,6 +805,8 @@ def vote_button(call_msg):
     if pool_engine.get_abuse_timer(call_msg):  # Voting click check
         return
 
+    vote_privacy = True if sqlWorker.params("vote_privacy", default_return="private") == "private" else False
+
     user_hash = utils.get_hash(call_msg.from_user.id, call_msg.chat_instance)
 
     button_data = json.loads(poll[0][4])
@@ -856,6 +829,9 @@ def vote_button(call_msg):
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
                     button["user_list"].append(user_hash)
+                    if not vote_privacy:
+                        bot.reply_to(call_msg.message, f"Пользователь {utils.username_parser(call_msg)} "
+                                                       f'проголосовал за вариант "{current_choice}"')
                     break
     elif data.vote_mode == 2:
         if last_choice == current_choice:
@@ -864,23 +840,35 @@ def vote_button(call_msg):
                                            f'Отмена голоса запрещена.', show_alert=True)
             return
         else:
+            first_vote = "проголосовал"
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
                     button["user_list"].append(user_hash)
                 if button["button_type"] == "vote" and button["name"] == last_choice:
                     button["user_list"].remove(user_hash)
+                    first_vote = "переголосовал"
+            if not vote_privacy:
+                bot.reply_to(call_msg.message, f"Пользователь {utils.username_parser(call_msg)} "
+                                               f'{first_vote} за вариант "{current_choice}"')
     elif data.vote_mode == 3:
         if last_choice == current_choice:
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
                     button["user_list"].remove(user_hash)
+                    bot.reply_to(call_msg.message, f"Пользователь {utils.username_parser(call_msg)} "
+                                                   f'снял свой голос с варианта "{current_choice}"')
                     break
         else:
+            first_vote = "проголосовал"
             for button in button_data:
                 if button["button_type"] == "vote" and button["name"] == current_choice:
                     button["user_list"].append(user_hash)
                 if button["button_type"] == "vote" and button["name"] == last_choice:
                     button["user_list"].remove(user_hash)
+                    first_vote = "переголосовал"
+            if not vote_privacy:
+                bot.reply_to(call_msg.message, f"Пользователь {utils.username_parser(call_msg)} "
+                                               f'{first_vote} за вариант "{current_choice}"')
     # Making changes to the database
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
 

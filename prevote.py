@@ -10,7 +10,7 @@ from telebot import types
 
 import utils
 from utils import data, bot, sqlWorker
-from poll_engine import PreVote
+from poll_engine import PreVote, pool_engine
 
 
 class Invite(PreVote):
@@ -797,20 +797,24 @@ class MessageRemover(PreVote):
             bot.reply_to(self.message, "Ответьте на сообщение пользователя, которое требуется удалить.")
             return True
 
-        if data.bot_id == self.message.reply_to_message.from_user.id \
-                and sqlWorker.get_poll(self.message.reply_to_message.id):
+        self.reply_user_id, self.reply_username, self.reply_is_bot \
+            = utils.reply_msg_target(self.message.reply_to_message)
+
+        if data.bot_id == self.reply_user_id and sqlWorker.get_poll(self.message.reply_to_message.id):
             bot.reply_to(self.message, "Вы не можете удалить голосование до его завершения!")
+            return True
+
+        if data.bot_id != self.reply_user_id and self.reply_is_bot:
+            bot.reply_to(self.message, f"ДейтерБот не может удалять сообщения других ботов!")
             return True
 
     def direct_fn(self):
         self.unique_id = str(self.message.reply_to_message.message_id) + "_delmsg"
         if self.is_voting_exist():
             return
-        self.vote_text = (f"Тема голосования: удаление сообщения пользователя "
-                          f"{utils.username_parser(self.message.reply_to_message, True)}"
+        self.vote_text = (f"Тема голосования: удаление сообщения пользователя {self.reply_username}"
                           f".\nИнициатор голосования: {utils.username_parser(self.message, True)}." + self.warn)
-        self.vote_args = [self.message.reply_to_message.message_id,
-                          utils.username_parser(self.message.reply_to_message), self.silent]
+        self.vote_args = [self.message.reply_to_message.message_id, self.reply_username, self.silent]
         self.poll_maker(silent=self.silent)
 
 
@@ -1811,6 +1815,80 @@ class Rules(PreVote):
                           f"<b>{utils.html_fix(rules_text)}</b>"
                           f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [rules_text, utils.username_parser(self.message)]
+        self.poll_maker()
+
+
+class Votes(PreVote):
+
+    help_text = ("Используйте эту команду без аргументов, чтобы посмотреть список текущих голосований в данном чате.\n"
+                 'Используйте аргумент "private" или "public" для переключения режимов на публичный и приватный '
+                 'соответственно. (В публичном режиме любой участник может получить информацию о том, как голосуют '
+                 'другие люди, в приватном данная информация скрыта и можно узнать только свой голос).\n'
+                 '<b>Текущий статус приватности голосований</b>: {}')
+
+    def pre_return(self) -> bool:
+        if not utils.botname_checker(self.message) or utils.command_forbidden(self.message, private_dialog=True):
+            return True
+
+    def help(self):
+        status = "приватные" if sqlWorker.params("vote_privacy", default_return="private") == "private" else "публичные"
+        bot.reply_to(self.message, self.help_text.format(status), parse_mode="html")
+
+    def direct_fn(self):
+        records = sqlWorker.get_all_polls()
+        poll_list = ""
+        number = 1
+
+        if bot.get_chat(self.message.chat.id).username is not None:
+            format_chat_id = bot.get_chat(self.message.chat.id).username
+        else:
+            format_chat_id = "c/" + str(self.message.chat.id)[4:]
+
+        for record in records:
+            if record[3] != self.message.chat.id:
+                continue
+            try:
+                vote_type = pool_engine.post_vote_list[record[2]].description
+            except KeyError:
+                vote_type = "INVALID (не загружен плагин?)"
+            poll_list = poll_list + f"{number}. https://t.me/{format_chat_id}/{record[1]}, " \
+                                    f"тип - {vote_type}, " \
+                                    f"до завершения – {utils.formatted_timer(record[5] - int(time.time()))}\n"
+            number = number + 1
+
+        if poll_list == "":
+            poll_list = "В этом чате нет активных голосований!"
+        else:
+            poll_list = "Список активных голосований:\n" + poll_list
+
+        bot.reply_to(self.message, poll_list)
+
+    def set_args(self) -> dict:
+        return {"private": self.vote_privacy_enable, "public": self.vote_privacy_disable}
+
+    def vote_privacy_enable(self):
+        current_vote_privacy = sqlWorker.params("vote_privacy", default_return="private")
+        if utils.extract_arg(self.message.text, 1) == current_vote_privacy:
+            bot.reply_to(self.message, "Голосования уже являются приватными!")
+            return
+        self.vote_privacy("private")
+
+    def vote_privacy_disable(self):
+        current_vote_privacy = sqlWorker.params("vote_privacy", default_return="private")
+        if utils.extract_arg(self.message.text, 1) == current_vote_privacy:
+            bot.reply_to(self.message, "Голосования уже являются публичными!")
+            return
+        self.vote_privacy("public")
+
+    def vote_privacy(self, vote_privacy_mode):
+        if self.is_voting_exist():
+            return
+        self.vote_type = "vote_privacy"
+        self.unique_id = self.vote_type
+        vote_privacy_text = "отключение" if vote_privacy_mode == "public" else "включение"
+        self.vote_text = (f"Тема голосования: {vote_privacy_text} приватности голосований.\n"
+                          f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.vote_args = [vote_privacy_mode, utils.username_parser(self.message)]
         self.poll_maker()
 
 
