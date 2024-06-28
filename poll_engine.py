@@ -78,7 +78,7 @@ class PoolEngine:
                                                f"{please_wait}с.", show_alert=True)
                 return True
             else:
-                pool_engine.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
+                self.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
                 return False
 
 
@@ -208,14 +208,13 @@ class PreVote:
                          args=(self.current_timer, self.unique_id, message_vote)).start()
 
     def get_buttons_scheme(self):
-        button_scheme = [{"button_type": "vote",
-                          "name": "Да",
-                          "user_list": []},
-                         {"button_type": "vote",
-                          "name": "Нет",
-                          "user_list": []},
-                         {"button_type": "my_vote",
-                          "name": "Узнать мой голос"}]
+        button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in ("Да", "Нет")]
+        if sqlWorker.params("vote_privacy", default_return="private") == "private":
+            button_scheme.append({"button_type": "my_vote",
+                                  "name": "Узнать мой голос"})
+        else:
+            button_scheme.append({"button_type": "user_votes",
+                                  "name": "Список голосов"})
         if not (data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID):
             button_scheme.append({"button_type": "cancel",
                                   "name": "Отмена голосования",
@@ -245,14 +244,28 @@ class PostVote:
         self.message_vote = message_vote
         button_data = json.loads(records[0][4])
         counters_yes = 0
+        counters_yes_text = counters_yes
         counters_no = 0
+        counters_no_text = counters_no
+        votes_private = True
         for button in button_data:
-            if button["button_type"] == "vote":
+            if button["button_type"] == "user_votes":
+                votes_private = False
+        for button in button_data:
+            if 'vote!' in button["button_type"]:
                 if button["name"] == "Да":
                     counters_yes = len(button["user_list"])
+                    if votes_private:
+                        counters_yes_text = counters_yes
+                    else:
+                        counters_yes_text = self.get_voted_usernames(button["user_list"])
                 elif button["name"] == "Нет":
                     counters_no = len(button["user_list"])
-        self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
+                    if votes_private:
+                        counters_no_text = counters_no
+                    else:
+                        counters_no_text = self.get_voted_usernames(button["user_list"])
+        self.votes_counter = f"\nЗа: {counters_yes_text}\nПротив: {counters_no_text}"
         if counters_yes > counters_no and counters_yes + counters_no >= data.thresholds_get(minimum=True):
             self.is_accept = True
         elif counters_yes + counters_no >= data.thresholds_get(minimum=True):
@@ -277,6 +290,19 @@ class PostVote:
                           f'chat ID "{records[0][3]}" and message ID "{records[0][1]}"\n{e}')
             logging.error(traceback.format_exc())
             self.final_hook(True)
+
+    def get_voted_usernames(self, user_list):
+        usernames = ""
+        for user_id in user_list:
+            try:
+                username = utils.username_parser_chat_member(
+                    bot.get_chat_member(self.message_vote.chat.id, user_id), html=True)
+                if username == "":
+                    continue
+                usernames += f"{username}, "
+            except telebot.apihelper.ApiTelegramException:
+                continue
+        return "нет голосов" if usernames == "" else f'{usernames[:-2]}.'
 
     def post_vote_child(self):
         return

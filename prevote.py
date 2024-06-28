@@ -1887,6 +1887,7 @@ class Votes(PreVote):
         self.unique_id = self.vote_type
         vote_privacy_text = "отключение" if vote_privacy_mode == "public" else "включение"
         self.vote_text = (f"Тема голосования: {vote_privacy_text} приватности голосований.\n"
+                          f"<b>Данная настройка влияет только на новые опросы!<b>\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [vote_privacy_mode, utils.username_parser(self.message)]
         self.poll_maker()
@@ -2055,14 +2056,20 @@ class CustomPoll(PreVote):
 
     # noinspection PyTypeChecker
     # Совсем этот пучарм обурел
-    # С++ хотя бы не пытается делать вид что он умнее прогера на нём (поскольку для кодинга на C++ нужны яйца)
+    # С++ хотя бы не пытается делать вид что он умнее прогера на нём
+    # (Поскольку для кодинга на C++ нужны яйца, а у меня их нет)
     def get_buttons_scheme(self):
         if not self.options_list:
-            button_scheme = [{"button_type": "vote", "name": i, "user_list": []} for i in ("Да", "Нет")]
+            button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in ("Да", "Нет")]
         else:
-            button_scheme = [{"button_type": "vote", "name": i, "user_list": []} for i in self.options_list]
+            button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in self.options_list]
             button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
-        button_scheme.append({"button_type": "my_vote", "name": "Узнать мой голос"})
-        if not self.user_id == data.ANONYMOUS_ID:
+        if sqlWorker.params("vote_privacy", default_return="private") == "private":
+            button_scheme.append({"button_type": "my_vote",
+                                  "name": "Узнать мой голос"})
+        else:
+            button_scheme.append({"button_type": "user_votes",
+                                  "name": "Список голосов"})
+        if self.user_id != data.ANONYMOUS_ID:
             button_scheme.append({"button_type": "close", "name": "Закрыть опрос", "user_id": self.user_id})
         return button_scheme

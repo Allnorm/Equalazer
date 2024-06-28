@@ -183,7 +183,7 @@ class Threshold(PostVote):
         counters_yes = 0
         counters_no = 0
         for button in button_data:
-            if button["button_type"] == "vote":
+            if 'vote!' in button["button_type"]:
                 if button["name"] == "Да":
                     counters_yes = len(button["user_list"])
                 elif button["name"] == "Нет":
@@ -402,7 +402,7 @@ class Deop(PostVote):
 
         rate = "" if not self.change_rate(-3) else f"\nРейтинг {self.data_list[1]} снижен на 3 пункта."
 
-        bot.edit_message_text("Пользователь " + self.data_list[1] + " разжалован из админов."
+        bot.edit_message_text("Пользователь " + self.data_list[1] + " разжалован из администраторов."
                               + rate + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
@@ -486,7 +486,7 @@ class ChangeRate(PostVote):
         counters_yes = 0
         counters_no = 0
         for button in button_data:
-            if button["button_type"] == "vote":
+            if 'vote!' in button["button_type"]:
                 if button["name"] == "Да":
                     counters_yes = len(button["user_list"])
                 elif button["name"] == "Нет":
@@ -736,21 +736,35 @@ class CustomPoll(PostVote):
     def post_vote(self, records, message_vote):
         self.data_list = json.loads(records[0][6])
         self.message_vote = message_vote
+        votes_private = True
         button_data = json.loads(records[0][4])
+        for button in button_data:
+            if button["button_type"] == "user_votes":
+                votes_private = False
+
         counters_yes = 0
         counters_no = 0
         if self.data_list[2]:
-            self.votes_counter = "\nВарианты ответа:"
+            self.votes_counter = "\nГолоса за варианты ответа:"
             for button in button_data:
-                if button["button_type"] == "vote":
-                    self.votes_counter += f'\n{button["name"]} - {len(button["user_list"])}'
+                if 'vote!' in button["button_type"]:
+                    if votes_private:
+                        self.votes_counter += f'\n{button["name"]} - {len(button["user_list"])}'
+                    else:
+                        self.votes_counter += f'\n{button["name"]} - {self.get_voted_usernames(button["user_list"])}'
         else:
             for button in button_data:
-                if button["button_type"] == "vote":
+                if 'vote!' in button["button_type"]:
                     if button["name"] == "Да":
-                        counters_yes = len(button["user_list"])
+                        if votes_private:
+                            counters_yes = len(button["user_list"])
+                        else:
+                            counters_yes = self.get_voted_usernames(button["user_list"])
                     elif button["name"] == "Нет":
-                        counters_no = len(button["user_list"])
+                        if votes_private:
+                            counters_no = len(button["user_list"])
+                        else:
+                            counters_no = self.get_voted_usernames(button["user_list"])
             self.votes_counter = f"\nЗа: {counters_yes}\nПротив: {counters_no}"
         self.records = records
         self.accept()

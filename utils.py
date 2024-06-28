@@ -21,7 +21,7 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.6"  # Current bot version
+    VERSION = "2.7"  # Current bot version
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "24.06.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
@@ -555,10 +555,9 @@ def make_keyboard(buttons_scheme):
     row_width = 2
     formatted_buttons = []
     for button in buttons_scheme:
-        if button["button_type"] == "vote":
+        if "vote!" in button["button_type"]:
             text = f'{button["name"]} - {len(button["user_list"])}'
-            callback_data = f'{button["button_type"]}_{button["name"]}'
-            formatted_buttons.append(types.InlineKeyboardButton(text=text, callback_data=callback_data))
+            formatted_buttons.append(types.InlineKeyboardButton(text=text, callback_data=button["button_type"]))
         elif button["button_type"] == "row_width":
             row_width = button["row_width"]  # Феерически убогий костыль, но мне нравится))))
         else:
@@ -717,6 +716,11 @@ def command_forbidden(message, private_dialog=False, text=None):
         return True
 
 
-def get_hash(user_id, chat_instance) -> str:
+def get_hash(user_id, chat_instance, button_data) -> str:
+
+    for button in button_data:
+        if button["button_type"] == "user_votes":
+            return user_id
+
     return hashlib.pbkdf2_hmac('sha256', str(user_id).encode('utf-8'),
                                chat_instance.encode('utf-8'), 100000, 16).hex()
