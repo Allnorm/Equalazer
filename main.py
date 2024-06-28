@@ -820,7 +820,7 @@ def user_votes(call_msg):
                     answer_user_list += f"{username}, "
                 except telebot.apihelper.ApiTelegramException:
                     continue
-            answer_user_list = "нет голосов" if answer_user_list == "" else f'{answer_user_list[:-2]}.'
+            answer_user_list = "нет голосов" if answer_user_list == "" else f'{answer_user_list[:-2]}'
             button_name = button["name"]
             answer_text += f'"{button_name}" - {answer_user_list}\n'
 
