@@ -813,8 +813,8 @@ def user_votes(call_msg):
             answer_user_list = ""
             for user_id in button["user_list"]:
                 try:
-                    username = utils.username_parser_chat_member(bot.get_chat_member(call_msg.message.chat.id,
-                                                                                     user_id), html=True)
+                    username = utils.username_parser_chat_member(bot.get_chat_member(call_msg.message.chat.id, user_id),
+                                                                 html=True, need_username=False)
                     if username == "":
                         continue
                     answer_user_list += f"{username}, "
