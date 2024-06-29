@@ -1887,7 +1887,7 @@ class Votes(PreVote):
         self.unique_id = self.vote_type
         vote_privacy_text = "отключение" if vote_privacy_mode == "public" else "включение"
         self.vote_text = (f"Тема голосования: {vote_privacy_text} приватности голосований.\n"
-                          f"<b>Данная настройка влияет только на новые опросы!<b>\n"
+                          f"<b>Данная настройка влияет только на новые опросы!</b>\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [vote_privacy_mode, utils.username_parser(self.message)]
         self.poll_maker()
