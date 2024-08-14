@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 import threading
@@ -900,15 +901,13 @@ class PrivateMode(PreVote):
         self.poll_maker()
 
 
-class Op(PreVote):
-    vote_type = "op"
-    help_text = "В ДейтерБоте используется система записи прав администратора в виде строки из единиц " \
-                "и нулей. Для получения и выдачи нужных прав необходимо использовать запись вида " \
-                "/op 001010010 и т. п. Если не использовать данную запись, будут выданы права по умолчанию " \
-                "для чата.\nГлобальные права администраторов для чата можно изменить с помощью команды вида " \
-                "/op global 001010010, если хостер бота не запретил это.\n<b>Попытка выдачи недоступных " \
+class OpSetup(PreVote):
+    vote_type = "op setup"
+    help_text = "Используйте эту команду для назначения прав администратора себе, боту или другому участнику.\n" \
+                "Глобальные права администраторов для чата можно изменить с помощью команды вида " \
+                "/op global, если хостер бота не запретил это.\n<b>Попытка выдачи недоступных " \
                 "боту или отключенных на уровне чата прав приведёт к ошибке!\nТекущие права для чата:</b>\n" \
-                "Изменения заблокированы хостером - {}{}" \
+                "Изменения заблокированы хостером - {}\n{}" \
                 "\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
 
     def pre_return(self) -> bool:
@@ -917,7 +916,7 @@ class Op(PreVote):
 
     def help(self):
         if self.help_access_check():
-            bot.reply_to(self.message, self.help_text.format(data.admin_fixed, utils.allowed_list(data.admin_allowed)),
+            bot.reply_to(self.message, self.help_text.format(data.admin_fixed, utils.allowed_list()),
                          parse_mode="html")
 
     def arg_fn(self, arg):  # If the command was run with arguments
@@ -952,28 +951,17 @@ class Op(PreVote):
             bot.reply_to(self.message, "Изменение глобальных прав администраторов для чата заблокировано хостером.")
             return
 
-        self.unique_id = "global admin permissions"
+        self.unique_id = "global op setup"
         self.vote_type = self.unique_id
         if self.is_voting_exist():
             return
 
-        if utils.extract_arg(self.message.text, 2) is None:
-            bot.reply_to(self.message, "В сообщении не указан бинарный аргумент.")
-            return
+        self.vote_text = f"Выберите разрешённые права для администраторов чата на глобальном уровне:"
+        self.vote_args = [utils.username_parser(self.message, True), self.user_id]
+        self.poll_maker(current_timer=86400, silent=True)
 
-        try:
-            binary_rules = int("1" + utils.extract_arg(self.message.text, 2)[::-1], 2)
-            if not data.ADMIN_MIN <= binary_rules <= data.ADMIN_MAX:
-                raise ValueError
-        except ValueError:
-            bot.reply_to(self.message, "Неверное значение бинарного аргумента!")
-            return
-
-        self.vote_text = (f"Тема голосования: изменение разрешённых прав для администраторов на следующие:"
-                          f"{utils.allowed_list(binary_rules)}"
-                          f"\nИнициатор голосования: {utils.username_parser(self.message, True)}.")
-        self.vote_args = [binary_rules]
-        self.poll_maker()
+    def get_votes_text(self):
+        return self.vote_text
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
@@ -1001,33 +989,92 @@ class Op(PreVote):
             bot.reply_to(self.message, "Ограниченный пользователь не может стать админом.")
             return
 
-        if utils.extract_arg(self.message.text, 1) is not None:
-            try:
-                binary_rule = int("1" + utils.extract_arg(self.message.text, 1)[::-1], 2)
-                if not data.ADMIN_MIN <= binary_rule <= data.ADMIN_MAX:
-                    raise ValueError
-            except ValueError:
-                bot.reply_to(self.message, "Неверное значение бинарного аргумента!")
-                return
-            if not utils.is_current_perm_allowed(binary_rule, data.admin_allowed):
-                bot.reply_to(self.message, "Есть правила, не разрешённые на уровне чата (см. /op help).")
-                return
-            chosen_rights = utils.allowed_list(binary_rule)
-        else:
-            binary_rule = data.admin_allowed
-            chosen_rights = f" установленные в чате по умолчанию.{utils.allowed_list(binary_rule)}"
-
-        self.unique_id = str(self.reply_user_id) + "_op"
+        self.unique_id = f"{self.reply_user_id}_op_setup"
         if self.is_voting_exist():
             return
 
-        self.vote_text = (f"Тема голосования: выдача/изменение прав администратора пользователю "
-                          f"{utils.html_fix(self.reply_username)}"
-                          f"\nПрава, выбранные для выдачи пользователю:{chosen_rights}"
-                          f".\nИнициатор голосования: {utils.username_parser(self.message, True)}."
-                          "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>")
-        self.vote_args = [self.reply_user_id, self.reply_username, binary_rule]
-        self.poll_maker()
+        self.vote_text = f"Выберите разрешённые права для администратора {utils.html_fix(self.reply_username)}:"
+        self.vote_args = [utils.username_parser(self.message, True), self.user_id,
+                          self.reply_username, self.reply_user_id]
+        self.poll_maker(current_timer=86400, silent=True)
+
+    def get_buttons_scheme(self):
+        button_scheme = []
+        for name, value in data.admin_allowed.items():
+            if value:
+                allowed = "✅"
+            elif self.unique_id == "global admin permissions":
+                allowed = "❌"
+            else:
+                allowed = "🔒"
+            button_scheme.append({"button_type": f"op!_{name}",
+                                  "name": f"{data.admin_rus[name]} {allowed}",
+                                  "value": value})
+        button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
+        button_scheme.append({"button_type": "op!_confirmed", "name": "Подтвердить", "value": False})
+        if not self.user_id == data.ANONYMOUS_ID:
+            button_scheme.append({"button_type": "close", "name": "Закрыть чек-лист", "user_id": self.user_id})
+        return button_scheme
+
+
+class Op(PreVote):
+    vote_type = "op"
+
+    def __init__(self, message, poll):
+        super().__init__(message)
+        buttons_data = json.loads(poll[0][4])
+        self.rights_text = ""
+        self.rights_data = {}
+        for button in buttons_data:
+            if "op!" in button["button_type"] and button["button_type"] != "op!_confirmed":
+                self.rights_text += f'\n{button["name"]}'
+                self.rights_data.update({button["button_type"].split('_', maxsplit=1)[1]: button["value"]})
+        self.data_list = json.loads(poll[0][6])
+        self.user_id = self.data_list[1]
+        buttons_scheme = self.get_buttons_scheme()
+        bot.edit_message_text(self.vote_text(), message.chat.id, message.id,
+                              reply_markup=utils.make_keyboard(buttons_scheme), parse_mode='html')
+        sqlWorker.add_poll(self.unique_id(), message.id, self.vote_type, message.chat.id,
+                           json.dumps(buttons_scheme), int(time.time()) + self.current_timer,
+                           json.dumps(self.vote_args()), self.current_votes)
+        utils.poll_saver(self.unique_id(), message)
+        try:
+            bot.pin_chat_message(message.chat.id, message.id, disable_notification=True)
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f"I can't pin message in chat {message.chat.id}!\n{e}")
+        threading.Thread(target=pool_engine.vote_timer, daemon=True,
+                         args=(self.current_timer, self.unique_id(), message)).start()
+
+    def arg_fn(self, _):
+        return
+
+    def vote_text(self):
+        return f"Тема голосования: выдача/изменение прав администратора пользователю "\
+               f"{utils.html_fix(self.data_list[2])}"\
+               f"\nПрава, выбранные для выдачи пользователю:{self.rights_text}"\
+               f".\nИнициатор голосования: {utils.html_fix(self.data_list[0])}."\
+               "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>"
+
+    def vote_args(self):
+        return [self.data_list[3], self.data_list[2], self.rights_data]
+
+    def unique_id(self):
+        return f"{self.reply_user_id}_op"
+
+
+class OpGlobal(Op):
+    vote_type = "global op permissions"
+
+    def vote_text(self):
+        return f"Тема голосования: смена разрешённых для выдачи пользователям прав." \
+               f"\nПрава, выбранные для выдачи пользователям:{self.rights_text}" \
+               f"\nИнициатор голосования: {utils.html_fix(self.data_list[0])}."
+
+    def vote_args(self):
+        return [self.rights_data]
+
+    def unique_id(self):
+        return "global op"
 
 
 class RemoveTopic(PreVote):
@@ -1819,7 +1866,6 @@ class Rules(PreVote):
 
 
 class Votes(PreVote):
-
     help_text = ("Используйте эту команду без аргументов, чтобы посмотреть список текущих голосований в данном чате.\n"
                  'Используйте аргумент "private" или "public" для переключения режимов на публичный и приватный '
                  'соответственно. (В публичном режиме любой участник может получить информацию о том, как голосуют '

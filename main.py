@@ -78,7 +78,7 @@ def private_mode(message):
 
 @bot.message_handler(commands=['op'])
 def op(message):
-    prevote.Op(message)
+    prevote.OpSetup(message)
 
 
 @bot.message_handler(commands=['remtopic'])
@@ -619,11 +619,11 @@ def start(message):
 
 
 @bot.message_handler(commands=['version'])
-def revoke(message):
+def version(message):
     if not utils.botname_checker(message):
         return
 
-    bot.reply_to(message, f"DeuterBot, версия {data.VERSION}\nДата сборки: {data.BUILD_DATE}\n"
+    bot.reply_to(message, f'DeuterBot, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
                           f"Created by Allnorm aka Peter Burzec")
 
 
@@ -792,6 +792,13 @@ def my_vote(call_msg):
     bot.answer_callback_query(callback_query_id=call_msg.id, text='Вы не голосовали в данном опросе!', show_alert=True)
 
 
+@bot.callback_query_handler(func=lambda call: call.data == "bad_habit")
+def bad_habit(call_msg):
+    bot.answer_callback_query(callback_query_id=call_msg.id,
+                              text="Тыкать куда попало - плохая привычка.")
+    return
+
+
 @bot.callback_query_handler(func=lambda call: call.data == "user_votes")
 def user_votes(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
@@ -835,6 +842,77 @@ def user_votes(call_msg):
             answer_text = ("Я не смог отправить сообщение вам в л/с и список голосующих слишком длинный для вывода "
                            "всплывающим окном. Недостаточно прав или нет личного диалога?")
         bot.answer_callback_query(callback_query_id=call_msg.id, text=answer_text, show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda call: "op!" in call.data)
+def op_button(call_msg):
+    if data.main_chat_id == -1:  # Проверка на init mode
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text=f'Бот работает в режиме инициализации!', show_alert=True)
+        return
+
+    if bot.get_chat_member(call_msg.message.chat.id, call_msg.from_user.id).status in ("left", "kicked"):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text="Вы не являетесь участником данного чата!", show_alert=True)
+        return
+
+    poll = call_msg_chk(call_msg)
+    if not poll:
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text=f'Данный чек-лист не найден в БД.', show_alert=True)
+        return
+
+    if pool_engine.get_abuse_timer(call_msg):  # Voting click check
+        return
+
+    button_data = json.loads(poll[0][4])
+    anonymous = True
+    for button in button_data:
+        if button["button_type"] == "close":
+            if button["user_id"] != call_msg.from_user.id:
+                bot.answer_callback_query(callback_query_id=call_msg.id,
+                                          text='Вы не можете взаимодействовать с чужим чек-листом!', show_alert=True)
+                return
+            else:
+                anonymous = False
+
+    if not anonymous and call_msg.from_user.id == data.ANONYMOUS_ID:
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text='Вы не можете взаимодействовать с чужим чек-листом!', show_alert=True)
+        return
+
+    # The ability to create checklists for anonymous admins remains, but without the ability to verify them
+
+    for button in button_data:
+        if button["button_type"] != call_msg.data:
+            continue
+        if call_msg.data == "op!_confirmed":
+            button.update({'value': not button['value']})
+            sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
+            pool_engine.vote_abuse.clear()
+            pool_engine.vote_result(poll[0][0], call_msg.message)
+            if poll[0][2] == 'op setup':
+                prevote.Op(call_msg.message, poll)
+            else:
+                prevote.OpGlobal(call_msg.message, poll)
+            return
+        if not data.admin_allowed[button["button_type"].split("_", maxsplit=1)[1]] and poll[0][2] == 'op setup':
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text="Выдача данного права запрещена на глобальном уровне!", show_alert=True)
+            return
+        if not button['value']:
+            allowed = "✅"
+        elif poll[0][2] == 'op setup':
+            allowed = "❌"
+        else:
+            allowed = "🔒"
+        button.update({'value': not button['value'], 'name': f"{button['name'][:-1]}{allowed}"})
+        break
+
+    sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
+    bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
+                                  reply_markup=utils.make_keyboard(button_data))
+    pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
 @bot.callback_query_handler(func=lambda call: "vote!" in call.data)

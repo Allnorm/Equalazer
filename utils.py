@@ -18,17 +18,48 @@ import telebot
 
 
 class ConfigData:
+    __ADMIN_RECOMMENDED = {"can_manage_chat": True,
+                           "can_change_info": False,
+                           # "can_post_messages": None,
+                           # "can_edit_messages": None,
+                           "can_delete_messages": False,
+                           "can_invite_users": True,
+                           "can_restrict_members": False,
+                           "can_pin_messages": True,
+                           "can_promote_members": False,
+                           "is_anonymous": False,
+                           "can_manage_video_chats": True,
+                           # "can_manage_voice_chats": None,
+                           "can_manage_topics": True,
+                           "can_post_stories": True,
+                           "can_edit_stories": False,
+                           "can_delete_stories": False}
+
+    __ADMIN_RUS = {"can_manage_chat": "Управление группой",
+                   "can_change_info": "Изменения профиля группы",
+                   # "can_post_messages": None,
+                   # "can_edit_messages": None,
+                   "can_delete_messages": "Удаление сообщений",
+                   "can_invite_users": "Пригласительные ссылки",
+                   "can_restrict_members": "Блокировка пользователей",
+                   "can_pin_messages": "Закрепление сообщений",
+                   "can_promote_members": "Добавление администраторов",
+                   "is_anonymous": "Анонимность",
+                   "can_manage_video_chats": "Управление видеочатами",
+                   # "can_manage_voice_chats": None,
+                   "can_manage_topics": "Управление темами",
+                   "can_post_stories": "Публикация историй",
+                   "can_edit_stories": "Изменение чужих историй",
+                   "can_delete_stories": "Удаление чужих историй"}
+
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.7.2"  # Current bot version
+    VERSION = "2.8"  # Current bot version
+    CODENAME = "Waterfall"
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "24.06.2024"  # Bot build date
+    BUILD_DATE = "14.08.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
-    ADMIN_MAX = 0b1111111111  # The upper limit of the number for admin rights in binary form
-    # Leading bit is always 1, recorded backwards
-    ADMIN_MIN = 0b1000000000  # The lower limit of the number for admin rights in binary form
-    __ADMIN_RECOMMENDED = 0b1010010100  # Recommended value of admin rights in binary form
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
     global_timer_ban = 300  # Value in seconds of duration of ban-votes
@@ -157,15 +188,15 @@ class ConfigData:
         except (KeyError, TypeError, ValueError):
             pass
 
-        try:
-            if self.admin_fixed:
-                self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
-            if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
-                raise ValueError
-        except (KeyError, TypeError, ValueError):
-            self.admin_allowed = self.__ADMIN_RECOMMENDED
-            logging.warning(f"Incorrect admin-allowed value, reset to default ("
-                            + f"{self.admin_allowed:b}"[:0:-1] + ")!")
+        # try:
+        #     if self.admin_fixed:
+        #         self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
+        #     if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
+        #         raise ValueError
+        # except (KeyError, TypeError, ValueError):
+        #     self.admin_allowed = self.__ADMIN_RECOMMENDED
+        #     logging.warning(f"Incorrect admin-allowed value, reset to default ("
+        #                     + f"{self.admin_allowed:b}"[:0:-1] + ")!")
 
         if self.debug:
             self.wait_timer = 0
@@ -178,12 +209,12 @@ class ConfigData:
         self.global_timer_ban = sqlWorker.params("timer_ban")
         self.vote_privacy = sqlWorker.params("vote_privacy") or self.vote_privacy  # Backwards compatible
         if not self.admin_fixed:
-            self.admin_allowed = sqlWorker.params("allowed_admins")
-            if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
+            if not isinstance(sqlWorker.params("allowed_admins"), dict):  # Working with legacy data
+                logging.warning(f"Incorrect admin-allowed value, reset to default!")
                 self.admin_allowed = self.__ADMIN_RECOMMENDED
                 sqlWorker.params("allowed_admins", self.admin_allowed)
-                logging.warning(f"Incorrect admin-allowed value, reset to default ("
-                                + f"{self.admin_allowed:b}"[:0:-1] + ")!")
+            else:
+                self.admin_allowed = sqlWorker.params("allowed_admins")
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sqlWorker.params("public_mode")
 
@@ -336,6 +367,10 @@ class ConfigData:
             return
         self.__plugins = value
 
+    @property
+    def admin_rus(self):
+        return self.__ADMIN_RUS
+
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
@@ -376,7 +411,8 @@ def init():
              f"Предыдущая версия: {get_version}"
 
     sqlWorker.params("version", rewrite_value=data.VERSION)
-    logging.info(f"###DEUTERBOT {data.VERSION} BUILD DATE {data.BUILD_DATE} LAUNCHED SUCCESSFULLY!###")
+    logging.info(f'###DEUTERBOT {data.VERSION} "{data.CODENAME.upper()}" '
+                 f'BUILD DATE {data.BUILD_DATE} LAUNCHED SUCCESSFULLY!###')
 
     if data.main_chat_id == -1:
         logging.warning("WARNING! BOT LAUNCHED IN INIT MODE!\n***\n"
@@ -612,17 +648,17 @@ def poll_saver(unique_id, message_vote):
         logging.error(traceback.format_exc())
 
 
-def allowed_list(admin_int):
-    rules = ["Изменение профиля группы", "Удаление сообщений", "Пригласительные ссылки", "Блокировка участников",
-             "Закрепление сообщений", "Добавление администраторов", "Анонимность", "Управление видеочатами",
-             "Управление темами"]
-    admin_str = ""
-    binary = "\nВ бинарном виде - " + f"{admin_int:b}"[:0:-1]
-    for i in rules:
-        allowed_rule = "разрешено" if admin_int % 2 == 1 else "запрещено"
-        admin_str = admin_str + "\n" + i + " - " + allowed_rule
-        admin_int = admin_int >> 1
-    return admin_str + binary
+def allowed_list(locked=False):
+    allowed_text = ""
+    for name, value in data.admin_allowed.items():
+        allowed_text += data.admin_rus[name]
+        if value:
+            allowed_text += " ✅\n"
+        elif locked:
+            allowed_text += " 🔒\n"
+        else:
+            allowed_text += " ❌\n"
+    return allowed_text[:-1]
 
 
 def is_current_perm_allowed(local_list, global_list):
@@ -639,23 +675,6 @@ def is_current_perm_allowed(local_list, global_list):
         if not i:
             return False
     return True
-
-
-def get_promote_args(promote_list):
-    kwargs_list = {"can_change_info": False,
-                   "can_delete_messages": False,
-                   "can_invite_users": False,
-                   "can_restrict_members": False,
-                   "can_pin_messages": False,
-                   "can_promote_members": False,
-                   "is_anonymous": False,
-                   "can_manage_video_chats": False,
-                   "can_manage_topics": False}
-    for key in kwargs_list:
-        if promote_list % 2 == 1:
-            kwargs_list[key] = True
-        promote_list = promote_list >> 1
-    return kwargs_list
 
 
 def welcome_msg_get(username, message):
@@ -717,7 +736,6 @@ def command_forbidden(message, private_dialog=False, text=None):
 
 
 def get_hash(user_id, chat_instance, button_data) -> str:
-
     for button in button_data:
         if button["button_type"] == "user_votes":
             return user_id

@@ -5,6 +5,7 @@ import time
 import traceback
 
 import telebot
+from telebot import types
 
 import utils
 from utils import data, bot, sqlWorker
@@ -292,7 +293,7 @@ class GlobalOp(PostVote):
         data.admin_allowed = self.data_list[0]
         if not data.admin_fixed:
             sqlWorker.params("allowed_admins", self.data_list[0])
-        bot.edit_message_text("Разрешённые для администраторов права успешно изменены на следующие:"
+        bot.edit_message_text("Разрешённые для администраторов права успешно изменены на следующие:\n"
                               + utils.allowed_list(self.data_list[0]) + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
         return
@@ -300,6 +301,27 @@ class GlobalOp(PostVote):
     def decline(self):
         bot.edit_message_text("Вопрос изменения разрешённых для администраторов прав отклонён" + self.votes_counter,
                               self.message_vote.chat.id, self.message_vote.message_id)
+
+
+class OpSetup(PostVote):
+    _description = "чек-лист выбора прав администратора"
+
+    def post_vote(self, records, message_vote):
+        self.data_list = json.loads(records[0][6])
+        self.message_vote = message_vote
+        button_data = json.loads(records[0][4])
+        for button in button_data:
+            if button["button_type"] == "op!_confirmed":
+                if button["value"]:
+                    return
+        keyboard = types.InlineKeyboardMarkup([[types.InlineKeyboardButton(
+            text="Чек-лист закрыт в связи с неактуальностью",
+            callback_data="bad_habit")]])
+        bot.edit_message_reply_markup(self.message_vote.chat.id, self.message_vote.message_id, reply_markup=keyboard)
+
+
+class GlobalOpSetup(OpSetup):
+    _description = "чек-лист выбора глобальных прав"
 
 
 class Op(PostVote):
@@ -313,8 +335,8 @@ class Op(PostVote):
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0],
-                                    can_manage_chat=True, **utils.get_promote_args(self.data_list[2]))
+            print(self.data_list[2])
+            bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0], **self.data_list[2])
             sqlWorker.whitelist(self.data_list[0], add=True)
         except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(
@@ -808,14 +830,16 @@ def post_vote_list_init():
         "remove allies": RemoveAllies(),
         "timer for random cooldown": RandomCooldown(),
         "whitelist": Whitelist(),
-        "global admin permissions": GlobalOp(),
+        "global op permissions": GlobalOp(),
         "private mode": PrivateMode(),
         "remove topic": Topic(),
         "add rules": AddRules(),
         "remove rules": RemoveRules(),
         "custom poll": CustomPoll(),
         "shield": Shield(),
-        "vote_privacy": VotePrivacy()
+        "vote_privacy": VotePrivacy(),
+        "global op setup": GlobalOpSetup(),
+        "op setup": OpSetup(),
     }
 
     PoolEngine.post_vote_list.update(post_vote_list)
