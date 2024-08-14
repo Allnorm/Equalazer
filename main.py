@@ -862,8 +862,8 @@ def op_button(call_msg):
                                   text=f'Данный чек-лист не найден в БД.', show_alert=True)
         return
 
-    if pool_engine.get_abuse_timer(call_msg):  # Voting click check
-        return
+    #if pool_engine.get_abuse_timer(call_msg):  # Voting click check
+        #return
 
     button_data = json.loads(poll[0][4])
     anonymous = True
@@ -912,7 +912,7 @@ def op_button(call_msg):
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
     bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
                                   reply_markup=utils.make_keyboard(button_data))
-    pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
+    #pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
 @bot.callback_query_handler(func=lambda call: "vote!" in call.data)
