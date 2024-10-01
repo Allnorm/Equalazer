@@ -1677,7 +1677,7 @@ class AlliesList(PreVote):
             return
 
         try:
-            ally_id = allies[index]
+            ally_id = allies[index][0]
         except IndexError:
             bot.reply_to(self.message, "Чат с данным индексом не найден в списке союзников!")
             return
