@@ -58,7 +58,7 @@ class ConfigData:
     VERSION = "2.8.2"  # Current bot version
     CODENAME = "Waterfall"
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "14.08.2024"  # Bot build date
+    BUILD_DATE = "01.10.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
