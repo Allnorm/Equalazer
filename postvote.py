@@ -118,7 +118,8 @@ class UnBan(PostVote):
 
     def accept(self):
         try:
-            if data.binary_chat_mode == 0:
+            if (data.binary_chat_mode == 0 and
+                    not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot):
                 sqlWorker.whitelist(self.data_list[0], add=True)
             sqlWorker.abuse_remove(self.data_list[0])
             bot.unban_chat_member(self.message_vote.chat.id, self.data_list[0], True)
@@ -335,9 +336,9 @@ class Op(PostVote):
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            print(self.data_list[2])
             bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0], **self.data_list[2])
-            sqlWorker.whitelist(self.data_list[0], add=True)
+            if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
+                sqlWorker.whitelist(self.data_list[0], add=True)
         except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(
                 f"Ошибка назначения администратора {self.data_list[1]}. Недостаточно прав?" + self.votes_counter,

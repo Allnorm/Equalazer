@@ -55,7 +55,7 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.8.3"  # Current bot version
+    VERSION = "2.8.4"  # Current bot version
     CODENAME = "Waterfall"
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "20.10.2024"  # Bot build date
@@ -374,9 +374,6 @@ class ConfigData:
 
 data = ConfigData()
 bot = telebot.TeleBot(data.token)
-telebot.TeleBot(data.token)
-telebot.TeleBot(data.token)
-telebot.TeleBot(data.token)
 sqlWorker = sql_worker.SqlWorker(data.path + "database.db", data.SQL_INIT)
 
 
