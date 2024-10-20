@@ -996,7 +996,7 @@ class Op(PreVote):
             return
 
         if bot.get_chat_member(data.main_chat_id, self.reply_user_id).status == "restricted":
-            bot.reply_to(self.message, "Ограниченный пользователь не может стать админом.")
+            bot.reply_to(self.message, "Пользователь с ограниченными правами не может стать админом.")
             return
 
         if utils.extract_arg(self.message.text, 1) is not None:
