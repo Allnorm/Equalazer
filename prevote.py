@@ -680,23 +680,21 @@ class Whitelist(PreVote):
 
     def whitelist_building(self, user_whitelist):
         whitelist_msg = bot.reply_to(self.message, "Сборка вайтлиста, ожидайте...")
-        user_list, counter = "Список пользователей, входящих в вайтлист:\n", 1
+        user_list, counter = "Список пользователей, входящих в вайтлист:\n", 0
         for user in user_whitelist:
             try:
                 username = utils.username_parser_chat_member(bot.get_chat_member(data.main_chat_id,
                                                                                  user[0]), html=True)
                 if username == "":
-                    sqlWorker.whitelist(user[0], remove=True)
-                    continue
-            except telebot.apihelper.ApiTelegramException as e:
-                logging.error(f'Error when assembling whitelist!\n{e}')
+                    raise IndexError("Nickname is empty!")
+            except (telebot.apihelper.ApiTelegramException, IndexError) as e:
+                logging.error(f'Error adding participant with id {user} to whitelist!\n{e}')
                 sqlWorker.whitelist(user[0], remove=True)
-                user_whitelist.remove(user)
                 continue
+            counter += 1
             user_list = user_list + f'{counter}. <a href="tg://user?id={user[0]}">{username}</a>\n'
-            counter = counter + 1
 
-        if not user_whitelist:
+        if counter == 0:
             bot.edit_message_text("Вайтлист данного чата пуст!",
                                   chat_id=whitelist_msg.chat.id, message_id=whitelist_msg.id, parse_mode='html')
             return
@@ -1698,7 +1696,6 @@ class AlliesList(PreVote):
                 bot.get_chat_member(i[0], data.bot_id).status
             except telebot.apihelper.ApiTelegramException:
                 sqlWorker.remove_ally(i[0])
-                allies.remove(i)
                 continue
             try:
                 invite_link = bot.get_chat(i[0]).invite_link
@@ -1714,7 +1711,7 @@ class AlliesList(PreVote):
             except telebot.apihelper.ApiTelegramException as e:
                 logging.error(f'Error while assembling the list of allies!\n{e}')
 
-        if allies is None:  # Не исправлять!!!! Так надо на случай, если список полностью пуст после прохода!
+        if ally_counter == 0:
             bot.edit_message_text("В настоящее время у вас нет союзников.",
                                   chat_id=allies_msg.chat.id, message_id=allies_msg.id, parse_mode='html')
         else:
