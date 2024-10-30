@@ -642,8 +642,11 @@ class Rating(PreVote):
                 rate_text = rate_text + f'\n{user_counter}. ' \
                                         f'<a href="tg://user?id={user_rate[0]}">{username}</a>: {str(user_rate[1])}'
                 user_counter += 1
-            except telebot.apihelper.ApiTelegramException:
-                rates.remove(user_rate)
+            except telebot.apihelper.ApiTelegramException as e:
+                logging.error(f'Error getting user information with ID {user_rate[0]} while assembling rating. '
+                              f'His rating will be cleared.\n{e}')
+                sqlWorker.clear_rate(user_rate[0])
+                continue
 
         if rates is None:
             bot.edit_message_text(self.message, "Ещё ни у одного пользователя нет социального рейтинга!",
