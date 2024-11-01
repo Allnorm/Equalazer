@@ -624,7 +624,7 @@ def version(message):
         return
 
     bot.reply_to(message, f'DeuterBot, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
-                          f"Created by Allnorm aka Peter Burzec")
+                          f"Created by Allnorm aka DvadCat")
 
 
 @bot.message_handler(commands=['plugins'])
@@ -861,9 +861,6 @@ def op_button(call_msg):
         bot.answer_callback_query(callback_query_id=call_msg.id,
                                   text=f'Данный чек-лист не найден в БД.', show_alert=True)
         return
-
-    #if pool_engine.get_abuse_timer(call_msg):  # Voting click check
-        #return
 
     button_data = json.loads(poll[0][4])
     anonymous = True

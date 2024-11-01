@@ -907,8 +907,8 @@ class OpSetup(PreVote):
     help_text = "Используйте эту команду для назначения прав администратора себе, боту или другому участнику.\n" \
                 "Глобальные права администраторов для чата можно изменить с помощью команды вида " \
                 "/op global, если хостер бота не запретил это.\n<b>Попытка выдачи недоступных " \
-                "боту или отключенных на уровне чата прав приведёт к ошибке!\nТекущие права для чата:</b>\n" \
-                "Изменения заблокированы хостером - {}\n{}" \
+                "боту или отключенных на уровне чата прав приведёт к ошибке!\n"\
+                "Изменения разрешены хостером - {}\nТекущие права для чата:</b>\n{}" \
                 "\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
 
     def pre_return(self) -> bool:
@@ -917,7 +917,8 @@ class OpSetup(PreVote):
 
     def help(self):
         if self.help_access_check():
-            bot.reply_to(self.message, self.help_text.format(data.admin_fixed, utils.allowed_list()),
+            admin_fixed = "❌" if data.admin_fixed else "✅"
+            bot.reply_to(self.message, self.help_text.format(admin_fixed, utils.allowed_list()),
                          parse_mode="html")
 
     def arg_fn(self, arg):  # If the command was run with arguments

@@ -55,10 +55,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.8.5"  # Current bot version
-    CODENAME = "Waterfall"
+    VERSION = "2.8.6"  # Current bot version
+    CODENAME = "Waterfall (beta)"
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "31.10.2024"  # Bot build date
+    BUILD_DATE = "01.11.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -146,6 +146,11 @@ class ConfigData:
                 self.rate = self.bool_init(config["Chat"]["rate"])
                 self.admin_fixed = self.bool_init(config["Chat"]["admin-fixed"])
                 self.chat_mode = config["Chat"]["chat-mode"]
+                if self.admin_fixed:
+                    admin_allowed = {}
+                    for name in self.__ADMIN_RECOMMENDED.keys():
+                        admin_allowed.update({name: self.bool_init(config["Admin-rules"][name.replace("_", "-")])})
+                    self.admin_allowed = admin_allowed
                 break
             except Exception as e:
                 logging.error((str(e)))
@@ -187,16 +192,6 @@ class ConfigData:
             self.thread_id = int(config["Chat"]["thread-id"])
         except (KeyError, TypeError, ValueError):
             pass
-
-        # try:
-        #     if self.admin_fixed:
-        #         self.admin_allowed = int("1" + config["Chat"]["admin-allowed"][::-1], 2)  # В конфиге прямая запись
-        #     if not self.ADMIN_MIN <= self.admin_allowed <= self.ADMIN_MAX:
-        #         raise ValueError
-        # except (KeyError, TypeError, ValueError):
-        #     self.admin_allowed = self.__ADMIN_RECOMMENDED
-        #     logging.warning(f"Incorrect admin-allowed value, reset to default ("
-        #                     + f"{self.admin_allowed:b}"[:0:-1] + ")!")
 
         if self.debug:
             self.wait_timer = 0
@@ -347,8 +342,10 @@ class ConfigData:
         config.set("Chat", "rate", "true")
         config.set("Chat", "admin-fixed", "false")
         config.set("Chat", "chat-mode", "mixed")
-        config.set("Chat", "admin-allowed", "001010010")
         config.set("Chat", "thread-id", "none")
+        config.add_section("Admin-rules")
+        for name, value in self.__ADMIN_RECOMMENDED.items():
+            config.set("Admin-rules", name.replace("_", "-"), str(value).lower())
         try:
             config.write(open(self.path + "config.ini", "w"))
             print("New config file was created successful")
