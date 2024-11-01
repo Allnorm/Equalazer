@@ -792,13 +792,6 @@ def my_vote(call_msg):
     bot.answer_callback_query(callback_query_id=call_msg.id, text='Вы не голосовали в данном опросе!', show_alert=True)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "bad_habit")
-def bad_habit(call_msg):
-    bot.answer_callback_query(callback_query_id=call_msg.id,
-                              text="Тыкать куда попало - плохая привычка.")
-    return
-
-
 @bot.callback_query_handler(func=lambda call: call.data == "user_votes")
 def user_votes(call_msg):
     if data.main_chat_id == -1:  # Проверка на init mode
@@ -899,10 +892,8 @@ def op_button(call_msg):
             return
         if not button['value']:
             allowed = "✅"
-        elif poll[0][2] == 'op setup':
-            allowed = "❌"
         else:
-            allowed = "🔒"
+            allowed = "❌"
         button.update({'value': not button['value'], 'name': f"{button['name'][:-1]}{allowed}"})
         break
 

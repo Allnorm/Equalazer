@@ -1005,7 +1005,7 @@ class OpSetup(PreVote):
         for name, value in data.admin_allowed.items():
             if value:
                 allowed = "✅"
-            elif self.unique_id == "global admin permissions":
+            elif self.unique_id == "global op setup":
                 allowed = "❌"
             else:
                 allowed = "🔒"
@@ -1034,7 +1034,8 @@ class Op(PreVote):
         self.data_list = json.loads(poll[0][6])
         self.user_id = self.data_list[1]
         buttons_scheme = self.get_buttons_scheme()
-        bot.edit_message_text(self.vote_text(), message.chat.id, message.id,
+        self.vote_text = self.op_vote_text()
+        bot.edit_message_text(self.get_votes_text(), message.chat.id, message.id,
                               reply_markup=utils.make_keyboard(buttons_scheme), parse_mode='html')
         sqlWorker.add_poll(self.unique_id(), message.id, self.vote_type, message.chat.id,
                            json.dumps(buttons_scheme), int(time.time()) + self.current_timer,
@@ -1050,7 +1051,7 @@ class Op(PreVote):
     def arg_fn(self, _):
         return
 
-    def vote_text(self):
+    def op_vote_text(self):
         return f"Тема голосования: выдача/изменение прав администратора пользователю "\
                f"{utils.html_fix(self.data_list[2])}"\
                f"\nПрава, выбранные для выдачи пользователю:{self.rights_text}"\
@@ -1067,7 +1068,7 @@ class Op(PreVote):
 class OpGlobal(Op):
     vote_type = "global op permissions"
 
-    def vote_text(self):
+    def op_vote_text(self):
         return f"Тема голосования: смена разрешённых для выдачи пользователям прав." \
                f"\nПрава, выбранные для выдачи пользователям:{self.rights_text}" \
                f"\nИнициатор голосования: {utils.html_fix(self.data_list[0])}."

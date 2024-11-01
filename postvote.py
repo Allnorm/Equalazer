@@ -5,7 +5,6 @@ import time
 import traceback
 
 import telebot
-from telebot import types
 
 import utils
 from utils import data, bot, sqlWorker
@@ -315,10 +314,8 @@ class OpSetup(PostVote):
             if button["button_type"] == "op!_confirmed":
                 if button["value"]:
                     return
-        keyboard = types.InlineKeyboardMarkup([[types.InlineKeyboardButton(
-            text="Чек-лист закрыт в связи с неактуальностью",
-            callback_data="bad_habit")]])
-        bot.edit_message_reply_markup(self.message_vote.chat.id, self.message_vote.message_id, reply_markup=keyboard)
+        bot.edit_message_text("<b>Чек-лист закрыт.</b>", self.message_vote.chat.id,
+                              self.message_vote.message_id, parse_mode='html', reply_markup=None)
 
 
 class GlobalOpSetup(OpSetup):
