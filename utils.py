@@ -55,9 +55,9 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.8.8"  # Current bot version
-    CODENAME = "Waterfall"
-    MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
+    VERSION = "2.9"  # Current bot version
+    CODENAME = "Snowfall"
+    MIN_VERSION = "2.8"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "02.11.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
@@ -204,12 +204,7 @@ class ConfigData:
         self.global_timer_ban = sqlWorker.params("timer_ban")
         self.vote_privacy = sqlWorker.params("vote_privacy") or self.vote_privacy  # Backwards compatible
         if not self.admin_fixed:
-            if not isinstance(sqlWorker.params("allowed_admins"), dict):  # Working with legacy data
-                logging.warning(f"Incorrect admin-allowed value, reset to default!")
-                self.admin_allowed = self.__ADMIN_RECOMMENDED
-                sqlWorker.params("allowed_admins", self.admin_allowed)
-            else:
-                self.admin_allowed = sqlWorker.params("allowed_admins")
+            self.admin_allowed = sqlWorker.params("allowed_admins")
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sqlWorker.params("public_mode")
 
@@ -747,3 +742,30 @@ def button_anonymous_checker(user_id, chat_id):
         return False
     except telebot.apihelper.ApiTelegramException as e:
         logging.error(f"Error checking user with ID {user_id} for being an anonymous administrator.\n{e}")
+
+
+def make_mailing(vote_type, message_vote_id, current_timer):
+    mailing_list = sqlWorker.mailing_get_all()
+    if not mailing_list:
+        return
+    if bot.get_chat(data.main_chat_id).username is not None:
+        format_chat_id = bot.get_chat(data.main_chat_id).username
+    else:
+        format_chat_id = "c/" + str(data.main_chat_id)[4:]
+    for subscriber_index in range(len(mailing_list)):
+        subscriber = mailing_list[subscriber_index][0]
+        if bot.get_chat_member(data.main_chat_id, subscriber).status in ("left", "kicked"):
+            sqlWorker.mailing(subscriber, remove=True)
+            logging.warning(f"The user with ID {subscriber} is no longer a member of "
+                            f"the chat and has been excluded from mailing list.")
+        try:
+            bot.send_message(subscriber, f"<b>Было запущено новое голосование!</b>\n\nТип голосования: {vote_type}, "
+                                         f"длительность: {formatted_timer(current_timer)}\n"
+                                         f"Ссылка на голосование: https://t.me/{format_chat_id}/{message_vote_id}",
+                             parse_mode='html')
+        except telebot.apihelper.ApiTelegramException as e:
+            logging.error(f"Errors sending mailing to user with ID {subscriber}, "
+                          f"he will be excluded from the mailing list.\n{e}")
+            sqlWorker.mailing(subscriber, remove=True)
+        if not subscriber_index % 10 and subscriber_index:
+            time.sleep(10)  # Protection against too many requests

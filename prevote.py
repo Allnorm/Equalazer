@@ -806,7 +806,7 @@ class MessageRemover(PreVote):
             bot.reply_to(self.message, "Вы не можете удалить голосование до его завершения!")
             return True
 
-        if data.bot_id != self.reply_user_id and self.reply_is_bot:
+        if all([data.bot_id != self.reply_user_id, self.reply_is_bot, self.reply_user_id != data.ANONYMOUS_ID]):
             bot.reply_to(self.message, f"ДейтерБот не может удалять сообщения других ботов!")
             return True
 
@@ -1044,6 +1044,9 @@ class Op(PreVote):
             bot.pin_chat_message(message.chat.id, message.id, disable_notification=True)
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(f"I can't pin message in chat {message.chat.id}!\n{e}")
+        threading.Thread(target=utils.make_mailing, daemon=True,
+                         args=(pool_engine.post_vote_list[self.vote_type].description, message.id,
+                               self.current_timer)).start()
         threading.Thread(target=pool_engine.vote_timer, daemon=True,
                          args=(self.current_timer, self.unique_id(), message)).start()
 

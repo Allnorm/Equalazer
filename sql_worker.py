@@ -44,6 +44,8 @@ class SqlWorker:
                                     timer INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists whitelist (
                                     user_id INTEGER PRIMARY KEY);""")
+        cursor.execute("""CREATE TABLE if not exists mailing (
+                                    user_id INTEGER PRIMARY KEY);""")
         cursor.execute("""CREATE TABLE if not exists rating (
                                     user_id INTEGER PRIMARY KEY,
                                     rate INTEGER);""")
@@ -120,6 +122,27 @@ class SqlWorker:
     def whitelist_get_all(self):
         with SQLWrapper(self.dbname) as sql_wrapper:
             sql_wrapper.cursor.execute("""SELECT * FROM whitelist""")
+            fetchall = sql_wrapper.cursor.fetchall()
+            return fetchall
+
+    def mailing(self, user_id, add=False, remove=False):
+        with SQLWrapper(self.dbname) as sql_wrapper:
+            sql_wrapper.cursor.execute("""SELECT * FROM mailing WHERE user_id = ?""", (user_id,))
+            fetchall = sql_wrapper.cursor.fetchall()
+            is_mailing = False
+            if fetchall:
+                if remove:
+                    sql_wrapper.cursor.execute("""DELETE FROM mailing WHERE user_id = ?""", (user_id,))
+                else:
+                    is_mailing = True
+            if add and not fetchall:
+                sql_wrapper.cursor.execute("""INSERT INTO mailing VALUES (?);""", (user_id,))
+                is_mailing = True
+            return is_mailing
+
+    def mailing_get_all(self):
+        with SQLWrapper(self.dbname) as sql_wrapper:
+            sql_wrapper.cursor.execute("""SELECT * FROM mailing""")
             fetchall = sql_wrapper.cursor.fetchall()
             return fetchall
 

@@ -175,6 +175,35 @@ def add_answer(message):
         bot.reply_to(message, "Ошибка отправки сообщению пользователю.")
 
 
+@bot.message_handler(commands=['mail'])
+def mail(message):
+    if not utils.botname_checker(message):
+        return
+
+    if message.from_user.id == data.ANONYMOUS_ID:
+        bot.reply_to(message, "Вы не можете подписаться на рассылку, так как являетесь анонимным администратором.")
+        return
+
+    if bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("kicked", "restricted"):
+        bot.reply_to(message, "Вы не можете подписаться на рассылку, если не состоите в чате.")
+        return
+
+    if utils.extract_arg(message.text, 1) == "status":
+        subscribed = " " if sqlWorker.mailing(message.from_user.id) else " не "
+        bot.reply_to(message, f"Вы{subscribed}подписаны на рассылку и{subscribed}получаете информацию о новых "
+                              f"голосованиях в чате.\n<b>Переключить статус подписки можно командой /mail.</b>",
+                     parse_mode='html')
+        return
+
+    if sqlWorker.mailing(message.from_user.id):
+        sqlWorker.mailing(message.from_user.id, remove=True)
+        subscribed = "отключили"
+    else:
+        sqlWorker.mailing(message.from_user.id, add=True)
+        subscribed = "подключили"
+    bot.reply_to(message, f"Вы {subscribed} рассылку о новых голосованиях в личных сообщениях бота.")
+
+
 @bot.message_handler(commands=['status'])
 def status(message):
     if not utils.botname_checker(message) or utils.command_forbidden(message):
@@ -198,14 +227,17 @@ def status(message):
                               "Я не могу получить о нём информацию!")
         return
 
-    if data.binary_chat_mode != 0:
-        whitelist_status = "вайтлист отключён"
-    elif is_bot:
-        whitelist_status = "является ботом"
-    elif sqlWorker.whitelist(target_msg.from_user.id):
-        whitelist_status = "да"
-    else:
-        whitelist_status = "нет"
+    not_bot_info = ""
+    if not is_bot:
+        if data.binary_chat_mode != 0:
+            whitelist_status = "вайтлист отключён"
+        elif sqlWorker.whitelist(target_msg.from_user.id):
+            whitelist_status = "да"
+        else:
+            whitelist_status = "нет"
+        mailing_status = "подписан" if sqlWorker.mailing(target_msg.from_user.id) else "не подписан"
+        not_bot_info = f"\nНаличие в вайтлисте: {whitelist_status}" \
+                       f"\nПодписка на рассылку: {mailing_status}"
 
     until_date = ""
     if bot.get_chat_member(data.main_chat_id, user_id).status in ("kicked", "restricted"):
@@ -221,10 +253,10 @@ def status(message):
     if abuse_chk > 0:
         abuse_text = f"\nТаймаут абуза инвайта для пользователя: {utils.formatted_timer(abuse_chk - int(time.time()))}"
 
-    bot.reply_to(message, f"Текущий статус пользователя {utils.html_fix(username)}: "
-                          f"{statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}\n"
-                          f"ID пользователя: <code>{user_id}</code>\n"
-                          f"Наличие в вайтлисте: {whitelist_status}{until_date}{abuse_text}", parse_mode='html')
+    bot.reply_to(message, f"<b>Пользователь {utils.html_fix(username)}:</b>\n"
+                          f"Статус: {statuses.get(bot.get_chat_member(data.main_chat_id, user_id).status)}\n"
+                          f"ID пользователя: <code>{user_id}</code>"
+                          f"{until_date}{abuse_text}{not_bot_info}", parse_mode='html')
 
 
 @bot.message_handler(commands=['random', 'redrum'])
@@ -539,7 +571,6 @@ def calc_(calc_text, to_send):
 
 @bot.message_handler(commands=['calc'])
 def calc(message):
-
     if not utils.botname_checker(message):
         return
 
