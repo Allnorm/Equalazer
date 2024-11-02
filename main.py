@@ -184,14 +184,16 @@ def mail(message):
         bot.reply_to(message, "Вы не можете подписаться на рассылку, так как являетесь анонимным администратором.")
         return
 
-    if bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("kicked", "restricted"):
+    if bot.get_chat_member(data.main_chat_id, message.from_user.id).status in ("kicked", "left"):
         bot.reply_to(message, "Вы не можете подписаться на рассылку, если не состоите в чате.")
         return
 
     if utils.extract_arg(message.text, 1) == "status":
         subscribed = " " if sqlWorker.mailing(message.from_user.id) else " не "
         bot.reply_to(message, f"Вы{subscribed}подписаны на рассылку и{subscribed}получаете информацию о новых "
-                              f"голосованиях в чате.\n<b>Переключить статус подписки можно командой /mail.</b>",
+                              f"голосованиях в чате.\n<b>Обратите внимание, что если боту будет запрещено писать вам в "
+                              f"личные сообщения, рассылка отключится автоматически!\n"
+                              f"Переключить статус рассылки можно командой /mail.</b>",
                      parse_mode='html')
         return
 
