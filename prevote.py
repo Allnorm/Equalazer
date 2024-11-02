@@ -1014,8 +1014,7 @@ class OpSetup(PreVote):
                                   "value": value})
         button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
         button_scheme.append({"button_type": "op!_confirmed", "name": "Подтвердить", "value": False})
-        if not self.user_id == data.ANONYMOUS_ID:
-            button_scheme.append({"button_type": "close", "name": "Закрыть чек-лист", "user_id": self.user_id})
+        button_scheme.append({"button_type": "op!_close", "name": "Закрыть чек-лист", "user_id": self.user_id})
         return button_scheme
 
 
@@ -1028,7 +1027,7 @@ class Op(PreVote):
         self.rights_text = ""
         self.rights_data = {}
         for button in buttons_data:
-            if "op!" in button["button_type"] and button["button_type"] != "op!_confirmed":
+            if "op!" in button["button_type"] and button["button_type"] not in ("op!_confirmed", "op!_close"):
                 self.rights_text += f'\n{button["name"]}'
                 self.rights_data.update({button["button_type"].split('_', maxsplit=1)[1]: button["value"]})
         self.data_list = json.loads(poll[0][6])
@@ -1055,7 +1054,7 @@ class Op(PreVote):
         return f"Тема голосования: выдача/изменение прав администратора пользователю "\
                f"{utils.html_fix(self.data_list[2])}"\
                f"\nПрава, выбранные для выдачи пользователю:{self.rights_text}"\
-               f".\nИнициатор голосования: {utils.html_fix(self.data_list[0])}."\
+               f"\nИнициатор голосования: {utils.html_fix(self.data_list[0])}."\
                "\n<b>Звание можно будет установить ПОСЛЕ закрытия голосования.</b>"
 
     def vote_args(self):

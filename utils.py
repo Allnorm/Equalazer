@@ -55,10 +55,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # DeuterBot is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.8.7"  # Current bot version
-    CODENAME = "Waterfall (beta)"
+    VERSION = "2.8.8"  # Current bot version
+    CODENAME = "Waterfall"
     MIN_VERSION = "2.4"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "01.11.2024"  # Bot build date
+    BUILD_DATE = "02.11.2024"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -736,3 +736,14 @@ def get_hash(user_id, chat_instance, button_data) -> str:
 
     return hashlib.pbkdf2_hmac('sha256', str(user_id).encode('utf-8'),
                                chat_instance.encode('utf-8'), 100000, 16).hex()
+
+
+def button_anonymous_checker(user_id, chat_id):
+    try:
+        for admin in bot.get_chat_administrators(chat_id):
+            if admin.user.id == user_id:
+                if admin.is_anonymous:
+                    return True
+        return False
+    except telebot.apihelper.ApiTelegramException as e:
+        logging.error(f"Error checking user with ID {user_id} for being an anonymous administrator.\n{e}")

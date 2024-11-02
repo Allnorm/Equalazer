@@ -855,20 +855,20 @@ def op_button(call_msg):
                                   text=f'Данный чек-лист не найден в БД.', show_alert=True)
         return
 
+    user_id = call_msg.from_user.id
+    if utils.button_anonymous_checker(call_msg.from_user.id, call_msg.message.chat.id):
+        user_id = data.ANONYMOUS_ID
+
     button_data = json.loads(poll[0][4])
-    anonymous = True
     for button in button_data:
-        if button["button_type"] == "close":
-            if button["user_id"] != call_msg.from_user.id:
+        if button["button_type"] == "op!_close":
+            if button["user_id"] != user_id:
                 bot.answer_callback_query(callback_query_id=call_msg.id,
                                           text='Вы не можете взаимодействовать с чужим чек-листом!', show_alert=True)
                 return
-            else:
-                anonymous = False
 
-    if not anonymous and call_msg.from_user.id == data.ANONYMOUS_ID:
-        bot.answer_callback_query(callback_query_id=call_msg.id,
-                                  text='Вы не можете взаимодействовать с чужим чек-листом!', show_alert=True)
+    if call_msg.data == "op!_close":
+        cancel_vote(call_msg)
         return
 
     # The ability to create checklists for anonymous admins remains, but without the ability to verify them
@@ -900,7 +900,6 @@ def op_button(call_msg):
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
     bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
                                   reply_markup=utils.make_keyboard(button_data))
-    #pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 
 @bot.callback_query_handler(func=lambda call: "vote!" in call.data)

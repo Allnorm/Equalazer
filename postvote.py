@@ -314,7 +314,8 @@ class OpSetup(PostVote):
             if button["button_type"] == "op!_confirmed":
                 if button["value"]:
                     return
-        bot.edit_message_text("<b>Чек-лист закрыт.</b>", self.message_vote.chat.id,
+        by_timer = "инициатором голосования" if int(time.time()) <= records[0][5] else "автоматическим таймером"
+        bot.edit_message_text(f"<b>Чек-лист закрыт {by_timer}.</b>", self.message_vote.chat.id,
                               self.message_vote.message_id, parse_mode='html', reply_markup=None)
 
 
