@@ -53,9 +53,9 @@ class ConfigData:
                    "can_delete_stories": "Удаление чужих историй"}
 
     # Do not edit this section to change the parameters of the bot!
-    # DeuterBot is customizable via config file or chat voting!
+    # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.9.1"  # Current bot version
+    VERSION = "2.10"  # Current bot version
     CODENAME = "Snowfall"
     MIN_VERSION = "2.8"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "02.11.2024"  # Bot build date
@@ -400,12 +400,12 @@ def init():
              f"Предыдущая версия: {get_version}"
 
     sqlWorker.params("version", rewrite_value=data.VERSION)
-    logging.info(f'###DEUTERBOT {data.VERSION} "{data.CODENAME.upper()}" '
+    logging.info(f'###EQUALAZER {data.VERSION} "{data.CODENAME.upper()}" '
                  f'BUILD DATE {data.BUILD_DATE} LAUNCHED SUCCESSFULLY!###')
 
     if data.main_chat_id == -1:
         logging.warning("WARNING! BOT LAUNCHED IN INIT MODE!\n***\n"
-                        "You need to add DeuterBot to your chat and use the /getchat command.\n"
+                        "You need to add Equalazer to your chat and use the /getchat command.\n"
                         "The bot will automatically write information about the ID of this chat\n"
                         "(and topic, if necessary) to the configuration file.\n"
                         "Restart the bot and work with it as usual.\n***")

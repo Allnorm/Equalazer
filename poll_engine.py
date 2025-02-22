@@ -5,6 +5,7 @@ import pickle
 import threading
 import time
 import traceback
+from typing import Optional
 
 import telebot
 
@@ -122,7 +123,7 @@ class PreVote:
         """return dictionary of class functions"""
         return {}
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         """Checking for conditions that will cause the command to be canceled prematurely"""
         return False
 

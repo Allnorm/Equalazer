@@ -367,7 +367,7 @@ def help_msg(message):
 
     try:
         bot.send_message(message.from_user.id,
-                         f"<b>Список всех доступных команд для ДейтерБота версии {data.VERSION}:</b>\n" +
+                         f"<b>Список всех доступных команд для Эквалазера версии {data.VERSION}:</b>\n" +
                          "\n".join(sorted(help_text.split(sep="\n"))) + datetime_help, parse_mode="html")
         if not message.from_user.id == message.chat.id:
             bot.reply_to(message, "Текст помощи по командам отправлен в л/с.")
@@ -656,7 +656,7 @@ def version(message):
     if not utils.botname_checker(message):
         return
 
-    bot.reply_to(message, f'DeuterBot, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
+    bot.reply_to(message, f'Equalazer, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
                           f"Created by Allnorm aka DvadCat")
 
 

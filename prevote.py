@@ -5,6 +5,7 @@ import threading
 import time
 import traceback
 import zlib
+from typing import Optional
 
 import telebot
 from telebot import types
@@ -16,7 +17,7 @@ from poll_engine import PreVote, pool_engine
 
 class Invite(PreVote):
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if not bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in \
                ("left", "kicked", "restricted"):
             bot.reply_to(self.message, "Вы уже есть в нужном вам чате.")
@@ -99,7 +100,7 @@ class Ban(PreVote):
     def timer_votes_init():
         return data.global_timer_ban, data.thresholds_get(True)
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -194,7 +195,7 @@ class Mute(PreVote):
     def timer_votes_init():
         return data.global_timer_ban, data.thresholds_get(True)
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
 
         if not utils.botname_checker(self.message) or utils.command_forbidden(self.message):
             return True
@@ -274,7 +275,7 @@ class Mute(PreVote):
 class Unban(PreVote):
     vote_type = "unban"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -313,7 +314,7 @@ class Thresholds(PreVote):
     vote_type = "threshold"
     help_text = 'Используйте команду в формате "/threshold (число) [(пустое)|ban|min] "'
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -421,7 +422,7 @@ class Timer(PreVote):
                 "или как /timer [время|0 (без кулдауна)|off|disable] random.\n" \
                 "Подробнее о парсинге времени - см. команду /help."
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message, private_dialog=True):
             return True
 
@@ -544,7 +545,7 @@ class Rating(PreVote):
     help_text = "Доступны аргументы top, up, down и команда без аргументов."
     vote_type = "change rate"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if not data.rate or utils.command_forbidden(self.message):
             return True
 
@@ -661,7 +662,7 @@ class Rating(PreVote):
 class Whitelist(PreVote):
     vote_type = "whitelist"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
         if data.binary_chat_mode != 0:
@@ -791,7 +792,7 @@ class MessageRemover(PreVote):
     def timer_votes_init():
         return data.global_timer_ban, data.thresholds_get(True)
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -807,7 +808,7 @@ class MessageRemover(PreVote):
             return True
 
         if all([data.bot_id != self.reply_user_id, self.reply_is_bot, self.reply_user_id != data.ANONYMOUS_ID]):
-            bot.reply_to(self.message, f"ДейтерБот не может удалять сообщения других ботов!")
+            bot.reply_to(self.message, f"Боты в Telegram не могут удалять сообщения других ботов!")
             return True
 
     def direct_fn(self):
@@ -832,7 +833,7 @@ class MessageSilentRemover(MessageRemover):
 
 
 class PrivateMode(PreVote):
-    help_text = "Существуют три режима работы антиспам-фильтра ДейтерБота.\n" \
+    help_text = "Существуют три режима работы антиспам-фильтра Эквалазера.\n" \
                 "1. Использование вайтлиста и системы инвайтов. Участник, не найденный в вайтлисте или в " \
                 "одном из союзных чатов, блокируется. Классическая схема, применяемая для приватных чатов.\n" \
                 "2. Использование голосования при вступлении участника. При вступлении участника в чат " \
@@ -846,7 +847,7 @@ class PrivateMode(PreVote):
                 "\nНастройки заблокированы хостером: {}" \
                 "\nТекущий режим чата: {}{}"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -911,7 +912,7 @@ class OpSetup(PreVote):
                 "Изменения разрешены хостером - {}\nТекущие права для чата:</b>\n{}" \
                 "\n<b>ВНИМАНИЕ: при переназначении прав пользователю его текущие права перезаписываются!</b>"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1089,7 +1090,7 @@ class RemoveTopic(PreVote):
     def timer_votes_init():
         return 86400, data.thresholds_get()
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
 
         if utils.command_forbidden(self.message):
             return True
@@ -1122,7 +1123,7 @@ class RemoveTopic(PreVote):
 class Rank(PreVote):
     vote_type = "rank"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1208,7 +1209,7 @@ class Rank(PreVote):
 class Deop(PreVote):
     vote_type = "deop"
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1306,7 +1307,7 @@ class Title(PreVote):
     unique_id = "title"
     vote_type = unique_id
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1338,7 +1339,7 @@ class Description(PreVote):
     help_text = "Для установки описания чата следует реплейнуть командой " \
                 "по сообщению с текстом описания или ввести его как аргумент команды."
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1381,7 +1382,7 @@ class Avatar(PreVote):
     unique_id = "chat picture"
     vote_type = unique_id
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -1580,7 +1581,7 @@ class NewUserChecker(PreVote):
         keyboard.add(*buttons)
         until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 300
         bot_message = bot.reply_to(self.message, "\u26a0\ufe0f <b>СТОП!</b> \u26a0\ufe0f"  # Emoji
-                                                 "\nВы были остановлены антиспам-системой ДейтерБота!\n"
+                                                 "\nВы были остановлены антиспам-системой Эквалазера!\n"
                                                  "Для доступа в чат вам необходимо выбрать из списка МАКСИМАЛЬНОЕ "
                                                  "число в течении 60 секунд, иначе доступ в чат будет ограничен на "
                                                  f"срок {utils.formatted_timer(until_time)} Время пошло.",
@@ -1614,7 +1615,7 @@ class NewUserChecker(PreVote):
 class AlliesList(PreVote):
     help_text = "Поддерживаются аргументы add, remove и запуск без аргументов."
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message, True):
             return True
 
@@ -1785,7 +1786,7 @@ class Rules(PreVote):
     help_text = "Используйте аргументы add (с реплеем по сообщению с текстом правил) для добавления правил, " \
                 "remove - для их удаления."
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if self.message.chat.id != data.main_chat_id and self.message.chat.id != self.message.from_user.id:
             bot.reply_to(self.message, "Данную команду можно запустить только в основном чате или в ЛС без аргументов.")
             return True
@@ -1876,7 +1877,7 @@ class Votes(PreVote):
                  'другие люди, в приватном данная информация скрыта и можно узнать только свой голос).\n'
                  '<b>Текущий статус приватности голосований</b>: {}')
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if not utils.botname_checker(self.message) or utils.command_forbidden(self.message, private_dialog=True):
             return True
 
@@ -1954,7 +1955,7 @@ class Shield(PreVote):
                 'включить (обновить таймер) и отключить режим защиты чата на срок от 1 часа до 30 дней.\n' \
                 'В режиме защиты бот удаляет сообщение о входе пользователя, не оставляя следов при флуд-атаке.\n'
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
 
@@ -2019,7 +2020,7 @@ class Shield(PreVote):
 
 class CustomPoll(PreVote):
     vote_type = "custom poll"
-    help_text = 'Используйте эту команду для создания опросов в стиле ДейтерБота.\n' \
+    help_text = 'Используйте эту команду для создания опросов в стиле Эквалазера.\n' \
                 'Первым аргументом может быть парсимое время (подробнее см. /help).\n' \
                 'Если аргумент времени не парсится, длительность опроса будет 1 сутки.\n' \
                 'Если кроме аргумента времени текста больше нет, аргумент будет считаться текстом.\n' \
@@ -2028,7 +2029,7 @@ class CustomPoll(PreVote):
                 'Опрос закрывается по завершении таймера или после набора голосов всех участников.'
     options_list: list
 
-    def pre_return(self) -> bool:
+    def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message, True):
             return True
         self.options_list = []
