@@ -1352,8 +1352,8 @@ class Description(PreVote):
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is not None:
-            if self.message.reply_to_msg_txt is not None:
-                description_text = self.message.reply_to_msg_txt
+            if self.message.reply_to_message.text is not None:
+                description_text = self.message.reply_to_message.text
                 if len(description_text) > 255:
                     bot.reply_to(self.message, "Описание не должно быть длиннее 255 символов!")
                     return
@@ -1843,11 +1843,11 @@ class Rules(PreVote):
             bot.reply_to(self.message, "Пожалуйста, используйте эту команду как ответ на текстовое сообщение.")
             return
 
-        if self.message.reply_to_msg_txt is None:
+        if self.message.reply_to_message.text is None:
             bot.reply_to(self.message, "В отвеченном сообщении не обнаружен текст!")
             return
         self.vote_type = "add rules"
-        self.pre_vote("добавление", self.message.reply_to_msg_txt)
+        self.pre_vote("добавление", self.message.reply_to_message.text)
 
     def remove(self):
         if data.fixed_rules:
