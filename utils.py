@@ -55,10 +55,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.10"  # Current bot version
+    VERSION = "2.11"  # Current bot version
     CODENAME = "SeaFog"
-    MIN_VERSION = "2.8"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "22.02.2025"  # Bot build date
+    MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
+    BUILD_DATE = "24.02.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -70,7 +70,7 @@ class ConfigData:
     debug = False  # Debug mode with special presets and lack of saving parameters in the database
     vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
-    vote_privacy = "private"  # When switching to "public", the voting progress will be public for everyone
+    vote_privacy = True  # When switching to False, the voting progress will be public for everyone
     wait_timer = 30  # Cooldown before being able to change or cancel voice
     kill_mode = 2  # Mode 0 - the /kill command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
@@ -202,7 +202,15 @@ class ConfigData:
         self.__votes_need_min = sqlWorker.params("min_vote")
         self.global_timer = sqlWorker.params("timer")
         self.global_timer_ban = sqlWorker.params("timer_ban")
-        self.vote_privacy = sqlWorker.params("vote_privacy") or self.vote_privacy  # Backwards compatible
+        self.vote_privacy = sqlWorker.params("vote_privacy")
+        # Start of backwards compatible code
+        if isinstance(self.vote_privacy, str):
+            if self.vote_privacy == "public":
+                self.vote_privacy = False
+            else:
+                self.vote_privacy = True
+            sqlWorker.params("vote_privacy", self.vote_privacy)
+        # End of backwards compatible code
         if not self.admin_fixed:
             self.admin_allowed = sqlWorker.params("allowed_admins")
         if self.chat_mode == "mixed":

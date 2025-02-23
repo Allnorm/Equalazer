@@ -100,20 +100,26 @@ class PreVote:
     reply_username = ""
     reply_is_bot = False
     direct = False
+    msg_txt = ""
 
     def __init__(self, message):
         if not utils.botname_checker(message):
             return
         self.message = message
         self.user_id = message.from_user.id
-        if utils.extract_arg(message.text, 1) == "help":
+        self.msg_txt = message.text
+        self.privacy = data.vote_privacy
+        if utils.extract_arg(self.msg_txt, 1) == "help":
             self.help()
             return
+        elif utils.extract_arg(self.msg_txt, 1) == "-pr":
+            self.privacy = not self.privacy
+            self.msg_txt = self.msg_txt.replace(" -pr", "", 1)
         self.current_timer, self.current_votes = self.timer_votes_init()
         if self.pre_return():
             return
         self.args = self.set_args()
-        arg = utils.extract_arg(message.text, 1)
+        arg = utils.extract_arg(self.msg_txt, 1)
         if arg is None:
             self.direct_fn()
         else:
@@ -209,11 +215,11 @@ class PreVote:
             except telebot.apihelper.ApiTelegramException as e:
                 logging.error(f"I can't pin message in chat {message_vote.chat.id}!\n{e}")
         threading.Thread(target=pool_engine.vote_timer, daemon=True,
-                         args=(self.current_timer,self.unique_id, message_vote)).start()
+                         args=(self.current_timer, self.unique_id, message_vote)).start()
 
     def get_buttons_scheme(self):
         button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in ("Да", "Нет")]
-        if sqlWorker.params("vote_privacy", default_return="private") == "private":
+        if self.privacy:
             button_scheme.append({"button_type": "my_vote",
                                   "name": "Узнать мой голос"})
         else:

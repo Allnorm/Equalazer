@@ -741,12 +741,13 @@ class VotePrivacy(PostVote):
 
     def accept(self):
         sqlWorker.params("vote_privacy", rewrite_value=self.data_list[0])
-        vote_type = "отключил" if self.data_list[0] == "public" else "включил"
+        data.vote_privacy = self.data_list[0]
+        vote_type = "включил" if self.data_list[0] else "отключил"
         bot.edit_message_text(f"Пользователь {self.data_list[1]} {vote_type} приватность голосований."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
-        vote_type = "отключения" if self.data_list[0] == "public" else "включения"
+        vote_type = "включения" if self.data_list[0] else "отключения"
         bot.edit_message_text(f"Предложение {vote_type} приватности голосований отклонено."
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 

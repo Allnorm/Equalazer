@@ -72,7 +72,7 @@ class Invite(PreVote):
             return
 
         try:
-            msg_from_usr = self.message.text.split(None, 1)[1]
+            msg_from_usr = self.msg_txt.split(None, 1)[1]
         except IndexError:
             msg_from_usr = "нет"
 
@@ -124,7 +124,7 @@ class Ban(PreVote):
             return True
 
     def arg_fn(self, arg):
-        restrict_timer = utils.time_parser(utils.extract_arg(self.message.text, 1))
+        restrict_timer = utils.time_parser(utils.extract_arg(self.msg_txt, 1))
         if restrict_timer is None:
             self.direct_fn()
             return
@@ -135,13 +135,13 @@ class Ban(PreVote):
         if 31535991 <= restrict_timer <= 31536000:
             restrict_timer = 31535990
 
-        if utils.extract_arg(self.message.text, 2) is not None:
-            self.ban_reason = self.message.text.split(maxsplit=2)[2]
+        if utils.extract_arg(self.msg_txt, 2) is not None:
+            self.ban_reason = self.msg_txt.split(maxsplit=2)[2]
         self.ban(restrict_timer, True, f"\nПредложенный срок блокировки: {utils.formatted_timer(restrict_timer)}", 1)
 
     def direct_fn(self):
-        if utils.extract_arg(self.message.text, 1) is not None:
-            self.ban_reason = self.message.text.split(maxsplit=1)[1]
+        if utils.extract_arg(self.msg_txt, 1) is not None:
+            self.ban_reason = self.msg_txt.split(maxsplit=1)[1]
         self.ban(0, False, "\nПредложенный срок блокировки: <b>перманентный</b>", 2)
 
     def ban(self, restrict_timer, kick_user, ban_timer_text, vote_type):
@@ -182,8 +182,8 @@ class Ban(PreVote):
 class Kick(Ban):
 
     def direct_fn(self):
-        if utils.extract_arg(self.message.text, 1) is not None:
-            self.ban_reason = self.message.text.split(maxsplit=1)[1]
+        if utils.extract_arg(self.msg_txt, 1) is not None:
+            self.ban_reason = self.msg_txt.split(maxsplit=1)[1]
         self.ban(3600, True, f"\nПредложенный срок блокировки: {utils.formatted_timer(3600)}", 1)
 
 
@@ -223,12 +223,12 @@ class Mute(PreVote):
             return True
 
     def direct_fn(self):
-        if utils.extract_arg(self.message.text, 1) is not None:
-            self.ban_reason = self.message.text.split(maxsplit=1)[1]
+        if utils.extract_arg(self.msg_txt, 1) is not None:
+            self.ban_reason = self.msg_txt.split(maxsplit=1)[1]
         self.mute(0, "\nПредложенный срок ограничений: перманентно")
 
     def arg_fn(self, arg):
-        restrict_timer = utils.time_parser(utils.extract_arg(self.message.text, 1))
+        restrict_timer = utils.time_parser(utils.extract_arg(self.msg_txt, 1))
         if restrict_timer is None:
             self.direct_fn()
             return
@@ -239,8 +239,8 @@ class Mute(PreVote):
         if 31535991 <= restrict_timer <= 31536000:
             restrict_timer = 31535990
 
-        if utils.extract_arg(self.message.text, 2) is not None:
-            self.ban_reason = self.message.text.split(maxsplit=2)[2]
+        if utils.extract_arg(self.msg_txt, 2) is not None:
+            self.ban_reason = self.msg_txt.split(maxsplit=2)[2]
         self.mute(restrict_timer, f"\nПредложенный срок ограничений: {utils.formatted_timer(restrict_timer)}")
 
     def mute(self, restrict_timer, ban_timer_text):
@@ -358,7 +358,7 @@ class Thresholds(PreVote):
         else:
             thr_value = 0
 
-        second_arg = utils.extract_arg(self.message.text, 2)
+        second_arg = utils.extract_arg(self.msg_txt, 2)
         if second_arg is None:
             self.main(thr_value)
         elif second_arg == "ban":
@@ -448,12 +448,12 @@ class Timer(PreVote):
         bot.reply_to(self.message, "Текущие пороги таймера:\n" + timer_text + timer_random_text)
 
     def arg_fn(self, arg):
-        if utils.extract_arg(self.message.text, 2) != "random":
+        if utils.extract_arg(self.msg_txt, 2) != "random":
             if utils.command_forbidden(self.message, text="Команду с данным аргументом невозможно "
                                                           "запустить не в основном чате."):
                 return
         timer_arg = utils.time_parser(arg)
-        second_arg = utils.extract_arg(self.message.text, 2)
+        second_arg = utils.extract_arg(self.msg_txt, 2)
         if second_arg is None or second_arg == "ban":
             self.main_and_ban(timer_arg, second_arg)
         elif second_arg == "random":
@@ -493,7 +493,7 @@ class Timer(PreVote):
     def random(self, timer_arg):
         self.unique_id = "timer for random cooldown"
         ban_text = "кулдауна команды /random"
-        if utils.extract_arg(self.message.text, 1) in ("off", "disable"):
+        if utils.extract_arg(self.msg_txt, 1) in ("off", "disable"):
             timer_arg = -1
         if timer_arg is None:
             bot.reply_to(self.message, "Неверный аргумент (должно быть число от 0 секунд до 1 часа).")
@@ -668,7 +668,7 @@ class Whitelist(PreVote):
         if data.binary_chat_mode != 0:
             bot.reply_to(self.message, "Вайтлист в данном режиме отключён (см. команду /private).")
             return True
-        if utils.extract_arg(self.message.text, 1) in ("add", "remove"):
+        if utils.extract_arg(self.msg_txt, 1) in ("add", "remove"):
             if utils.topic_reply_fix(self.message.reply_to_message) is not None:
                 self.reply_user_id, self.reply_username, self.reply_is_bot = \
                     utils.reply_msg_target(self.message.reply_to_message)
@@ -719,7 +719,7 @@ class Whitelist(PreVote):
         self.add_remove(f"добавление пользователя {self.reply_username} в вайтлист")
 
     def remove(self):
-        if utils.extract_arg(self.message.text, 2) is not None:
+        if utils.extract_arg(self.msg_txt, 2) is not None:
             self.index_remove()
             return
         is_whitelist = sqlWorker.whitelist(self.reply_user_id)
@@ -744,7 +744,7 @@ class Whitelist(PreVote):
             return
 
         try:
-            index = int(utils.extract_arg(self.message.text, 2)) - 1
+            index = int(utils.extract_arg(self.msg_txt, 2)) - 1
             if index < 0:
                 raise ValueError
         except ValueError:
@@ -779,7 +779,7 @@ class Whitelist(PreVote):
             return
         self.vote_text = (f"Тема голосования: {whitelist_text}.\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
-        self.vote_args = [self.reply_user_id, self.reply_username, utils.extract_arg(self.message.text, 1)]
+        self.vote_args = [self.reply_user_id, self.reply_username, utils.extract_arg(self.msg_txt, 1)]
         self.poll_maker()
 
 
@@ -1162,7 +1162,7 @@ class Rank(PreVote):
         if self.is_voting_exist():
             return
 
-        rank_text = self.message.text.split(maxsplit=1)[1]
+        rank_text = self.msg_txt.split(maxsplit=1)[1]
 
         if len(rank_text) > 16:
             bot.reply_to(self.message, "Звание не может быть длиннее 16 символов.")
@@ -1181,7 +1181,7 @@ class Rank(PreVote):
     def me(self):
         if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status == "administrator":
 
-            rank_text = self.message.text.split(maxsplit=1)[1]
+            rank_text = self.msg_txt.split(maxsplit=1)[1]
 
             if len(rank_text) > 16:
                 bot.reply_to(self.message, "Звание не может быть длиннее 16 символов.")
@@ -1315,11 +1315,11 @@ class Title(PreVote):
         bot.reply_to(self.message, "Название чата не может быть пустым.")
 
     def arg_fn(self, arg):
-        if len(self.message.text.split(maxsplit=1)[1]) > 255:
+        if len(self.msg_txt.split(maxsplit=1)[1]) > 255:
             bot.reply_to(self.message, "Название не должно быть длиннее 255 символов!")
             return
 
-        if bot.get_chat(data.main_chat_id).title == self.message.text.split(maxsplit=1)[1]:
+        if bot.get_chat(data.main_chat_id).title == self.msg_txt.split(maxsplit=1)[1]:
             bot.reply_to(self.message, "Название чата не может совпадать с существующим названием!")
             return
 
@@ -1328,8 +1328,8 @@ class Title(PreVote):
 
         self.vote_text = ("От пользователя " + utils.username_parser(self.message, True)
                           + " поступило предложение сменить название чата на \""
-                          + utils.html_fix(self.message.text.split(maxsplit=1)[1]) + "\".")
-        self.vote_args = [self.message.text.split(maxsplit=1)[1], utils.username_parser(self.message)]
+                          + utils.html_fix(self.msg_txt.split(maxsplit=1)[1]) + "\".")
+        self.vote_args = [self.msg_txt.split(maxsplit=1)[1], utils.username_parser(self.message)]
         self.poll_maker()
 
 
@@ -1344,7 +1344,7 @@ class Description(PreVote):
             return True
 
     def arg_fn(self, _):
-        description_text = self.message.text.split(maxsplit=1)[1]
+        description_text = self.msg_txt.split(maxsplit=1)[1]
         if len(description_text) > 255:
             bot.reply_to(self.message, "Описание не должно быть длиннее 255 символов!")
             return
@@ -1352,8 +1352,8 @@ class Description(PreVote):
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is not None:
-            if self.message.reply_to_message.text is not None:
-                description_text = self.message.reply_to_message.text
+            if self.message.reply_to_msg_txt is not None:
+                description_text = self.message.reply_to_msg_txt
                 if len(description_text) > 255:
                     bot.reply_to(self.message, "Описание не должно быть длиннее 255 символов!")
                     return
@@ -1619,12 +1619,12 @@ class AlliesList(PreVote):
         if utils.command_forbidden(self.message, True):
             return True
 
-        arg = utils.extract_arg(self.message.text, 1)
+        arg = utils.extract_arg(self.msg_txt, 1)
         if arg in ("add", "remove") and self.message.chat.id == data.main_chat_id:
             if arg == "add":
                 bot.reply_to(self.message, "Команду с таким аргументом нельзя запустить в основном чате!")
                 return True
-            elif arg == "remove" and utils.extract_arg(self.message.text, 2) is None:
+            elif arg == "remove" and utils.extract_arg(self.msg_txt, 2) is None:
                 bot.reply_to(self.message, "Команду с аргументом remove без указания "
                                            "индекса нельзя запустить в основном чате!")
                 return True
@@ -1654,7 +1654,7 @@ class AlliesList(PreVote):
         self.pre_vote("установка", invite_link, "создании")
 
     def remove(self):
-        if utils.extract_arg(self.message.text, 2) is not None and self.message.chat.id == data.main_chat_id:
+        if utils.extract_arg(self.msg_txt, 2) is not None and self.message.chat.id == data.main_chat_id:
             self.index_remove()
             return
         elif sqlWorker.get_ally(self.message.chat.id) is None:
@@ -1675,7 +1675,7 @@ class AlliesList(PreVote):
             return
 
         try:
-            index = int(utils.extract_arg(self.message.text, 2)) - 1
+            index = int(utils.extract_arg(self.msg_txt, 2)) - 1
             if index < 0:
                 raise ValueError
         except ValueError:
@@ -1795,7 +1795,7 @@ class Rules(PreVote):
             if bot.get_chat_member(data.main_chat_id, self.message.from_user.id).status in ("left", "kicked"):
                 bot.reply_to(self.message, "У вас нет прав использовать эту команду.")
                 return True
-            if utils.extract_arg(self.message.text, 1) is not None:
+            if utils.extract_arg(self.msg_txt, 1) is not None:
                 bot.reply_to(self.message, "Данную команду в ЛС можно запустить только без аргументов.")
                 return True
 
@@ -1843,11 +1843,11 @@ class Rules(PreVote):
             bot.reply_to(self.message, "Пожалуйста, используйте эту команду как ответ на текстовое сообщение.")
             return
 
-        if self.message.reply_to_message.text is None:
+        if self.message.reply_to_msg_txt is None:
             bot.reply_to(self.message, "В отвеченном сообщении не обнаружен текст!")
             return
         self.vote_type = "add rules"
-        self.pre_vote("добавление", self.message.reply_to_message.text)
+        self.pre_vote("добавление", self.message.reply_to_msg_txt)
 
     def remove(self):
         if data.fixed_rules:
@@ -1875,6 +1875,10 @@ class Votes(PreVote):
                  'Используйте аргумент "private" или "public" для переключения режимов на публичный и приватный '
                  'соответственно. (В публичном режиме любой участник может получить информацию о том, как голосуют '
                  'другие люди, в приватном данная информация скрыта и можно узнать только свой голос).\n'
+                 'Вы можете использовать ключ -pr (обязательно вторым словом) в отправляемой боту команде, чтобы '
+                 'инвертировать глобальные настройки приватности для любого создаваемого вами голосования. Например, '
+                 'команда <code>/title -pr Тестовый чат</code> создаст приватный опрос, если приватность голосований '
+                 'на уровне чата отключена, и, соответственно, наоборот.\n'
                  '<b>Текущий статус приватности голосований</b>: {}')
 
     def pre_return(self) -> Optional[bool]:
@@ -1882,7 +1886,7 @@ class Votes(PreVote):
             return True
 
     def help(self):
-        status = "приватные" if sqlWorker.params("vote_privacy", default_return="private") == "private" else "публичные"
+        status = "приватные" if data.vote_privacy else "публичные"
         bot.reply_to(self.message, self.help_text.format(status), parse_mode="html")
 
     def direct_fn(self):
@@ -1918,25 +1922,23 @@ class Votes(PreVote):
         return {"private": self.vote_privacy_enable, "public": self.vote_privacy_disable}
 
     def vote_privacy_enable(self):
-        current_vote_privacy = sqlWorker.params("vote_privacy", default_return="private")
-        if utils.extract_arg(self.message.text, 1) == current_vote_privacy:
+        if data.vote_privacy:
             bot.reply_to(self.message, "Голосования уже являются приватными!")
             return
-        self.vote_privacy("private")
+        self.vote_privacy(True)
 
     def vote_privacy_disable(self):
-        current_vote_privacy = sqlWorker.params("vote_privacy", default_return="private")
-        if utils.extract_arg(self.message.text, 1) == current_vote_privacy:
+        if not data.vote_privacy:
             bot.reply_to(self.message, "Голосования уже являются публичными!")
             return
-        self.vote_privacy("public")
+        self.vote_privacy(False)
 
     def vote_privacy(self, vote_privacy_mode):
         if self.is_voting_exist():
             return
         self.vote_type = "vote_privacy"
         self.unique_id = self.vote_type
-        vote_privacy_text = "отключение" if vote_privacy_mode == "public" else "включение"
+        vote_privacy_text = "включение" if vote_privacy_mode else "отключение"
         self.vote_text = (f"Тема голосования: {vote_privacy_text} приватности голосований.\n"
                           f"<b>Данная настройка влияет только на новые опросы!</b>\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
@@ -1983,7 +1985,7 @@ class Shield(PreVote):
             bot.reply_to(self.message, "Защита уже включена! До отключения осталось "
                                        f"{utils.formatted_timer(shield_timer - int(time.time()))}")
             return
-        timer = utils.time_parser(utils.extract_arg(self.message.text, 2))
+        timer = utils.time_parser(utils.extract_arg(self.msg_txt, 2))
         if timer is None:
             timer = 43200
         if not 3600 <= timer <= 86400:
@@ -1994,7 +1996,7 @@ class Shield(PreVote):
                                    "Теперь добавление новых участников временно невозможно!")
 
     def enable(self):
-        timer = utils.time_parser(utils.extract_arg(self.message.text, 2))
+        timer = utils.time_parser(utils.extract_arg(self.msg_txt, 2))
         if timer is None:
             timer = 43200
         if not 3600 <= timer <= 2592000:
@@ -2053,12 +2055,12 @@ class CustomPoll(PreVote):
         self.options_list = []
         poll_timer = utils.time_parser(arg)
         if poll_timer is None:
-            poll_text = self.message.text.split(maxsplit=1)[1]
+            poll_text = self.msg_txt.split(maxsplit=1)[1]
         else:
-            if utils.extract_arg(self.message.text, 2) is None:
+            if utils.extract_arg(self.msg_txt, 2) is None:
                 poll_text = arg
             else:
-                poll_text = self.message.text.split(maxsplit=2)[2]
+                poll_text = self.msg_txt.split(maxsplit=2)[2]
                 self.current_timer = poll_timer
         if not 300 <= self.current_timer <= 86400:
             bot.reply_to(self.message, "Время опроса не может быть меньше 5 минут и больше 1 суток.")
@@ -2115,7 +2117,7 @@ class CustomPoll(PreVote):
         else:
             button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in self.options_list]
             button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
-        if sqlWorker.params("vote_privacy", default_return="private") == "private":
+        if self.privacy:
             button_scheme.append({"button_type": "my_vote",
                                   "name": "Узнать мой голос"})
         else:
