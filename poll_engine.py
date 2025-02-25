@@ -112,9 +112,9 @@ class PreVote:
         if utils.extract_arg(self.msg_txt, 1) == "help":
             self.help()
             return
-        elif utils.extract_arg(self.msg_txt, 1) == "-pr":
-            self.privacy = not self.privacy
-            self.msg_txt = self.msg_txt.replace(" -pr", "", 1)
+        elif utils.extract_arg(self.msg_txt, 1) in ("--private", "--public"):
+            self.privacy = True if utils.extract_arg(self.msg_txt, 1) == "--private" else False
+            self.msg_txt = self.msg_txt.replace(f"{ utils.extract_arg(self.msg_txt, 1)}", "", 1)
         self.current_timer, self.current_votes = self.timer_votes_init()
         if self.pre_return():
             return
