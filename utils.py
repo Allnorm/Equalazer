@@ -56,7 +56,7 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.12"  # Current bot version
+    VERSION = "2.12.1"  # Current bot version
     CODENAME = "Primrose"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "05.03.2025"  # Bot build date
@@ -429,7 +429,7 @@ class Helper:
             if command['mark']:
                 command_text.append(html_fix(f"({command['mark']})"))
             commands_list.append(f"{' '.join(command_text)} - {' '.join(command['short_desc'])}")
-        output += f"{'\n'.join(commands_list)}</blockquote>\n"
+        output += "{}</blockquote>\n".format('\n'.join(commands_list))
         return output, types.InlineKeyboardMarkup([[types.InlineKeyboardButton(text="На главную",
                                                                                callback_data=f"help!_main")]])
 
