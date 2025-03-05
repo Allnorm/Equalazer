@@ -1,0 +1,328 @@
+{
+  "category": [
+    {
+      "name": "Команды для модерации",
+      "commands": [
+        {
+          "name": "ban",
+          "mark": null,
+          "aliases": null,
+          "args": ["31..365d"],
+          "short_desc": ["голосование за бан пользователя (по умолчанию бессрочно)."]
+        },
+        {
+          "name": "kick",
+          "mark": null,
+          "aliases": null,
+          "args": ["31..365d"],
+          "short_desc": ["голосование за бан пользователя (по умолчанию на 1 час)."]
+        },
+        {
+          "name": "kill",
+          "mark": "Обоюдоострый Меч",
+          "aliases": null,
+          "args": ["31..12h"],
+          "short_desc": ["взаимный мут двух <s>баранов</s> пользователей, последний аргумент уровня ядерной войны. По ",
+            "умолчанию срок - 1 час. Снимает права админа автоматически, после снятия самостоятельно не возвращает."]
+        },
+        {
+          "name": "mute",
+          "mark": null,
+          "aliases": null,
+          "args": ["31..365d"],
+          "short_desc": ["голосование за мут участника (по умолчанию бессрочно)."]
+        },
+        {
+          "name": "unmute",
+          "mark": null,
+          "aliases": ["unban"],
+          "args": null,
+          "short_desc": ["голосование за разбан/размут участника."]
+        },
+        {
+          "name": "whitelist",
+          "mark": null,
+          "aliases": null,
+          "args": ["add", "remove"],
+          "short_desc": ["посмотреть вайтлист чата, добавить или удалить пользователя из списка."]
+        },
+        {
+          "name": "cremate",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["удалить удалённый аккаунт из группы."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для настройки таймингов",
+      "commands": [
+        {
+          "name": "threshold",
+          "mark": null,
+          "aliases": null,
+          "args": ["2..кол-во участников или auto", "ban|min"],
+          "short_desc": ["изменить минимальный или досрочный порог голосов."]
+        },
+        {
+          "name": "timer",
+          "mark": null,
+          "aliases": null,
+          "args": ["5..1d", "ban"],
+          "short_desc": ["изменить время таймера, по достижению которого решение принимается автоматически"]
+        }
+      ]
+    },
+    {
+      "name": "Команды для удаления сообщений",
+      "commands": [
+        {
+          "name": "delete",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["голосование за удаление сообщения (сообщения других ботов удалить невозможно)"]
+        },
+        {
+          "name": "clear",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["голосование за бесследное удаление сообщения."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для работы с правами администратора",
+      "commands": [
+        {
+          "name": "op",
+          "mark": null,
+          "aliases": null,
+          "args": ["help|global"],
+          "short_desc": ["дать права администратора себе или реплейнутому участнику по голосованию, ",
+            "изменить глобальные параметры администраторов для чата."]
+        },
+        {
+          "name": "rank",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["изменить звание себе или реплейнутому боту."]
+        },
+        {
+          "name": "deop",
+          "mark": null,
+          "aliases": null,
+          "args": ["me"],
+          "short_desc": ["снять права администратора с себя или по голосованию с участника."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для работы с инвайтами",
+      "commands": [
+        {
+          "name": "invite",
+          "mark": null,
+          "aliases": null,
+          "args": ["сообщение"],
+          "short_desc": ["заявка на вступление нового пользователя."]
+        },
+        {
+          "name": "pardon",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["сбросить абуз-лимит инвайта/союзников для данного пользователя/чата (только в режиме отладки) ",
+            "или сбросить абуз-лимит реплейнутому участнику (только администраторы чата)."]
+        },
+        {
+          "name": "answer",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["ответить пользователю, отправившему заявку на инвайт."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для работы с союзными чатами",
+      "commands": [
+        {
+          "name": "allies",
+          "mark": null,
+          "aliases": null,
+          "args": ["add|remove (номер союзного чата в списке)"],
+          "short_desc": ["посмотреть союзные чаты, добавить и удалить новый союзный чат."]
+        },
+        {
+          "name": "revoke",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["сброс ссылки, используемой для союзных чатов."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для настройки защиты чата",
+      "commands": [
+        {
+          "name": "private",
+          "mark": null,
+          "aliases": null,
+          "args": ["1..3"],
+          "short_desc": ["посмотреть и изменить текущий режим приватности чата."]
+        },
+        {
+          "name": "shield",
+          "mark": null,
+          "aliases": null,
+          "args": ["enable|disable|force", "таймер"],
+          "short_desc": ["включить и отключить режим защиты чата, посмотреть его статус."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для изменения оформления чата",
+      "commands": [
+        {
+          "name": "title",
+          "mark": null,
+          "aliases": null,
+          "args": ["название"],
+          "short_desc": ["смена названия чата."]
+        },
+        {
+          "name": "chatpic",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["смена аватарки чата (ответом по сообщению)."]
+        },
+        {
+          "name": "description",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["смена описания чата (ответом по сообщению)."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для работы с голосованиями и рассылками",
+      "commands": [
+        {
+          "name": "votes",
+          "mark": null,
+          "aliases": null,
+          "args": ["private|public"],
+          "short_desc": ["посмотреть активные голосования, отключить и включить приватность голосований."]
+        },
+        {
+          "name": "poll",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["создать опрос в стиле ДейтерБота."]
+        },
+        {
+          "name": "description",
+          "mark": null,
+          "aliases": null,
+          "args": ["status"],
+          "short_desc": ["включить или отключить рассылку в личных сообщениях о новых голосованиях в чате, ",
+            "посмотреть статус подписки."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для получения информации о запущенном экземпляре бота",
+      "commands": [
+        {
+          "name": "version",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["посмотреть версию бота."]
+        },
+        {
+          "name": "plugins",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["посмотреть список загруженных плагинов."]
+        },
+        {
+          "name": "help",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["помощь по командам бота."]
+        }
+      ]
+    },
+    {
+      "name": "Команды для получения информации об участниках",
+      "commands": [
+        {
+          "name": "rate",
+          "mark": null,
+          "aliases": null,
+          "args": ["top|up|down"],
+          "short_desc": ["посмотреть свой рейтинг, рейтинг всех участников, ",
+            "поднять и опустить рейтинг кому-либо голосованием."]
+        },
+        {
+          "name": "status",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["посмотреть статус пользователя и его наличие в вайтлисте."]
+        }
+      ]
+    },
+    {
+      "name": "Прочие команды",
+      "commands": [
+        {
+          "name": "getchat",
+          "mark": "только в режиме пре-инициализации",
+          "aliases": null,
+          "args": null,
+          "short_desc": ["получить ID чата."]
+        },
+        {
+          "name": "random",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["скинуть рандомное сообщение из истории чата."]
+        },
+        {
+          "name": "rules",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["посмотреть правила чата."]
+        },
+        {
+          "name": "remtopic",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["удалить текущий топик (для чатов-форумов)."]
+        },
+        {
+          "name": "calc",
+          "mark": null,
+          "aliases": null,
+          "args": null,
+          "short_desc": ["простой калькулятор внутри чата."]
+        }
+      ]
+    }
+  ]
+}
