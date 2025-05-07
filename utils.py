@@ -56,10 +56,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.12.1"  # Current bot version
+    VERSION = "2.12.2"  # Current bot version
     CODENAME = "Primrose"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "05.03.2025"  # Bot build date
+    BUILD_DATE = "07.05.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -515,7 +515,7 @@ def extract_arg(text, num):
     try:
         return text.split()[num]
     except (IndexError, AttributeError):
-        pass
+        return None
 
 
 def html_fix(text):
@@ -776,9 +776,9 @@ def write_init_chat(message):
 
 def topic_reply_fix(message):  # Опять эти конченые из тг мне насрали
     if not message:
-        return
+        return None
     if message.content_type == "forum_topic_created":
-        return
+        return None
     return message
 
 
@@ -793,6 +793,7 @@ def command_forbidden(message, private_dialog=False, text=None):
         text = text or "Данную команду можно запустить только в основном чате."
         bot.reply_to(message, text)
         return True
+    return None
 
 
 def get_hash(user_id, chat_instance, button_data) -> str:
@@ -813,6 +814,7 @@ def button_anonymous_checker(user_id, chat_id):
         return False
     except telebot.apihelper.ApiTelegramException as e:
         logging.error(f"Error checking user with ID {user_id} for being an anonymous administrator.\n{e}")
+        return None
 
 
 def make_mailing(vote_type, message_vote_id, current_timer):

@@ -257,8 +257,10 @@ class SqlWorker:
             if add:
                 sql_wrapper.cursor.execute("""INSERT INTO captcha VALUES (?, ?, ?, ?)""",
                                            (message_id, user_id, max_value, username))
+                return None
             elif remove:
                 sql_wrapper.cursor.execute("""DELETE FROM captcha WHERE message_id = ?""", (message_id,))
+                return None
             elif user_id:
                 sql_wrapper.cursor.execute("""SELECT * FROM captcha WHERE user_id = ?""", (user_id,))
                 return sql_wrapper.cursor.fetchall()

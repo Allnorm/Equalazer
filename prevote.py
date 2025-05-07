@@ -23,6 +23,7 @@ class Invite(PreVote):
             bot.reply_to(self.message, "Вы уже есть в нужном вам чате.")
             return True
         self.user_id = data.bot_id
+        return None
 
     def arg_fn(self, _):
         self.direct_fn()
@@ -122,6 +123,7 @@ class Ban(PreVote):
         if data.bot_id == self.reply_user_id:
             bot.reply_to(self.message, data.EASTER_LINK, disable_web_page_preview=True)
             return True
+        return None
 
     def arg_fn(self, arg):
         restrict_timer = utils.time_parser(utils.extract_arg(self.msg_txt, 1))
@@ -221,6 +223,7 @@ class Mute(PreVote):
         if data.bot_id == self.reply_user_id:
             bot.reply_to(self.message, data.EASTER_LINK, disable_web_page_preview=True)
             return True
+        return None
 
     def direct_fn(self):
         if utils.extract_arg(self.msg_txt, 1) is not None:
@@ -298,6 +301,7 @@ class Unban(PreVote):
                 sum(sqlWorker.abuse_check(self.reply_user_id)) == 0:
             bot.reply_to(self.message, "Данный пользователь не ограничен.")
             return True
+        return None
 
     def direct_fn(self):
         self.unique_id = str(self.reply_user_id) + "_unban"
@@ -317,6 +321,7 @@ class Thresholds(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         auto_thresholds_mode = "" if not data.is_thresholds_auto() else " (автоматический режим)"
@@ -425,6 +430,7 @@ class Timer(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message, private_dialog=True):
             return True
+        return None
 
     def help(self):
         if self.message.chat.id != data.main_chat_id:
@@ -548,6 +554,7 @@ class Rating(PreVote):
     def pre_return(self) -> Optional[bool]:
         if not data.rate or utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
@@ -674,6 +681,7 @@ class Whitelist(PreVote):
                     utils.reply_msg_target(self.message.reply_to_message)
             else:
                 self.reply_user_id, self.reply_username, self.reply_is_bot = utils.reply_msg_target(self.message)
+        return None
 
     def direct_fn(self):
         user_whitelist = sqlWorker.whitelist_get_all()
@@ -810,6 +818,7 @@ class MessageRemover(PreVote):
         if all([data.bot_id != self.reply_user_id, self.reply_is_bot, self.reply_user_id != data.ANONYMOUS_ID]):
             bot.reply_to(self.message, f"Боты в Telegram не могут удалять сообщения других ботов!")
             return True
+        return None
 
     def direct_fn(self):
         self.unique_id = str(self.message.reply_to_message.message_id) + "_delmsg"
@@ -850,6 +859,7 @@ class PrivateMode(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         self.help()
@@ -915,6 +925,7 @@ class OpSetup(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def help(self):
         if self.help_access_check():
@@ -1107,6 +1118,7 @@ class RemoveTopic(PreVote):
             bot.reply_to(self.message, "Пожалуйста, не используйте реплей при использовании этой команды. "
                                        "Из-за особенностей Telegram API она обрабатывается некорректно.")
             return True
+        return None
 
     def direct_fn(self):
         self.unique_id = str(self.message.message_thread_id) + "_rem_topic"
@@ -1126,6 +1138,7 @@ class Rank(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         bot.reply_to(self.message, "Звание не может быть пустым.")
@@ -1212,6 +1225,7 @@ class Deop(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
@@ -1310,6 +1324,7 @@ class Title(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def direct_fn(self):
         bot.reply_to(self.message, "Название чата не может быть пустым.")
@@ -1342,6 +1357,7 @@ class Description(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def arg_fn(self, _):
         description_text = self.msg_txt.split(maxsplit=1)[1]
@@ -1389,6 +1405,7 @@ class Avatar(PreVote):
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
             bot.reply_to(self.message, "Пожалуйста, используйте эту команду как ответ на фотографию, файл jpg или png.")
             return True
+        return None
 
     def direct_fn(self):
         if self.is_voting_exist():
@@ -1501,17 +1518,17 @@ class NewUserChecker(PreVote):
         try:
             bot.restrict_chat_member(data.main_chat_id, self.reply_user_id, can_send_messages=False,
                                      can_change_info=False, can_invite_users=False, can_pin_messages=False,
-                                     until_date=int(time.time()) + 60)
+                                     until_date=int(time.time()) + 900)
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(f'Error blocking a new bot!\n{e}')
             bot.reply_to(self.message, "Ошибка блокировки нового бота. Недостаточно прав?")
             return
 
-        until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 60
+        until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 300
         self.vote_text = ("Требуется подтверждение вступления нового бота, добавленного пользователем " +
                           utils.username_parser(self.message, True) +
                           f", в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
-        self.poll_maker(current_timer=60, vote_args=[self.reply_username, self.reply_user_id, "бота", until_time])
+        self.poll_maker(current_timer=900, vote_args=[self.reply_username, self.reply_user_id, "бота", until_time])
 
     def allies_whitelist_add(self):
         allies = sqlWorker.get_allies()
@@ -1527,6 +1544,7 @@ class NewUserChecker(PreVote):
                         return True
                 except telebot.apihelper.ApiTelegramException:
                     sqlWorker.remove_ally(i[0])
+        return None
 
     def whitelist_mode(self):
         until_date = int(time.time()) + 86400
@@ -1630,6 +1648,7 @@ class AlliesList(PreVote):
                 return True
         else:
             self.user_id = data.bot_id
+        return None
 
     def set_args(self) -> dict:
         return {"add": self.add, "remove": self.remove}
@@ -1798,6 +1817,7 @@ class Rules(PreVote):
             if utils.extract_arg(self.msg_txt, 1) is not None:
                 bot.reply_to(self.message, "Данную команду в ЛС можно запустить только без аргументов.")
                 return True
+        return None
 
     def direct_fn(self):
         if data.fixed_rules:
@@ -1884,6 +1904,7 @@ class Votes(PreVote):
     def pre_return(self) -> Optional[bool]:
         if not utils.botname_checker(self.message) or utils.command_forbidden(self.message, private_dialog=True):
             return True
+        return None
 
     def help(self):
         status = "приватные" if data.vote_privacy else "публичные"
@@ -1960,6 +1981,7 @@ class Shield(PreVote):
     def pre_return(self) -> Optional[bool]:
         if utils.command_forbidden(self.message):
             return True
+        return None
 
     def help(self):
         shield_timer = sqlWorker.params("shield", default_return=0)
@@ -2035,6 +2057,7 @@ class CustomPoll(PreVote):
         if utils.command_forbidden(self.message, True):
             return True
         self.options_list = []
+        return None
 
     @staticmethod
     def timer_votes_init():

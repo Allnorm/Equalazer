@@ -81,6 +81,7 @@ class PoolEngine:
             else:
                 self.vote_abuse.pop(str(call_msg.message.id) + "." + str(call_msg.from_user.id), None)
                 return False
+        return None
 
 
 pool_engine = PoolEngine()
