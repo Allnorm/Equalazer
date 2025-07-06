@@ -939,6 +939,21 @@ def vote_button(call_msg):
                                   text="Вы не являетесь участником данного чата!", show_alert=True)
         return
 
+    message_id = sqlWorker.get_message_id(f"{call_msg.from_user.id}_new_usr")
+    if message_id:
+        poll = sqlWorker.get_poll(message_id)
+        if poll[0][5] <= int(time.time()):
+            sqlWorker.rem_rec(poll[0][0])
+        else:
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text="Вы ещё не прошли капчу и не можете голосовать!", show_alert=True)
+            return
+
+    if sqlWorker.captcha(call_msg.message.message_id, user_id=call_msg.from_user.id):
+        bot.answer_callback_query(callback_query_id=call_msg.id,
+                                  text="Вы ещё не прошли капчу и не можете голосовать!", show_alert=True)
+        return
+
     poll = call_msg_chk(call_msg)
     if not poll:
         bot.answer_callback_query(callback_query_id=call_msg.id,

@@ -1575,7 +1575,7 @@ class NewUserChecker(PreVote):
         until_time = self.abuse_time[1] * 2 if self.abuse_time[1] != 0 else 300
         self.vote_text = (f"Требуется подтверждение вступления нового пользователя {self.reply_username}, "
                           f"в противном случае он будет кикнут на {utils.formatted_timer(until_time)}")
-        self.poll_maker(current_timer=60,
+        self.poll_maker(current_timer=900,
                         vote_args=[self.reply_username, self.reply_user_id, "пользователя", until_time])
 
     def captcha_mode(self):

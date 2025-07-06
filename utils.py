@@ -56,10 +56,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.12.2"  # Current bot version
+    VERSION = "2.12.3"  # Current bot version
     CODENAME = "Primrose"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "07.05.2025"  # Bot build date
+    BUILD_DATE = "06.07.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
