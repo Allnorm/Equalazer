@@ -19,8 +19,7 @@ import telebot
 
 
 class ConfigData:
-    __ADMIN_RECOMMENDED = {"can_manage_chat": True,
-                           "can_change_info": False,
+    __ADMIN_RECOMMENDED = {"can_change_info": False,
                            # "can_post_messages": None,
                            # "can_edit_messages": None,
                            "can_delete_messages": False,
@@ -36,8 +35,7 @@ class ConfigData:
                            "can_edit_stories": False,
                            "can_delete_stories": False}
 
-    __ADMIN_RUS = {"can_manage_chat": "Управление группой",
-                   "can_change_info": "Изменения профиля группы",
+    __ADMIN_RUS = {"can_change_info": "Изменения профиля группы",
                    # "can_post_messages": None,
                    # "can_edit_messages": None,
                    "can_delete_messages": "Удаление сообщений",
@@ -56,10 +54,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.12.3"  # Current bot version
+    VERSION = "2.13"  # Current bot version
     CODENAME = "Primrose"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "06.07.2025"  # Bot build date
+    BUILD_DATE = "11.07.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -211,9 +209,15 @@ class ConfigData:
             else:
                 self.vote_privacy = True
             sqlWorker.params("vote_privacy", self.vote_privacy)
-        # End of backwards compatible code
+
         if not self.admin_fixed:
-            self.admin_allowed = sqlWorker.params("allowed_admins")
+            admin_allowed = sqlWorker.params("allowed_admins")
+            if not isinstance(admin_allowed, dict):
+                sqlWorker.params("allowed_admins", rewrite_value=self.__ADMIN_RECOMMENDED)
+            else:
+                admin_allowed.pop("can_manage_chat", None)
+                self.admin_allowed = admin_allowed
+        # End of backwards compatible code
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sqlWorker.params("public_mode")
 

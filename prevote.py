@@ -967,8 +967,9 @@ class OpSetup(PreVote):
 
         self.unique_id = "global op setup"
         self.vote_type = self.unique_id
-        if self.is_voting_exist():
-            return
+        for unique_id in (self.unique_id, "global op"):
+            if self.is_voting_exist_op(unique_id):
+                return
 
         self.vote_text = f"Выберите разрешённые права для администраторов чата на глобальном уровне:"
         self.vote_args = [utils.username_parser(self.message, True), self.user_id]
@@ -1004,8 +1005,9 @@ class OpSetup(PreVote):
             return
 
         self.unique_id = f"{self.reply_user_id}_op_setup"
-        if self.is_voting_exist():
-            return
+        for unique_id in (f"{self.reply_user_id}_op_setup", f"{self.reply_user_id}_op"):
+            if self.is_voting_exist_op(unique_id):
+                return
 
         self.vote_text = f"Выберите разрешённые права для администратора {utils.html_fix(self.reply_username)}:"
         self.vote_args = [utils.username_parser(self.message, True), self.user_id,
@@ -1029,6 +1031,18 @@ class OpSetup(PreVote):
         button_scheme.append({"button_type": "op!_close", "name": "Закрыть чек-лист", "user_id": self.user_id})
         return button_scheme
 
+    def is_voting_exist_op(self, unique_id):
+        message_id = sqlWorker.get_message_id(unique_id)
+        if message_id:
+            poll = sqlWorker.get_poll(message_id)
+            if poll[0][5] <= int(time.time()):
+                sqlWorker.rem_rec(poll[0][0])
+                return False
+            else:
+                bot.reply_to(self.message, "Голосование о данном вопросе уже идёт.")
+                return True
+        return False
+
 
 class Op(PreVote):
     vote_type = "op"
@@ -1042,6 +1056,8 @@ class Op(PreVote):
             if "op!" in button["button_type"] and button["button_type"] not in ("op!_confirmed", "op!_close"):
                 self.rights_text += f'\n{button["name"]}'
                 self.rights_data.update({button["button_type"].split('_', maxsplit=1)[1]: button["value"]})
+        if self.vote_type == 'op':
+            self.rights_data.update({"can_manage_chat": True})
         self.data_list = json.loads(poll[0][6])
         self.user_id = self.data_list[1]
         buttons_scheme = self.get_buttons_scheme()
@@ -1076,7 +1092,7 @@ class Op(PreVote):
         return [self.data_list[3], self.data_list[2], self.rights_data]
 
     def unique_id(self):
-        return f"{self.reply_user_id}_op"
+        return f"{self.data_list[3]}_op"
 
 
 class OpGlobal(Op):
@@ -2132,7 +2148,7 @@ class CustomPoll(PreVote):
 
     # noinspection PyTypeChecker
     # Совсем этот пучарм обурел
-    # С++ хотя бы не пытается делать вид что он умнее прогера на нём
+    # С++ хотя бы не пытается делать вид, что он умнее прогера на нём
     # (Поскольку для кодинга на C++ нужны яйца, а у меня их нет)
     def get_buttons_scheme(self):
         if not self.options_list:
