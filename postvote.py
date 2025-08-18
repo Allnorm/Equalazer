@@ -8,7 +8,7 @@ import telebot
 
 import utils
 from utils import data, bot, sqlWorker
-from poll_engine import PostVote, PoolEngine
+from poll_engine import PostVote, PoolEngine, SilentException, InternalBotException
 
 
 class UserAdd(PostVote):
@@ -329,10 +329,10 @@ class Op(PostVote):
     def accept(self):
         status = bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).status
         if status not in ("member", "administrator"):
-            bot.edit_message_text("Пользователь " + self.data_list[1]
-                                  + " имеет статус, не позволяющий назначить его администратором."
+            bot.edit_message_text(f"Пользователь {self.data_list[1]} имеет статус, "
+                                  f"не позволяющий назначить его администратором."
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
-            return
+            raise InternalBotException(f'User {self.data_list[1]} is not a member or administrator.')
         try:
             bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0], **self.data_list[2])
             if not bot.get_chat_member(self.message_vote.chat.id, self.data_list[0]).user.is_bot:
@@ -412,10 +412,7 @@ class Deop(PostVote):
                                   + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
             return
         try:
-            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
-                                     None, can_send_messages=True)
-            bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[0],
-                                     None, True, True, True, True, True, True, True, True)
+            bot.promote_chat_member(self.message_vote.chat.id, self.data_list[0], can_manage_chat=False)
         except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text("Ошибка снятия администратора " + self.data_list[1] + self.votes_counter,
                                   self.message_vote.chat.id, self.message_vote.message_id)
@@ -683,7 +680,7 @@ class Topic(PostVote):
                              + self.votes_counter, message_thread_id=data.thread_id)
         except telebot.apihelper.ApiTelegramException:
             pass
-        raise self.SilentException
+        raise SilentException
 
     def decline(self):
         bot.edit_message_text(f"Вопрос удаления топика отклонён." + self.votes_counter,

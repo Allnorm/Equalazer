@@ -54,10 +54,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.13"  # Current bot version
+    VERSION = "2.13.1"  # Current bot version
     CODENAME = "Primrose"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "11.07.2025"  # Bot build date
+    BUILD_DATE = "18.08.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -611,8 +611,6 @@ def reply_msg_target(message):
 
 
 def time_parser(instr: str):
-    if not isinstance(instr, str):
-        return None
     tf = {
         "s": lambda x: x,
         "m": lambda x: tf['s'](x) * 60,
@@ -648,7 +646,6 @@ def formatted_timer(timer_in_second):
         days = timer_in_second // 86400
         timer_in_second = timer_in_second - days * 86400
         return str(days) + " дн., " + time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
-    # return datetime.datetime.fromtimestamp(timer_in_second).strftime("%d.%m.%Y в %H:%M:%S")
 
 
 def make_keyboard(buttons_scheme):

@@ -1320,10 +1320,7 @@ class Deop(PreVote):
             bot.reply_to(self.message, "Вы не являетесь администратором!")
             return
         try:
-            bot.restrict_chat_member(data.main_chat_id, self.message.from_user.id,
-                                     None, can_send_messages=True)
-            bot.restrict_chat_member(data.main_chat_id, self.message.from_user.id,
-                                     None, True, True, True, True, True, True, True, True)
+            bot.promote_chat_member(data.main_chat_id, self.message.from_user.id, can_manage_chat=False)
             bot.reply_to(self.message, "Пользователь " + utils.username_parser(self.message) +
                          " добровольно ушёл в отставку.\nСпасибо за верную службу!")
             return

@@ -13,6 +13,14 @@ import utils
 from utils import sqlWorker, data, bot
 
 
+class InternalBotException(Exception):
+    pass
+
+
+class SilentException(Exception):
+    pass
+
+
 class PoolEngine:
     vote_abuse = {}
     post_vote_list = {}
@@ -238,8 +246,6 @@ class PreVote:
 
 
 class PostVote:
-    class SilentException(Exception):
-        pass
 
     accept_text = ""
     decline_text = ""
@@ -292,7 +298,7 @@ class PostVote:
             else:
                 self.decline()
             self.final_hook(False)
-        except telebot.apihelper.ApiTelegramException as e:
+        except (telebot.apihelper.ApiTelegramException, InternalBotException) as e:
             logging.error(f'Error in poll {records[0][0]} with type "{records[0][2]}", '
                           f'chat ID {records[0][3]} and message ID {records[0][1]}\n{e}')
             self.final_hook(True)
