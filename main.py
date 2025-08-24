@@ -141,6 +141,11 @@ def custom_poll(message):
     prevote.Votes(message)
 
 
+@bot.message_handler(commands=['marmalade'])
+def custom_poll(message):
+    prevote.Marmalade(message)
+
+
 @bot.message_handler(commands=['answer'])
 def add_answer(message):
     if not utils.bot_name_checker(message) or utils.command_forbidden(message):
@@ -712,6 +717,7 @@ def captcha_buttons(call_msg):
 
     sqlWorker.captcha(call_msg.message.message_id, remove=True)
     sqlWorker.abuse_update(data_list[0][1], timer=3600, force=True)
+    sqlWorker.marmalade_remove(data_list[0][1])
     try:
         bot.restrict_chat_member(call_msg.message.chat.id, data_list[0][1],
                                  None, True, True, True, True, True, True, True, True)

@@ -62,18 +62,14 @@ class SqlWorker:
                                     user_id TEXT,
                                     max_value INTEGER,
                                     username TEXT);""")
+        cursor.execute("""CREATE TABLE if not exists marmalade (
+                                    user_id INTEGER PRIMARY KEY,
+                                    entry_time INTEGER);""")
         cursor.execute("""DELETE FROM captcha""")
         cursor.execute("""SELECT * FROM params""")
         records = cursor.fetchall()
         if not records:
             cursor.execute("""INSERT INTO params VALUES (?)""", (json.dumps(recommended),))
-        # Start of backwards compatible code
-        try:
-            cursor.execute("ALTER TABLE current_polls ADD COLUMN hidden INTEGER")
-        except sqlite3.OperationalError as e:
-            if 'duplicate column name' in str(e):
-                pass
-        # End of backwards compatible code
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
@@ -275,3 +271,28 @@ class SqlWorker:
             else:
                 sql_wrapper.cursor.execute("""SELECT * FROM captcha WHERE message_id = ?""", (message_id,))
                 return sql_wrapper.cursor.fetchall()
+
+    def marmalade_add(self, user_id, entry_time):
+        with SQLWrapper(self.dbname) as sql_wrapper:
+            sql_wrapper.cursor.execute("""SELECT * FROM marmalade WHERE user_id = ?""", (user_id,))
+            record = sql_wrapper.cursor.fetchall()
+            if not record:
+                sql_wrapper.cursor.execute("""INSERT INTO marmalade VALUES (?, ?)""",
+                                           (user_id, entry_time))
+            else:
+                sql_wrapper.cursor.execute("""UPDATE marmalade SET entry_time = ? WHERE user_id = ?""",
+                                           (entry_time, user_id))
+            return None
+
+    def marmalade_get(self, user_id):
+        with SQLWrapper(self.dbname) as sql_wrapper:
+            sql_wrapper.cursor.execute("""SELECT * FROM marmalade WHERE user_id = ?""", (user_id,))
+            record = sql_wrapper.cursor.fetchall()
+            if record:
+                return record[0][1]
+            return None
+
+    def marmalade_remove(self, user_id):
+        with SQLWrapper(self.dbname) as sql_wrapper:
+            sql_wrapper.cursor.execute("""DELETE FROM marmalade WHERE user_id = ?""", (user_id,))
+            return None

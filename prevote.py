@@ -1460,13 +1460,14 @@ class NewUserChecker(PreVote):
         if data.main_chat_id == -1:  # Проверка на init mode
             return True
 
-        if data.main_chat_id != self.message.chat.id:  # В чужих чатах не следим
-            return True
-
         self.reply_username = utils.username_parser_invite(self.message)
         self.reply_user_id = self.message.json.get("new_chat_participant").get("id")
         self.reply_is_bot = self.message.json.get("new_chat_participant").get("is_bot")
         self.user_id = data.bot_id
+
+        if data.main_chat_id != self.message.chat.id:  # В чужих чатах не следим
+            self.marmalade_ally() # Но союзный чат - не чужой чат)))
+            return True
 
         if bot.get_chat_member(data.main_chat_id, self.reply_user_id).status == "creator":
             bot.reply_to(self.message, "Приветствую вас, Владыка.")
@@ -1513,6 +1514,21 @@ class NewUserChecker(PreVote):
             self.captcha_mode()
         return True  # direct_fn() не выполняется
 
+    def marmalade_ally(self):
+        if not sqlWorker.params("marmalade", default_return=True):
+            return
+        allies = sqlWorker.get_allies()
+        is_ally = False
+        for ally_id in allies:
+            if ally_id[0] == self.message.chat.id:
+                is_ally = True
+        if not is_ally or bot.get_chat_member(data.main_chat_id, self.reply_user_id).status not in ('left', 'kicked'):
+            return
+        entry_time = sqlWorker.marmalade_get(self.reply_user_id)
+        if not entry_time or entry_time + data.marmalade_reset_timer < int(time.time()):
+            if data.binary_chat_mode != 0 or not sqlWorker.whitelist(self.message.from_user.id):
+                sqlWorker.marmalade_add(self.reply_user_id, int(time.time()))
+
     def is_voting_exist(self):
         message_id = sqlWorker.get_message_id(self.unique_id)
         if message_id:
@@ -1546,19 +1562,30 @@ class NewUserChecker(PreVote):
 
     def allies_whitelist_add(self):
         allies = sqlWorker.get_allies()
-        if allies is not None:
-            for i in allies:
-                try:
-                    usr_status = bot.get_chat_member(i[0], self.reply_user_id).status
-                    if usr_status not in ["left", "kicked"]:
-                        if data.binary_chat_mode == 0:
-                            sqlWorker.whitelist(self.reply_user_id, add=True)
-                        sqlWorker.abuse_update(self.reply_user_id, force=True, timer=3600)
-                        bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
-                        return True
-                except telebot.apihelper.ApiTelegramException:
-                    sqlWorker.remove_ally(i[0])
-        return None
+        if allies is None:
+            return None
+        for ally_id in allies:
+            try:
+                usr_status = bot.get_chat_member(ally_id[0], self.reply_user_id).status
+                if usr_status not in ["left", "kicked"]:
+                    if sqlWorker.params("marmalade", default_return=True):
+                        entry_time = sqlWorker.marmalade_get(self.reply_user_id)
+                        if entry_time and entry_time + data.marmalade_timer > int(time.time()):
+                            if data.binary_chat_mode == 0 and not sqlWorker.whitelist(self.reply_user_id):
+                                self.vote_mode()
+                                return True
+                            else:
+                                return False
+                        else:
+                            sqlWorker.marmalade_remove(self.reply_user_id)
+                    if data.binary_chat_mode == 0:
+                        sqlWorker.whitelist(self.reply_user_id, add=True)
+                    sqlWorker.abuse_update(self.reply_user_id, force=True, timer=3600)
+                    bot.reply_to(self.message, utils.welcome_msg_get(self.reply_username, self.message))
+                    return True
+            except telebot.apihelper.ApiTelegramException:
+                sqlWorker.remove_ally(ally_id[0])
+        return False
 
     def whitelist_mode(self):
         until_date = int(time.time()) + 86400
@@ -1761,8 +1788,21 @@ class AlliesList(PreVote):
                     invite_link = "отсутствует (недостаточно прав для выдачи?)"
                 else:
                     invite_link = f"- {invite_link}"
-                bot.reply_to(self.message, "Данный чат является союзным чатом для " +
-                             f"{bot.get_chat(data.main_chat_id).title}.\nСсылка для вступления {invite_link}")
+                marmalade_warning = ''
+                if sqlWorker.params("marmalade", default_return=True):
+                    entry_time = sqlWorker.marmalade_get(self.message.from_user.id)
+                    if data.binary_chat_mode == 0 and sqlWorker.whitelist(self.message.from_user.id):
+                        pass
+                    elif entry_time and entry_time + data.marmalade_timer > int(time.time()):
+                        marmalade_warning = (
+                            "\n<b>Внимание! Так как вы вошли в союзный чат меньше 18 часов назад и включён механизм "
+                            "защиты чата Marmalade, вам придётся пройти стандартную процедуру вступления в чат или "
+                            f"подождать {utils.formatted_timer(entry_time + data.marmalade_timer - int(time.time()))}"
+                            f"</b>"
+                        )
+                bot.reply_to(self.message, f"Данный чат является союзным чатом для "
+                                           f"{utils.html_fix(bot.get_chat(data.main_chat_id).title)}.\n"
+                                           f"Ссылка для вступления {invite_link}{marmalade_warning}", parse_mode="html")
             return
 
         if utils.command_forbidden(self.message, text="Данную команду без аргументов можно "
@@ -2075,6 +2115,57 @@ class Shield(PreVote):
         self.vote_text = (f"Тема голосования: {vote_type} режима защиты чата от атак{timer_text}\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.poll_maker(vote_args=[timer, utils.username_parser(self.message, True)])
+
+
+class Marmalade(PreVote):
+    vote_type = "marmalade"
+    unique_id = vote_type
+    help_text = ("Marmalade - механизм защиты чата от проникновения новых пользователей через союзные чаты.\n"
+                 "Когда кто-то заходит в союзный чат, бот запоминает его, если данного человека нет в основном чате. "
+                 "Если данный человек попробует зайти в основной чат раньше, чем через 18 часов после этого, ему "
+                 "потребуется пройти стандартную процедуру голосования для вступления (внутри чата) или капчу, в "
+                 "зависимости от настроек приватности чата. Если прошло более 18 часов или бот не зафиксировал "
+                 "вступление в союзный чат, то человек может войти без каких-либо проверок. Запись в БД актуальна в "
+                 "течении недели. Если по истечении этого времени человек перезашёл в союзный чат, то запись "
+                 "обновляется. Вы можете включить и выключить Marmalade с помощью голосования, однако настоятельно "
+                 "рекомендуется оставить его включённым (по умолчанию).\n")
+
+    def pre_return(self) -> Optional[bool]:
+        if utils.command_forbidden(self.message):
+            return True
+        return None
+
+    def help(self):
+        marmalade = sqlWorker.params("marmalade", default_return=True)
+        marmalade_text = "включена" if marmalade else "отключена"
+        status = f"<b>Текущий статус защиты</b>: {marmalade_text}."
+        bot.reply_to(self.message, self.help_text + status, parse_mode="html")
+
+    def direct_fn(self):
+        self.help()
+
+    def set_args(self) -> dict:
+        return {"enable": self.enable, "disable": self.disable}
+
+    def enable(self):
+        if sqlWorker.params("marmalade", default_return=True):
+            bot.reply_to(self.message, "Защита чата Marmalade уже включена!")
+            return
+        self.create_vote(True)
+
+    def disable(self):
+        if not sqlWorker.params("marmalade", default_return=True):
+            bot.reply_to(self.message, "Защита чата Marmalade уже отключена!")
+            return
+        self.create_vote(False)
+
+    def create_vote(self, marmalade_bool):
+        if self.is_voting_exist():
+            return
+        marmalade_text = "включение" if marmalade_bool else "отключение"
+        self.vote_text = (f"Тема голосования: {marmalade_text} механизма защиты чата Marmalade\n"
+                          f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
+        self.poll_maker(vote_args=[marmalade_bool, utils.username_parser(self.message, True)])
 
 
 class CustomPoll(PreVote):

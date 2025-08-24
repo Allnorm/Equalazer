@@ -54,10 +54,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.14"  # Current bot version
+    VERSION = "2.15"  # Current bot version
     CODENAME = "Herbarium"
-    MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "24.08.2025"  # Bot build date
+    MIN_VERSION = "2.14"  # The minimum version from which you can upgrade to this one without breaking the bot
+    BUILD_DATE = "25.08.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for Easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -70,6 +70,11 @@ class ConfigData:
     vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
     vote_privacy = 'private'  # Can have values "public", "private" and "hidden", see /votes help for details
+    marmalade = True # Enable or disable chat protection mechanism Marmalade
+    marmalade_timer = 64800 # The time during which the user will not be able to enter the main chat from the allied
+    # one without passing the verification
+    marmalade_reset_timer = 604800 # Time after which the entry in the database for the Marmalade protection mechanism
+    # becomes irrelevant and requires updating
     wait_timer = 30  # Cooldown before being able to change or cancel voice
     kill_mode = 2  # Mode 0 - the /kill command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
@@ -102,7 +107,8 @@ class ConfigData:
                 "rate": rate,  # It seems that this parameter is not used anywhere?
                 "public_mode": binary_chat_mode,
                 "allowed_admins": __ADMIN_RECOMMENDED,
-                "vote_privacy": vote_privacy}
+                "vote_privacy": vote_privacy,
+                "marmalade": marmalade}
     __plugins = []
 
     def __init__(self):
@@ -202,22 +208,8 @@ class ConfigData:
         self.global_timer = sqlWorker.params("timer")
         self.global_timer_ban = sqlWorker.params("timer_ban")
         self.vote_privacy = sqlWorker.params("vote_privacy")
-        # Start of backwards compatible code
-        if isinstance(self.vote_privacy, bool):
-            if self.vote_privacy:
-                self.vote_privacy = "private"
-            else:
-                self.vote_privacy = "public"
-            sqlWorker.params("vote_privacy", self.vote_privacy)
-
         if not self.admin_fixed:
-            admin_allowed = sqlWorker.params("allowed_admins")
-            if not isinstance(admin_allowed, dict):
-                sqlWorker.params("allowed_admins", rewrite_value=self.__ADMIN_RECOMMENDED)
-            else:
-                admin_allowed.pop("can_manage_chat", None)
-                self.admin_allowed = admin_allowed
-        # End of backwards compatible code
+            self.admin_allowed = sqlWorker.params("allowed_admins")
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sqlWorker.params("public_mode")
 

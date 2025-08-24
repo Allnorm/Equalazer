@@ -151,6 +151,9 @@ class Captcha(PostVote):
         try:
             bot.restrict_chat_member(self.message_vote.chat.id, self.data_list[1],
                                      None, True, True, True, True, True, True, True, True)
+            if data.binary_chat_mode == 0: # For Marmalade
+                sqlWorker.whitelist(self.data_list[1], add=True)
+            sqlWorker.marmalade_remove(self.data_list[1])
         except telebot.apihelper.ApiTelegramException as e:
             bot.edit_message_text(f"Я не смог снять ограничения с {self.data_list[2]} {self.data_list[0]}! "
                                   f"Недостаточно прав?", self.message_vote.chat.id, self.message_vote.message_id)
@@ -750,6 +753,22 @@ class VotePrivacy(PostVote):
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 
+class Marmalade(PostVote):
+    _description = "изменение режима работы механизма защиты чата Marmalade"
+    _vote_privacy_text = {'private': 'приватный', 'public': 'публичный', 'hidden': 'скрытый'}
+
+    def accept(self):
+        sqlWorker.params("marmalade", rewrite_value=self.data_list[0])
+        marmalade_text = 'включил' if self.data_list[0] else 'отключил'
+        bot.edit_message_text(f'Пользователь {self.data_list[1]} {marmalade_text} механизм защиты чата Marmalade.'
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+    def decline(self):
+        marmalade_text = 'включить' if self.data_list[0] else 'отключить'
+        bot.edit_message_text(f'Предложение {marmalade_text} механизм защиты чата Marmalade отклонено.'
+                              + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
+
+
 class CustomPoll(PostVote):
     _description = "пользовательский опрос"
 
@@ -835,6 +854,7 @@ def post_vote_list_init():
         "remove rules": RemoveRules(),
         "custom poll": CustomPoll(),
         "shield": Shield(),
+        "marmalade": Marmalade(),
         "vote_privacy": VotePrivacy(),
         "global op setup": GlobalOpSetup(),
         "op setup": OpSetup(),
