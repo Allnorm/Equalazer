@@ -182,6 +182,13 @@
           "aliases": null,
           "args": ["enable|disable|force", "таймер"],
           "short_desc": ["включить и отключить режим защиты чата, посмотреть его статус."]
+        },
+        {
+          "name": "marmalade",
+          "mark": null,
+          "aliases": null,
+          "args": ["enable|disable", "таймер"],
+          "short_desc": ["включить и отключить механизм защиты чата Marmalade, посмотреть его статус."]
         }
       ]
     },
