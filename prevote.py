@@ -199,7 +199,7 @@ class Mute(PreVote):
 
     def pre_return(self) -> Optional[bool]:
 
-        if not utils.botname_checker(self.message) or utils.command_forbidden(self.message):
+        if not utils.bot_name_checker(self.message) or utils.command_forbidden(self.message):
             return True
 
         if utils.topic_reply_fix(self.message.reply_to_message) is None:
@@ -1062,11 +1062,12 @@ class Op(PreVote):
         self.user_id = self.data_list[1]
         buttons_scheme = self.get_buttons_scheme()
         self.vote_text = self.op_vote_text()
+        self.hidden = bool(poll[0][8])
         bot.edit_message_text(self.get_votes_text(), message.chat.id, message.id,
-                              reply_markup=utils.make_keyboard(buttons_scheme), parse_mode='html')
+                              reply_markup=utils.make_keyboard(buttons_scheme, self.hidden), parse_mode='html')
         sqlWorker.add_poll(self.unique_id(), message.id, self.vote_type, message.chat.id,
                            json.dumps(buttons_scheme), int(time.time()) + self.current_timer,
-                           json.dumps(self.vote_args()), self.current_votes)
+                           json.dumps(self.vote_args()), self.current_votes, self.hidden)
         utils.poll_saver(self.unique_id(), message)
         try:
             bot.pin_chat_message(message.chat.id, message.id, disable_notification=True)
@@ -1488,10 +1489,10 @@ class NewUserChecker(PreVote):
         if sum(self.abuse_time) > int(time.time()):
             try:
                 bot.ban_chat_member(data.main_chat_id, self.reply_user_id, until_date=sum(self.abuse_time))
-                bot.reply_to(self.message, f"\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от "
-                                           "абуза инвайта! Повторная попытка возможна через "
-                                           f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}",
-                             parse_mode="html")
+                bot.reply_to(self.message,
+                             "\u26a0\ufe0f <b>НЕ ХЛОПАТЬ ДВЕРЬЮ!</b> \u26a0\ufe0f\nСработала защита от абуза инвайта! "
+                             "Повторная попытка возможна через "
+                             f"{utils.formatted_timer(sum(self.abuse_time) - int(time.time()))}", parse_mode="html")
             except telebot.apihelper.ApiTelegramException as e:
                 logging.error(f'Error blocking a new participant!\n{e}')
                 bot.reply_to(self.message, "Ошибка блокировки вошедшего в режиме защиты пользователя!"
@@ -1905,23 +1906,35 @@ class Rules(PreVote):
 
 class Votes(PreVote):
     help_text = ("Используйте эту команду без аргументов, чтобы посмотреть список текущих голосований в данном чате.\n"
-                 'Используйте аргумент "private" или "public" для переключения режимов на публичный и приватный '
-                 'соответственно. (В публичном режиме любой участник может получить информацию о том, как голосуют '
-                 'другие люди, в приватном данная информация скрыта и можно узнать только свой голос).\nВы можете '
-                 'использовать ключ --private или --public (обязательно вторым словом) в отправляемой боту команде, '
-                 'чтобы перезаписать глобальные настройки приватности для любого создаваемого вами голосования. '
-                 'Например, команда <code>/title --public Тестовый чат</code> создаст публичный опрос, даже если в '
-                 'чате глобально включен режим приватности голосований.\n'
+                 'Используйте аргумент "public", "private" или "hidden" для переключения режимов приватности '
+                 'голосования.\nВсего существуют три режима:\n'
+                 '1. Публичный (public) - всем участникам видно, кто и за какой вариант проголосовал (с помощью кнопки '
+                 '"Список голосов"), а так же отображается счётчик голосов, оставленных за каждый из вариантов.\n'
+                 '2. Приватный (private) - участникам виден только счётчик голосов для каждого варианта, но они могут '
+                 'узнать, за какой вариант оставили голос, с помощью кнопки "Узнать мой голос".\n'
+                 '3. Скрытый (hidden) - счётчик голосов для каждого варианта скрыт, но узнать свой голос с помощью '
+                 'кнопки участники по прежнему могут. Используется для классического тайного голосования.\n\n'
+                 '<b>В режимах "приватный" и "скрытый" ID проголосовавшего участника хэшируется в БД с использованием '
+                 'значения <i>chat_instance</i>, уникального для каждого чата и экземпляра бота. Узнать данное '
+                 'значение владелец бота может только при вмешательстве в работу экземпляра бота или установке плагина '
+                 'с функцией просмотра chat_instance. В случае компрометации данного значения для восстановления '
+                 'анонимности голосований настоятельно рекомендуется пересоздать бота для получения нового '
+                 'chat_instance.\nТем не менее, в связи с техническими ограничениями владелец бота в любом случае '
+                 'может посмотреть в БД <i>количество</i> голосов, отданных за определённый вариант .</b>\n\n'
+                 'Вы можете использовать ключ --private, --public или --hidden (обязательно вторым словом) в '
+                 'отправляемой боту команде, чтобы перезаписать глобальные настройки приватности для любого '
+                 'создаваемого вами голосования. Например, команда <code>/title --public Тестовый чат</code> создаст '
+                 'публичный опрос, даже если в чате глобально включен режим приватности голосований.\n'
                  '<b>Текущий статус приватности голосований</b>: {}')
 
     def pre_return(self) -> Optional[bool]:
-        if not utils.botname_checker(self.message) or utils.command_forbidden(self.message, private_dialog=True):
+        if not utils.bot_name_checker(self.message) or utils.command_forbidden(self.message, private_dialog=True):
             return True
         return None
 
     def help(self):
-        status = "приватные" if data.vote_privacy else "публичные"
-        bot.reply_to(self.message, self.help_text.format(status), parse_mode="html")
+        status = {"public": "публичные", "private": "приватные", "hidden": "скрытые"}
+        bot.reply_to(self.message, self.help_text.format(status[data.vote_privacy]), parse_mode="html")
 
     def direct_fn(self):
         records = sqlWorker.get_all_polls()
@@ -1953,28 +1966,37 @@ class Votes(PreVote):
         bot.reply_to(self.message, poll_list)
 
     def set_args(self) -> dict:
-        return {"private": self.vote_privacy_enable, "public": self.vote_privacy_disable}
+        return {"private": self.vote_privacy_private,
+                "public": self.vote_privacy_public,
+                "hidden": self.vote_privacy_hidden}
 
-    def vote_privacy_enable(self):
-        if data.vote_privacy:
+    def vote_privacy_private(self):
+        if data.vote_privacy == 'private':
             bot.reply_to(self.message, "Голосования уже являются приватными!")
             return
-        self.vote_privacy(True)
+        self.vote_privacy('private')
 
-    def vote_privacy_disable(self):
-        if not data.vote_privacy:
+    def vote_privacy_public(self):
+        if data.vote_privacy == 'public':
             bot.reply_to(self.message, "Голосования уже являются публичными!")
             return
-        self.vote_privacy(False)
+        self.vote_privacy('public')
+
+    def vote_privacy_hidden(self):
+        if data.vote_privacy == 'hidden':
+            bot.reply_to(self.message, "Голосования уже являются скрытыми!")
+            return
+        self.vote_privacy('hidden')
 
     def vote_privacy(self, vote_privacy_mode):
         if self.is_voting_exist():
             return
         self.vote_type = "vote_privacy"
         self.unique_id = self.vote_type
-        vote_privacy_text = "включение" if vote_privacy_mode else "отключение"
-        self.vote_text = (f"Тема голосования: {vote_privacy_text} приватности голосований.\n"
-                          f"<b>Данная настройка влияет только на новые опросы!</b>\n"
+        vote_privacy_text = {'private': 'приватный', 'public': 'публичный', 'hidden': 'скрытый'}
+        self.vote_text = (f"Тема голосования: глобальное переключение голосований в "
+                          f"{vote_privacy_text[vote_privacy_mode]} режим.\n"
+                          f"<b>Режим приватности уже запущенных голосований не будет переключен.</b>\n"
                           f"Инициатор голосования: {utils.username_parser(self.message, True)}.")
         self.vote_args = [vote_privacy_mode, utils.username_parser(self.message)]
         self.poll_maker()
@@ -2153,12 +2175,12 @@ class CustomPoll(PreVote):
         else:
             button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in self.options_list]
             button_scheme.append({"button_type": "row_width", "row_width": 1})  # Меня вынудили.
-        if self.privacy:
-            button_scheme.append({"button_type": "my_vote",
-                                  "name": "Узнать мой голос"})
-        else:
+        if self.privacy == 'public':
             button_scheme.append({"button_type": "user_votes",
                                   "name": "Список голосов"})
+        else:
+            button_scheme.append({"button_type": "my_vote",
+                                  "name": "Узнать мой голос"})
         if self.user_id != data.ANONYMOUS_ID:
             button_scheme.append({"button_type": "close", "name": "Закрыть опрос", "user_id": self.user_id})
         return button_scheme

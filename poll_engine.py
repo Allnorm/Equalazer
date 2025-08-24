@@ -112,27 +112,28 @@ class PreVote:
     msg_txt = ""
 
     def __init__(self, message):
-        if not utils.botname_checker(message):
+        if not utils.bot_name_checker(message):
             return
         self.message = message
         self.user_id = message.from_user.id
         self.msg_txt = message.text
         self.privacy = data.vote_privacy
-        if utils.extract_arg(self.msg_txt, 1) == "help":
+        first_arg = utils.extract_arg(self.msg_txt, 1)
+        if first_arg == "help":
             self.help()
             return
-        elif utils.extract_arg(self.msg_txt, 1) in ("--private", "--public"):
-            self.privacy = True if utils.extract_arg(self.msg_txt, 1) == "--private" else False
-            self.msg_txt = self.msg_txt.replace(f"{ utils.extract_arg(self.msg_txt, 1)}", "", 1)
+        elif first_arg in ("--private", "--public", "--hidden"):
+            self.privacy = first_arg[2::]
+            self.msg_txt = self.msg_txt.replace(f" {first_arg}", "", 1)
+            first_arg = utils.extract_arg(self.msg_txt, 1)
         self.current_timer, self.current_votes = self.timer_votes_init()
         if self.pre_return():
             return
         self.args = self.set_args()
-        arg = utils.extract_arg(self.msg_txt, 1)
-        if arg is None:
+        if first_arg is None:
             self.direct_fn()
         else:
-            self.arg_fn(arg)
+            self.arg_fn(first_arg)
 
     def set_args(self) -> dict:
         """return dictionary of class functions"""
@@ -209,11 +210,11 @@ class PreVote:
     def __poll_constructor(self):
         vote_text = self.get_votes_text()
         buttons_scheme = self.get_buttons_scheme()
-        message_vote = utils.vote_make(vote_text, self.message, buttons_scheme,
-                                       self.add_user, self.direct)
+        hidden = True if self.privacy == "hidden" else False
+        message_vote = utils.vote_make(vote_text, self.message, buttons_scheme, self.add_user, self.direct, hidden)
         sqlWorker.add_poll(self.unique_id, message_vote.id, self.vote_type, self.message.chat.id,
                            json.dumps(buttons_scheme), int(time.time()) + self.current_timer,
-                           json.dumps(self.vote_args), self.current_votes)
+                           json.dumps(self.vote_args), self.current_votes, hidden)
         utils.poll_saver(self.unique_id, message_vote)
         if not self.silent:
             threading.Thread(target=utils.make_mailing, daemon=True,
@@ -228,12 +229,12 @@ class PreVote:
 
     def get_buttons_scheme(self):
         button_scheme = [{"button_type": f"vote!_{i}", "name": i, "user_list": []} for i in ("Да", "Нет")]
-        if self.privacy:
-            button_scheme.append({"button_type": "my_vote",
-                                  "name": "Узнать мой голос"})
-        else:
+        if self.privacy == 'public':
             button_scheme.append({"button_type": "user_votes",
                                   "name": "Список голосов"})
+        else:
+            button_scheme.append({"button_type": "my_vote",
+                                  "name": "Узнать мой голос"})
         if not (data.bot_id == self.user_id or self.user_id == data.ANONYMOUS_ID):
             button_scheme.append({"button_type": "cancel",
                                   "name": "Отмена голосования",

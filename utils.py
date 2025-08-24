@@ -54,12 +54,12 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.13.1"  # Current bot version
-    CODENAME = "Primrose"
+    VERSION = "2.14"  # Current bot version
+    CODENAME = "Herbarium"
     MIN_VERSION = "2.10"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "18.08.2025"  # Bot build date
+    BUILD_DATE = "24.08.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
-    EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for easter eggs
+    EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for Easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
     global_timer_ban = 300  # Value in seconds of duration of ban-votes
     __votes_need = 0  # Required number of votes for early voting closure
@@ -69,7 +69,7 @@ class ConfigData:
     debug = False  # Debug mode with special presets and lack of saving parameters in the database
     vote_mode = 3  # Sets the mode in which the voice cannot be canceled and transferred (1),
     # it cannot be canceled, but it can be transferred (2) and it can be canceled and transferred (3)
-    vote_privacy = True  # When switching to False, the voting progress will be public for everyone
+    vote_privacy = 'private'  # Can have values "public", "private" and "hidden", see /votes help for details
     wait_timer = 30  # Cooldown before being able to change or cancel voice
     kill_mode = 2  # Mode 0 - the /kill command is disabled, mode 1 - everyone can use it, mode 2 - only chat admins
     fixed_rules = False  # Outside param/If enabled, the presence and absence of rules is decided by the bot host
@@ -203,11 +203,11 @@ class ConfigData:
         self.global_timer_ban = sqlWorker.params("timer_ban")
         self.vote_privacy = sqlWorker.params("vote_privacy")
         # Start of backwards compatible code
-        if isinstance(self.vote_privacy, str):
-            if self.vote_privacy == "public":
-                self.vote_privacy = False
+        if isinstance(self.vote_privacy, bool):
+            if self.vote_privacy:
+                self.vote_privacy = "private"
             else:
-                self.vote_privacy = True
+                self.vote_privacy = "public"
             sqlWorker.params("vote_privacy", self.vote_privacy)
 
         if not self.admin_fixed:
@@ -648,12 +648,14 @@ def formatted_timer(timer_in_second):
         return str(days) + " дн., " + time.strftime("%Hч., %Mм. и %Sс.", time.gmtime(timer_in_second))
 
 
-def make_keyboard(buttons_scheme):
+def make_keyboard(buttons_scheme, hidden):
     row_width = 2
     formatted_buttons = []
     for button in buttons_scheme:
         if "vote!" in button["button_type"]:
-            text = f'{button["name"]} - {len(button["user_list"])}'
+            text = button["name"]
+            if not hidden:
+                text += f' - {len(button["user_list"])}'
             formatted_buttons.append(types.InlineKeyboardButton(text=text, callback_data=button["button_type"]))
         elif button["button_type"] == "row_width":
             row_width = button["row_width"]  # Феерически убогий костыль, но мне нравится))))
@@ -665,21 +667,21 @@ def make_keyboard(buttons_scheme):
     return keyboard
 
 
-def vote_make(text, message, buttons_scheme, add_user, direct):
+def vote_make(text, message, buttons_scheme, add_user, direct, hidden):
     if add_user:
         vote_message = bot.send_message(data.main_chat_id, text, reply_markup=make_keyboard(
-            buttons_scheme), parse_mode="html", message_thread_id=data.thread_id)
+            buttons_scheme, hidden), parse_mode="html", message_thread_id=data.thread_id)
     elif direct:
         vote_message = bot.send_message(message.chat.id, text, reply_markup=make_keyboard(
-            buttons_scheme), parse_mode="html", message_thread_id=message.message_thread_id)
+            buttons_scheme, hidden), parse_mode="html", message_thread_id=message.message_thread_id)
     else:
         vote_message = bot.reply_to(message, text, reply_markup=make_keyboard(
-            buttons_scheme), parse_mode="html")
+            buttons_scheme, hidden), parse_mode="html")
 
     return vote_message
 
 
-def botname_checker(message, get_chat=False) -> bool:
+def bot_name_checker(message, get_chat=False) -> bool:
     """Crutch to prevent the bot from responding to other bots commands"""
 
     if message.text is None:

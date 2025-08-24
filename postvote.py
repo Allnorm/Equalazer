@@ -734,18 +734,19 @@ class Shield(PostVote):
 
 
 class VotePrivacy(PostVote):
-    _description = "изменение типа приватности голосований"
+    _description = "изменение режима приватности голосований"
+    _vote_privacy_text = {'private': 'приватный', 'public': 'публичный', 'hidden': 'скрытый'}
 
     def accept(self):
         sqlWorker.params("vote_privacy", rewrite_value=self.data_list[0])
         data.vote_privacy = self.data_list[0]
-        vote_type = "включил" if self.data_list[0] else "отключил"
-        bot.edit_message_text(f"Пользователь {self.data_list[1]} {vote_type} приватность голосований."
+        bot.edit_message_text(f'Пользователь {self.data_list[1]} изменил режим приватности голосований на '
+                              f'{self._vote_privacy_text[self.data_list[0]]}.'
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
     def decline(self):
-        vote_type = "включения" if self.data_list[0] else "отключения"
-        bot.edit_message_text(f"Предложение {vote_type} приватности голосований отклонено."
+        bot.edit_message_text(f'Предложение изменить режим приватности голосований на '
+                              f'{self._vote_privacy_text[self.data_list[0]]} отклонено.'
                               + self.votes_counter, self.message_vote.chat.id, self.message_vote.message_id)
 
 

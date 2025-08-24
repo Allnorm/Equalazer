@@ -143,7 +143,7 @@ def custom_poll(message):
 
 @bot.message_handler(commands=['answer'])
 def add_answer(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.bot_name_checker(message) or utils.command_forbidden(message):
         return
 
     if utils.topic_reply_fix(message.reply_to_message) is None:
@@ -177,7 +177,7 @@ def add_answer(message):
 
 @bot.message_handler(commands=['mail'])
 def mail(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     if message.from_user.id == data.ANONYMOUS_ID:
@@ -208,7 +208,7 @@ def mail(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.bot_name_checker(message) or utils.command_forbidden(message):
         return
 
     target_msg = message
@@ -263,7 +263,7 @@ def status(message):
 
 @bot.message_handler(commands=['random', 'redrum'])
 def random_msg(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     try:
@@ -295,7 +295,7 @@ def random_msg(message):
 
 @bot.message_handler(commands=['pardon'])
 def pardon(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     if message.chat.id == data.main_chat_id:
@@ -326,7 +326,7 @@ def get_id(message):
         bot.reply_to(message, f"ID чата {message.chat.id}.\nID темы {message.message_thread_id}")
         return
 
-    if not utils.botname_checker(message, get_chat=True):
+    if not utils.bot_name_checker(message, get_chat=True):
         return
 
     if message.chat.id == message.from_user.id:
@@ -338,7 +338,7 @@ def get_id(message):
 
 @bot.message_handler(commands=['help'])
 def help_msg(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     if message.from_user.id == message.chat.id:
@@ -369,7 +369,7 @@ def help_msg(message):
 
 @bot.message_handler(commands=['kill'])
 def mute_user(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.bot_name_checker(message) or utils.command_forbidden(message):
         return
 
     if data.kill_mode == 0:
@@ -480,7 +480,7 @@ def mute_user(message):
 
 @bot.message_handler(commands=['revoke'])
 def revoke(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
@@ -499,7 +499,7 @@ def revoke(message):
 
 @bot.message_handler(commands=['cremate'])
 def cremate(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.bot_name_checker(message) or utils.command_forbidden(message):
         return
 
     if message.reply_to_message is not None:
@@ -565,7 +565,7 @@ def calc_(calc_text, to_send):
 
 @bot.message_handler(commands=['calc'])
 def calc(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     is_allies = False if sqlWorker.get_ally(message.chat.id) is None else True
@@ -645,7 +645,7 @@ def start(message):
 
 @bot.message_handler(commands=['version'])
 def version(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     bot.reply_to(message, f'Equalazer, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
@@ -654,7 +654,7 @@ def version(message):
 
 @bot.message_handler(commands=['plugins'])
 def revoke(message):
-    if not utils.botname_checker(message) or utils.command_forbidden(message):
+    if not utils.bot_name_checker(message) or utils.command_forbidden(message):
         return
 
     plugin_list = "Никакие плагины сейчас не загружены."
@@ -665,7 +665,7 @@ def revoke(message):
 
 @bot.message_handler(commands=['niko'])
 def niko(message):
-    if not utils.botname_checker(message):
+    if not utils.bot_name_checker(message):
         return
 
     try:
@@ -855,8 +855,7 @@ def user_votes(call_msg):
         try:
             bot.send_message(call_msg.from_user.id, answer_text)
             answer_text = "Cписок голосующих слишком длинный для вывода всплывающим окном. Отправил вам сообщение в л/с"
-        except telebot.apihelper.ApiTelegramException as e:
-            print(e)
+        except telebot.apihelper.ApiTelegramException:
             answer_text = ("Я не смог отправить сообщение вам в л/с и список голосующих слишком длинный для вывода "
                            "всплывающим окном. Недостаточно прав или нет личного диалога?")
         bot.answer_callback_query(callback_query_id=call_msg.id, text=answer_text, show_alert=True)
@@ -924,7 +923,7 @@ def op_button(call_msg):
 
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
     bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
-                                  reply_markup=utils.make_keyboard(button_data))
+                                  reply_markup=utils.make_keyboard(button_data, False))
 
 
 @bot.callback_query_handler(func=lambda call: "vote!" in call.data)
@@ -1012,6 +1011,15 @@ def vote_button(call_msg):
     # Making changes to the database
     sqlWorker.update_poll_votes(poll[0][0], json.dumps(button_data))
 
+    hidden = bool(poll[0][8])
+    if hidden:
+        if last_choice == current_choice:
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text=f'Вы сняли голос с варианта "{current_choice}"')
+        else:
+            bot.answer_callback_query(callback_query_id=call_msg.id,
+                                      text=f'Вы проголосовали за вариант "{current_choice}"')
+
     # Checking that there are enough votes to close the vote
     voting_completed = False
     poll_sum = 0
@@ -1032,8 +1040,9 @@ def vote_button(call_msg):
         return
 
     # Making changes to the message
-    bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
-                                  reply_markup=utils.make_keyboard(button_data))
+    if not hidden:
+        bot.edit_message_reply_markup(call_msg.message.chat.id, message_id=call_msg.message.id,
+                                      reply_markup=utils.make_keyboard(button_data, False))
     pool_engine.vote_abuse.update({str(call_msg.message.id) + "." + str(call_msg.from_user.id): int(time.time())})
 
 

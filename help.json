@@ -218,8 +218,8 @@
           "name": "votes",
           "mark": null,
           "aliases": null,
-          "args": ["private|public"],
-          "short_desc": ["посмотреть активные голосования, отключить и включить приватность голосований."]
+          "args": ["public|private|hidden"],
+          "short_desc": ["посмотреть активные голосования, изменить тип приватности голосований."]
         },
         {
           "name": "poll",

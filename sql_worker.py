@@ -37,7 +37,8 @@ class SqlWorker:
                                     buttons TEXT,
                                     timer INTEGER,
                                     data TEXT NOT NULL,
-                                    votes_need INTEGER);""")
+                                    votes_need INTEGER,
+                                    hidden INTEGER);""")
         cursor.execute("""CREATE TABLE if not exists abuse (
                                     user_id INTEGER PRIMARY KEY,
                                     start_time INTEGER,
@@ -66,6 +67,13 @@ class SqlWorker:
         records = cursor.fetchall()
         if not records:
             cursor.execute("""INSERT INTO params VALUES (?)""", (json.dumps(recommended),))
+        # Start of backwards compatible code
+        try:
+            cursor.execute("ALTER TABLE current_polls ADD COLUMN hidden INTEGER")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column name' in str(e):
+                pass
+        # End of backwards compatible code
         sqlite_connection.commit()
         cursor.close()
         sqlite_connection.close()
@@ -148,7 +156,7 @@ class SqlWorker:
 
     def add_poll(self, *args):
         with SQLWrapper(self.dbname) as sql_wrapper:
-            sql_wrapper.cursor.execute("""INSERT INTO current_polls VALUES (?,?,?,?,?,?,?,?);""", args)
+            sql_wrapper.cursor.execute("""INSERT INTO current_polls VALUES (?,?,?,?,?,?,?,?,?);""", args)
 
     def get_poll(self, message_id):
         with SQLWrapper(self.dbname) as sql_wrapper:
