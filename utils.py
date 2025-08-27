@@ -54,10 +54,10 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.15"  # Current bot version
+    VERSION = "2.15.1"  # Current bot version
     CODENAME = "Herbarium"
     MIN_VERSION = "2.14"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "25.08.2025"  # Bot build date
+    BUILD_DATE = "27.08.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for Easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -208,8 +208,18 @@ class ConfigData:
         self.global_timer = sqlWorker.params("timer")
         self.global_timer_ban = sqlWorker.params("timer_ban")
         self.vote_privacy = sqlWorker.params("vote_privacy")
+        # Start of backwards compatible code
         if not self.admin_fixed:
-            self.admin_allowed = sqlWorker.params("allowed_admins")
+            admin_allowed = sqlWorker.params("allowed_admins")
+            if not isinstance(admin_allowed, dict):
+                sqlWorker.params("allowed_admins", rewrite_value=self.__ADMIN_RECOMMENDED)
+            elif admin_allowed.get("can_manage_chat"):
+                admin_allowed.pop("can_manage_chat")
+                sqlWorker.params("allowed_admins", rewrite_value=admin_allowed)
+                self.admin_allowed = admin_allowed
+            else:
+                self.admin_allowed = admin_allowed
+        # End of backwards compatible code
         if self.chat_mode == "mixed":
             self.binary_chat_mode = sqlWorker.params("public_mode")
 
