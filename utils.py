@@ -54,7 +54,7 @@ class ConfigData:
     # Do not edit this section to change the parameters of the bot!
     # Equalazer is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.15.1"  # Current bot version
+    VERSION = "2.15.2"  # Current bot version
     CODENAME = "Herbarium"
     MIN_VERSION = "2.14"  # The minimum version from which you can upgrade to this one without breaking the bot
     BUILD_DATE = "27.08.2025"  # Bot build date
@@ -154,7 +154,9 @@ class ConfigData:
                 if self.admin_fixed:
                     admin_allowed = {}
                     for name in self.__ADMIN_RECOMMENDED.keys():
-                        admin_allowed.update({name: self.bool_init(config["Admin-rules"][name.replace("_", "-")])})
+                        admin_allowed.update({
+                            name: self.bool_init(config["Admin-rules"][name.replace("_", "-")])
+                        })
                     self.admin_allowed = admin_allowed
                 break
             except Exception as e:
@@ -340,7 +342,7 @@ class ConfigData:
         while token == "":
             token = input("Please, write your bot token: ")
         while chat_id == "":
-            chat_id = input("Please, write your main chat ID: ")
+            chat_id = input('Please enter ID of your chat or "init" to enter initialization mode: ')
         config = configparser.ConfigParser()
         config.add_section("Chat")
         config.set("Chat", "token", token)
@@ -705,9 +707,9 @@ def bot_name_checker(message, get_chat=False) -> bool:
 
 def poll_saver(unique_id, message_vote):
     try:
-        poll = open(data.path + unique_id, 'wb')
-        pickle.dump(message_vote, poll, protocol=4)
-        poll.close()
+        with open(data.path + unique_id, 'wb') as poll:
+            pickle.dump(message_vote, poll, protocol=4)
+            poll.close()
     except (IOError, pickle.PicklingError):
         logging.error("Failed to picking a poll! You will not be able to resume the timer after restarting the bot!")
         logging.error(traceback.format_exc())
@@ -837,9 +839,10 @@ def make_mailing(vote_type, message_vote_id, current_timer):
             logging.warning(f"The user with ID {subscriber} is no longer a member of "
                             f"the chat and has been excluded from mailing list.")
         try:
-            bot.send_message(subscriber, f"<b>Было запущено новое голосование!</b>\n\nТип голосования: {vote_type}, "
-                                         f"длительность: {formatted_timer(current_timer)}\n"
-                                         f"Ссылка на голосование: https://t.me/{format_chat_id}/{message_vote_id}",
+            bot.send_message(subscriber,
+                             f"<b>Было запущено новое голосование!</b>\n\nТип голосования: {vote_type}, "
+                             f"длительность: {formatted_timer(current_timer)}\n"
+                             f"Ссылка на голосование: https://t.me/{format_chat_id}/{message_vote_id}",
                              parse_mode='html')
         except telebot.apihelper.ApiTelegramException as e:
             logging.error(f"Errors sending mailing to user with ID {subscriber}, "
