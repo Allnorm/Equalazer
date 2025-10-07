@@ -52,12 +52,12 @@ class ConfigData:
                    "can_delete_stories": "Удаление чужих историй"}
 
     # Do not edit this section to change the parameters of the bot!
-    # Equalazer is customizable via config file or chat voting!
+    # TeleBOSS is customizable via config file or chat voting!
     # It is possible to access sqlWorker.params directly for parameters that are stored in the database
-    VERSION = "2.15.2"  # Current bot version
-    CODENAME = "Herbarium"
+    VERSION = "2.16"  # Current bot version
+    CODENAME = "Amber Autumn"
     MIN_VERSION = "2.14"  # The minimum version from which you can upgrade to this one without breaking the bot
-    BUILD_DATE = "27.08.2025"  # Bot build date
+    BUILD_DATE = "07.10.2025"  # Bot build date
     ANONYMOUS_ID = 1087968824  # ID value for anonymous user tg
     EASTER_LINK = "https://goo.su/wLZSEz1"  # Link for Easter eggs
     global_timer = 3600  # Value in seconds of duration of votes
@@ -479,12 +479,12 @@ def init():
              f"Предыдущая версия: {get_version}"
 
     sqlWorker.params("version", rewrite_value=data.VERSION)
-    logging.info(f'###EQUALAZER {data.VERSION} "{data.CODENAME.upper()}" '
+    logging.info(f'###TELEBOSS {data.VERSION} "{data.CODENAME.upper()}" '
                  f'BUILD DATE {data.BUILD_DATE} LAUNCHED SUCCESSFULLY!###')
 
     if data.main_chat_id == -1:
         logging.warning("WARNING! BOT LAUNCHED IN INIT MODE!\n***\n"
-                        "You need to add Equalazer to your chat and use the /getchat command.\n"
+                        "You need to add TeleBOSS to your chat and use the /getchat command.\n"
                         "The bot will automatically write information about the ID of this chat\n"
                         "(and topic, if necessary) to the configuration file.\n"
                         "Restart the bot and work with it as usual.\n***")

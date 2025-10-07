@@ -653,7 +653,7 @@ def version(message):
     if not utils.bot_name_checker(message):
         return
 
-    bot.reply_to(message, f'Equalazer, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
+    bot.reply_to(message, f'TeleBOSS, версия {data.VERSION} "{data.CODENAME}"\nДата сборки: {data.BUILD_DATE}\n'
                           f"Created by Allnorm aka DvadCat")
 
 
@@ -841,17 +841,20 @@ def user_votes(call_msg):
     answer_text = "Список проголосовавших:\n"
     for button in button_data:
         if "vote!" in button["button_type"]:
-            answer_user_list = ""
+            answer_user_list = []
             for user_id in button["user_list"]:
                 try:
                     username = utils.username_parser_chat_member(bot.get_chat_member(call_msg.message.chat.id, user_id),
                                                                  html=False, need_username=False)
                     if username == "":
                         continue
-                    answer_user_list += f"{username}, "
+                    answer_user_list.append(username)
                 except telebot.apihelper.ApiTelegramException:
                     continue
-            answer_user_list = "нет голосов" if answer_user_list == "" else f'{answer_user_list[:-2]}'
+            if answer_user_list:
+                answer_user_list = ", ".join(answer_user_list) + f" (всего {len(answer_user_list)})"
+            else:
+                answer_user_list = "нет голосов"
             button_name = button["name"]
             answer_text += f'"{button_name}" - {answer_user_list}\n'
 

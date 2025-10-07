@@ -310,16 +310,19 @@ class PostVote:
             self.final_hook(True)
 
     def get_voted_usernames(self, user_list):
-        usernames = ""
+        usernames = []
         for user_id in user_list:
             try:
                 username = utils.username_parser_chat_member(
                     bot.get_chat_member(self.message_vote.chat.id, user_id), html=True)
                 if username == "":
                     continue
-                usernames += f"{username}, "
+                usernames.append(username)
             except telebot.apihelper.ApiTelegramException:
                 continue
+        if not usernames:
+            return "нет голосов"
+        return ", ".join(usernames) + f" (всего {len(usernames)})"
         return "нет голосов" if usernames == "" else f'{usernames[:-2]}.'
 
     def post_vote_child(self):
